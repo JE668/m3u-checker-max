@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTV 有效源列表</title>
+    <!-- 使用 Bootstrap 美化界面 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding-top: 2rem; }
+        .table-responsive { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem; }
+        .copy-btn { cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2 class="mb-4 text-center">📺 IPTV 有效直播源列表</h2>
+    
+    <div class="d-flex justify-content-center gap-3 mb-4">
+        <a href="live.m3u" class="btn btn-success" download>⬇️ 下载 M3U</a>
+        <a href="live.txt" class="btn btn-primary" download>⬇️ 下载 TXT</a>
+        <a href="epg.xml" class="btn btn-warning" target="_blank">📺 访问 EPG 节目单</a>
+        <a href="log.txt" class="btn btn-secondary" target="_blank">📄 查看检测日志</a>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th scope="col" width="10%">序号</th>
+                    <th scope="col" width="25%">频道名称</th>
+                    <th scope="col" width="50%">播放链接</th>
+                    <th scope="col" width="15%">操作</th>
+                </tr>
+            </thead>
+            <tbody id="channel-list">
+                <tr><td colspan="4" class="text-center">正在加载数据...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // 异步拉取生成的 live.txt
+    fetch('live.txt')
+        .then(response => response.text())
+        .then(data => {
+            const lines = data.split('\n');
+            let html = '';
+            let index = 1;
+            
+            lines.forEach(line => {
+                if (line.includes(',')) {
+                    const [name, url] = line.split(',');
+                    html += `
+                        <tr>
+                            <td>${index++}</td>
+                            <td class="fw-bold">${name}</td>
+                            <td><a href="${url}" target="_blank" class="text-break text-decoration-none">${url}</a></td>
+                            <td><button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('${url}')">复制链接</button></td>
+                        </tr>
+                    `;
+                }
+            });
+            document.getElementById('channel-list').innerHTML = html || '<tr><td colspan="4" class="text-center">列表为空</td></tr>';
+        })
+        .catch(err => {
+            document.getElementById('channel-list').innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败，请确认 live.txt 是否已生成。</td></tr>';
+        });
+
+    // 复制链接功能
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert('✅ 链接已复制到剪贴板！');
+        }).catch(err => {
+            alert('❌ 复制失败');
+        });
+    }
+</script>
+</body>
+</html>
