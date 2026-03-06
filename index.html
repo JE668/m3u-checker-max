@@ -3,52 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPTV 有效源列表</title>
-    <!-- 使用 Bootstrap 美化界面 -->
+    <title>IPTV Server Max - 直播源自动验证系统</title>
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; padding-top: 2rem; }
-        .table-responsive { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem; }
-        .copy-btn { cursor: pointer; }
+        /* 科技感深色主题 CSS 变量 */
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-blue: #3b82f6;
+            --neon-purple: #8b5cf6;
+            --dark-bg: #090b10;
+            --glass-bg: rgba(15, 23, 42, 0.75);
+            --glass-border: rgba(0, 243, 255, 0.2);
+            --text-main: #e2e8f0;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-main);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-image: 
+                radial-gradient(circle at 50% 0%, #112240 0%, var(--dark-bg) 60%),
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+            min-height: 100vh;
+            padding-top: 3rem;
+            padding-bottom: 3rem;
+        }
+
+        /* 核心毛玻璃面板 */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 243, 255, 0.05);
+            padding: 2.5rem;
+        }
+
+        /* 霓虹发光标题 */
+        h2.title-glow {
+            color: #fff;
+            text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-blue);
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+        }
+
+        /* 按钮全局特效 */
+        .btn-custom {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 8px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+            padding: 0.6rem 1.2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 各种按钮的霓虹配色 */
+        .btn-m3u { background: rgba(0, 243, 255, 0.1); color: var(--neon-cyan); border-color: var(--neon-cyan); }
+        .btn-m3u:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 20px var(--neon-cyan); }
+
+        .btn-txt { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border-color: #3b82f6; }
+        .btn-txt:hover { background: #3b82f6; color: #fff; box-shadow: 0 0 20px #3b82f6; }
+
+        .btn-epg { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border-color: #f59e0b; }
+        .btn-epg:hover { background: #f59e0b; color: #000; box-shadow: 0 0 20px #f59e0b; }
+
+        .btn-gz { background: rgba(239, 68, 68, 0.1); color: #f87171; border-color: #ef4444; }
+        .btn-gz:hover { background: #ef4444; color: #fff; box-shadow: 0 0 20px #ef4444; }
+
+        .btn-log { background: rgba(156, 163, 175, 0.1); color: #9ca3af; border-color: #6b7280; }
+        .btn-log:hover { background: #6b7280; color: #fff; box-shadow: 0 0 20px #6b7280; }
+
+        /* 表格科技感美化 */
+        .table { color: #cbd5e1; margin-bottom: 0; }
+        .table-dark th { background-color: rgba(0, 0, 0, 0.5); border-bottom: 2px solid var(--neon-cyan); color: var(--neon-cyan); font-weight: 600; letter-spacing: 1px; }
+        .table-hover tbody tr { border-bottom: 1px solid rgba(255,255,255,0.05); transition: background-color 0.2s; }
+        .table-hover tbody tr:hover { background-color: rgba(0, 243, 255, 0.08); color: #fff; }
+        
+        /* 标签与链接 */
+        .badge-custom { background: rgba(0, 243, 255, 0.1); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); font-weight: normal; padding: 0.35em 0.65em; }
+        .category-row { background: rgba(59, 130, 246, 0.1) !important; color: #60a5fa !important; text-shadow: 0 0 8px rgba(59, 130, 246, 0.5); letter-spacing: 2px; }
+        
+        a.text-break { color: #94a3b8; transition: all 0.3s; text-decoration: none; }
+        a.text-break:hover { color: var(--neon-cyan); text-shadow: 0 0 8px var(--neon-cyan); }
+
+        .copy-btn { border-color: #60a5fa; color: #60a5fa; background: transparent; padding: 0.25rem 0.75rem; border-radius: 6px; transition: all 0.3s; }
+        .copy-btn:hover { background: #60a5fa; color: #000; box-shadow: 0 0 10px #60a5fa; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2 class="mb-4 text-center">📺 IPTV 有效直播源列表</h2>
-    
-    <div class="d-flex justify-content-center gap-3 mb-4">
-        <a href="live.m3u" class="btn btn-success" download>⬇️ 下载 M3U</a>
-        <a href="live.txt" class="btn btn-primary" download>⬇️ 下载 TXT</a>
-        <a href="epg.xml" class="btn btn-warning" target="_blank">📺 EPG (XML)</a>
-        <a href="epg.xml.gz" class="btn btn-danger" download>🗜️ EPG (GZ)</a>
-        <a href="log.txt" class="btn btn-secondary" target="_blank">📄 查看检测日志</a>
-    </div>
+    <div class="glass-panel">
+        <h2 class="text-center title-glow">📡 IPTV M3U Checker Max</h2>
+        <p class="text-center text-muted mb-4">全网高并发验证 / 极速源排序 / EPG 聚合防伪过滤系统</p>
+        
+        <!-- 下载按钮区 (已全面挂载 CDN 加速) -->
+        <div class="d-flex justify-content-center gap-3 mb-5 flex-wrap">
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/live.m3u" class="btn btn-custom btn-m3u" download>⬇️ 下载 M3U</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/live.txt" class="btn btn-custom btn-txt" download>⬇️ 下载 TXT</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/epg.xml" class="btn btn-custom btn-epg" target="_blank">📺 EPG (XML)</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/epg.xml.gz" class="btn btn-custom btn-gz" download>🗜️ EPG (GZ)</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/log.txt" class="btn btn-custom btn-log" target="_blank">📄 系统日志</a>
+        </div>
 
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead class="table-dark">
-                <tr>
-                    <th scope="col" width="10%">序号</th>
-                    <th scope="col" width="25%">频道名称</th>
-                    <th scope="col" width="50%">播放链接</th>
-                    <th scope="col" width="15%">操作</th>
-                </tr>
-            </thead>
-            <tbody id="channel-list">
-                <tr><td colspan="4" class="text-center">正在加载数据...</td></tr>
-            </tbody>
-        </table>
+        <div class="table-responsive rounded">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th scope="col" width="8%">#</th>
+                        <th scope="col" width="22%">频道名称</th>
+                        <th scope="col" width="55%">真实播放流 (按速度最优排序)</th>
+                        <th scope="col" width="15%" class="text-center">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="channel-list">
+                    <tr><td colspan="4" class="text-center py-4">
+                        <div class="spinner-border text-info" role="status"></div>
+                        <div class="mt-2" style="color: var(--neon-cyan);">系统正在加载核心数据，请稍候...</div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <script>
+    // 渲染网页用的展示数据，直接读取本地 GitHub Pages 缓存的 live.txt
     fetch('live.txt')
         .then(response => response.text())
         .then(data => {
             const lines = data.split('\n');
             let html = '';
             let index = 1;
-            let currentCategory = '默认频道';
+            let currentCategory = '未分类节点';
             
             lines.forEach(line => {
                 line = line.trim();
@@ -58,34 +153,34 @@
                 if (line.includes('#genre#')) {
                     currentCategory = line.split(',')[0];
                     html += `
-                        <tr class="table-secondary">
-                            <td colspan="4" class="text-center fw-bold text-primary">📁 ${currentCategory}</td>
+                        <tr class="category-row">
+                            <td colspan="4" class="text-center fw-bold">📂 ${currentCategory}</td>
                         </tr>
                     `;
                 } else if (line.includes(',')) {
                     // 识别频道行
-                    const [name, url] = line.split(',');
+                    const[name, url] = line.split(',');
                     html += `
                         <tr>
-                            <td>${index++}</td>
-                            <td class="fw-bold"><span class="badge bg-info text-dark me-2">${currentCategory}</span>${name}</td>
-                            <td><a href="${url}" target="_blank" class="text-break text-decoration-none">${url}</a></td>
-                            <td><button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('${url}')">复制</button></td>
+                            <td><span class="text-secondary">${index++}</span></td>
+                            <td class="fw-bold"><span class="badge badge-custom me-2">${currentCategory}</span>${name}</td>
+                            <td><a href="${url}" target="_blank" class="text-break">${url}</a></td>
+                            <td class="text-center"><button class="copy-btn" onclick="copyToClipboard('${url}')">复制源</button></td>
                         </tr>
                     `;
                 }
             });
-            document.getElementById('channel-list').innerHTML = html || '<tr><td colspan="4" class="text-center">列表为空</td></tr>';
+            document.getElementById('channel-list').innerHTML = html || '<tr><td colspan="4" class="text-center">列表数据为空</td></tr>';
         })
         .catch(err => {
-            document.getElementById('channel-list').innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败</td></tr>';
+            document.getElementById('channel-list').innerHTML = '<tr><td colspan="4" class="text-center text-danger">⚠️ 核心数据加载失败，请检查仓库工作流是否执行完毕。</td></tr>';
         });
 
     function copyToClipboard(text) {
         navigator.clipboard.writeText(text).then(() => {
-            alert('✅ 链接已复制！');
+            alert('✅ 播放流链接已成功复制到剪贴板！');
         }).catch(err => {
-            alert('❌ 复制失败');
+            alert('❌ 复制失败，请手动框选复制。');
         });
     }
 </script>
