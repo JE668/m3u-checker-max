@@ -16,7 +16,8 @@ OUTPUT_EPG = "epg.xml"
 OUTPUT_EPG_GZ = "epg.xml.gz"
 LOG_FILE = "log.txt"
 
-M3U_HEADER = '#EXTM3U x-tvg-url="https://raw.githubusercontent.com/JE668/m3u-checker-max/refs/heads/main/epg.xml"\n'
+# 修改为经过 CDN 加速的 gz 格式 EPG 链接
+M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/refs/heads/main/epg.xml.gz"\n'
 
 def live_print(content):
     print(content, flush=True)
@@ -250,8 +251,10 @@ if __name__ == "__main__":
                         ftxt.write(f"\n{cat},#genre#\n")
                         cat_written_in_txt = True
                     
+                    # 🌟 核心排序逻辑：按耗时 elapsed (x[1]) 从小到大排序，即速度最快的在最前面
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
-                    for url, _ in valid_urls:
+                    
+                    for url, elapsed in valid_urls:
                         logo = f"https://gcore.jsdelivr.net/gh/taksssss/tv/icon/{name}.png"
                         fm3u.write(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat}",{name}\n')
                         fm3u.write(f"{url}\n")
@@ -262,8 +265,9 @@ if __name__ == "__main__":
         if other_channels:
             ftxt.write(f"\n📺其他频道,#genre#\n")
             for name in other_channels:
+                # 🌟 未分类频道也同样按速度最快排序
                 valid_urls = sorted(valid_results[name], key=lambda x: x[1])
-                for url, _ in valid_urls:
+                for url, elapsed in valid_urls:
                     logo = f"https://gcore.jsdelivr.net/gh/taksssss/tv/icon/{name}.png"
                     fm3u.write(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="📺其他频道",{name}\n')
                     fm3u.write(f"{url}\n")
