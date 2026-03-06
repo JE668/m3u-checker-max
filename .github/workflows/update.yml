@@ -7,7 +7,6 @@ on:
     - cron: '0 */3 * * *'
   workflow_dispatch:
 
-# 🌟 新增：并发控制，如果连续触发两次，自动取消前一次（或排队），防止冲突
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -22,7 +21,7 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # 获取完整历史以防变基失败
+          fetch-depth: 0
 
       - name: 设置 Python 环境
         uses: actions/setup-python@v4
@@ -39,13 +38,12 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add live.txt live.m3u epg.xml epg.xml.gz log.txt
           
-          # 检查是否有文件变更
+          # 核心输出文件已转移到 output 目录
+          git add output/live.txt output/live.m3u output/epg.xml output/epg.xml.gz output/log.txt
+          
           if ! git diff --staged --quiet; then
             git commit -m "Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
-            
-            # 🌟 新增：在推送到远程之前，先拉取最新代码并变基，完美解决冲突报错
             git pull --rebase origin main
             git push
           else
