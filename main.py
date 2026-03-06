@@ -80,7 +80,7 @@ def load_demo_template():
     return category_order, channel_to_category, channels_in_category
 
 # ===============================
-# 3. 抓取与整合 EPG
+# 3. 抓取与整合 EPG (彻底修复版本)
 # ===============================
 def download_and_merge_epg():
     epg_urls =[]
@@ -97,35 +97,63 @@ def download_and_merge_epg():
     for url in epg_urls:
         try:
             live_print(f"📥 正在获取 EPG: {url}")
-            r = requests.get(url, timeout=20)
-            content = gzip.decompress(r.content) if url.endswith('.gz') or r.headers.get('Content-Encoding') == 'gzip' else r.content
-            root = ET.parse(io.BytesIO(content)).getroot()
-            if root.tag != 'tv': continue
+            # 加入假装浏览器的 Headers 避免被拦截返回 HTML
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"}
+            r = requests.get(url, headers=headers, timeout=20)
             
-            c_count = 0
+            content = r.content
+            if not content:
+                live_print("   -> ❌ 获取失败: 数据为空")
+                continue
+                
+            # 🌟 智能解压核心：通过 gzip 的"魔法头部"(\x1f\x8b)判断是否为真压缩流
+            if content.startswith(b'\x1f\x8b'):
+                try:
+                    content = gzip.decompress(content)
+                except Exception as e:
+                    live_print(f"   -> ❌ Gzip 解压失败: {e}")
+                    continue
+
+            # 开始尝试解析 XML
+            try:
+                root = ET.parse(io.BytesIO(content)).getroot()
+                if root.tag != 'tv': 
+                    live_print("   -> ❌ 内容不是标准 EPG 格式 (未发现 <tv> 标签)")
+                    continue
+            except ET.ParseError as e:
+                # 截取前 30 个字符并打印，方便诊断到底是哪个网页返回了错误
+                preview = content[:30].decode('utf-8', errors='ignore').replace('\n', ' ')
+                live_print(f"   -> ❌ XML 解析失败: {e} (疑似非XML数据，文件头: {preview})")
+                continue
+            
+            # 数据提取
+            c_count, p_count = 0, 0
             for channel in root.findall('channel'):
                 c_id = channel.get('id')
                 if c_id not in seen_channels:
                     seen_channels.add(c_id); merged_tv.append(channel); c_count += 1
-            p_count = 0
             for prog in root.findall('programme'):
                 key = (prog.get('channel'), prog.get('start'), prog.get('stop'))
                 if key not in seen_programmes:
                     seen_programmes.add(key); merged_tv.append(prog); p_count += 1
-            live_print(f"   -> 成功提取: {c_count} 个频道，{p_count} 条节目单")
+            live_print(f"   -> ✅ 成功提取: {c_count} 个频道，{p_count} 条节目单")
         except Exception as e: 
-            live_print(f"   -> ❌ 解析失败: {e}")
+            live_print(f"   -> ❌ 获取异常: {type(e).__name__} ({e})")
 
-    try:
-        tree = ET.ElementTree(merged_tv)
-        with open(OUTPUT_EPG, 'wb') as f:
-            f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
-            tree.write(f, encoding='utf-8', xml_declaration=False)
-        with open(OUTPUT_EPG, 'rb') as f_in, gzip.open(OUTPUT_EPG_GZ, 'wb') as f_out:
-            f_out.writelines(f_in)
-        live_print(f"🎉 EPG 整合完成！共去重整合 {len(seen_channels)} 个频道，{len(seen_programmes)} 条节目。")
-    except Exception as e:
-        live_print(f"❌ EPG 保存失败: {e}")
+    # 保存文件
+    if len(seen_channels) > 0:
+        try:
+            tree = ET.ElementTree(merged_tv)
+            with open(OUTPUT_EPG, 'wb') as f:
+                f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
+                tree.write(f, encoding='utf-8', xml_declaration=False)
+            with open(OUTPUT_EPG, 'rb') as f_in, gzip.open(OUTPUT_EPG_GZ, 'wb') as f_out:
+                f_out.writelines(f_in)
+            live_print(f"🎉 EPG 整合完成！共去重整合 {len(seen_channels)} 个频道，{len(seen_programmes)} 条节目。")
+        except Exception as e:
+            live_print(f"❌ EPG 保存失败: {e}")
+    else:
+        live_print("⚠️ 所有 EPG 获取均失败，本次未生成/更新 EPG 文件。")
     live_print("::endgroup::")
 
 # ===============================
@@ -174,7 +202,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
     return channels
 
 # ===============================
-# 5. 并发测速 (带详细异常捕获)
+# 5. 并发测速
 # ===============================
 def check_channel(main_name, url):
     start_time = time.time()
@@ -213,11 +241,8 @@ if __name__ == "__main__":
         exit(0)
 
     live_print(f"::group::🎬 开始全量测速 (并发量: 100)")
-    valid_results = {}  # { main_name:[(url, elapsed)] }
-    
-    # 详细日志记录数组
-    logs_success = []
-    logs_fail =[]
+    valid_results = {}  
+    logs_success, logs_fail = [],[]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=100) as ex:
         futures =[ex.submit(check_channel, name, url) for name, url in channels]
@@ -227,7 +252,7 @@ if __name__ == "__main__":
                 if name not in valid_results: valid_results[name] = []
                 valid_results[name].append((url, elapsed))
                 msg = f"🟢 [有效] {name:<15} | 耗时 {elapsed}s | {url}"
-                live_print(msg) # 控制台仅打印成功的，避免刷屏
+                live_print(msg)
                 logs_success.append(msg)
             else:
                 msg = f"🔴 [失效] {name:<15} | 耗时 {elapsed}s | {reason:<15} | {url}"
@@ -235,7 +260,7 @@ if __name__ == "__main__":
     live_print("::endgroup::")
 
     # ===============================
-    # 7. 组装输出结构与详细报告
+    # 7. 组装输出与文件写入
     # ===============================
     live_print("::group::💾 正在写入最终文件与详尽日志")
     tvg_id = 1
@@ -251,9 +276,8 @@ if __name__ == "__main__":
                         ftxt.write(f"\n{cat},#genre#\n")
                         cat_written_in_txt = True
                     
-                    # 🌟 核心排序逻辑：按耗时 elapsed (x[1]) 从小到大排序，即速度最快的在最前面
+                    # 按速度最快排序 (耗时短到长)
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
-                    
                     for url, elapsed in valid_urls:
                         logo = f"https://gcore.jsdelivr.net/gh/taksssss/tv/icon/{name}.png"
                         fm3u.write(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat}",{name}\n')
@@ -265,7 +289,6 @@ if __name__ == "__main__":
         if other_channels:
             ftxt.write(f"\n📺其他频道,#genre#\n")
             for name in other_channels:
-                # 🌟 未分类频道也同样按速度最快排序
                 valid_urls = sorted(valid_results[name], key=lambda x: x[1])
                 for url, elapsed in valid_urls:
                     logo = f"https://gcore.jsdelivr.net/gh/taksssss/tv/icon/{name}.png"
@@ -274,7 +297,6 @@ if __name__ == "__main__":
                     ftxt.write(f"{name},{url}\n")
                 tvg_id += 1
 
-    # 写入极其详细的 log.txt 报告
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"=============== 频道检测详细报告 ===============\n")
         f.write(f"任务时间: {datetime.now()}\n")
