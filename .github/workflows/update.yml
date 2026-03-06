@@ -30,7 +30,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          # 加入 epg.xml 进行提交
-          git add live.txt live.m3u epg.xml log.txt
+          # 加入 epg.xml 和 epg.xml.gz
+          git add live.txt live.m3u epg.xml epg.xml.gz log.txt
           git diff --quiet && git diff --staged --quiet || git commit -m "Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
           git push
