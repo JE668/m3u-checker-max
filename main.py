@@ -3,23 +3,22 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 
 # ===============================
-# 1. 核心配置区
+# 1. 核心配置区 (已适配 config 和 output 目录)
 # ===============================
-SOURCES_FILE = "UPSTREAM_SOURCES.txt"
-EPG_FILE = "UPSTREAM_EPG.txt"
-ALIAS_FILE = "alias.txt"
-DEMO_FILE = "demo.txt"
+SOURCES_FILE = "config/sources.txt"
+EPG_FILE = "config/epg.txt"
+ALIAS_FILE = "config/alias.txt"
+DEMO_FILE = "config/demo.txt"
 
-OUTPUT_TXT = "live.txt"
-OUTPUT_M3U = "live.m3u"
-OUTPUT_EPG = "epg.xml"
-OUTPUT_EPG_GZ = "epg.xml.gz"
-LOG_FILE = "log.txt"
+OUTPUT_TXT = "output/live.txt"
+OUTPUT_M3U = "output/live.m3u"
+OUTPUT_EPG = "output/epg.xml"
+OUTPUT_EPG_GZ = "output/epg.xml.gz"
+LOG_FILE = "output/log.txt"
 
-# 修改为经过 CDN 加速的 gz 格式 EPG 链接
-M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/refs/heads/main/epg.xml.gz"\n'
+# CDN 加速的 M3U 头部 (路径已更新为 output/)
+M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
 
-# 🌟 无效 EPG 关键词黑名单（全小写，只要标题包含这些词汇将被无情过滤）
 EPG_BLACKLIST =[
     "未能提供", "暂无节目", "精彩节目", "精彩節目", 
     "没有节目", "未提供节目", "未提供節目", 
@@ -28,6 +27,9 @@ EPG_BLACKLIST =[
 
 def live_print(content):
     print(content, flush=True)
+
+# 初始化输出目录
+os.makedirs("output", exist_ok=True)
 
 # ===============================
 # 2. 核心字典：加载别名与分类
@@ -87,11 +89,11 @@ def load_demo_template():
     return category_order, channel_to_category, channels_in_category
 
 # ===============================
-# 3. 抓取、清理与整合 EPG 
+# 3. 抓取、清理与整合 EPG
 # ===============================
 def download_and_merge_epg():
     epg_urls =[]
-    epg_report =[]  # 🌟 用于收集 EPG 整合日志
+    epg_report =[]
     if os.path.exists(EPG_FILE):
         with open(EPG_FILE, 'r', encoding='utf-8') as f:
             epg_urls =[line.strip() for line in f if line.strip() and not line.startswith('#')]
@@ -104,6 +106,14 @@ def download_and_merge_epg():
     seen_channels, seen_programmes = set(), set()
     
     for url in epg_urls:
+        # 🌟 核心智能纠错：自动将 Gitee/GitHub 网页链接转为直链
+        if "gitee.com" in url and "/blob/" in url:
+            url = url.replace("/blob/", "/raw/")
+            live_print("   -> 🔧 [智能纠错] 已将 Gitee 网页链接转换为 Raw 直链")
+        elif "github.com" in url and "/blob/" in url:
+            url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+            live_print("   -> 🔧[智能纠错] 已将 GitHub 网页链接转换为 Raw 直链")
+            
         epg_report.append(f"▶ 来源: {url}")
         try:
             live_print(f"📥 正在获取 EPG: {url}")
@@ -136,7 +146,6 @@ def download_and_merge_epg():
                 live_print(msg); epg_report.append(msg)
                 continue
             
-            # 数据提取与垃圾清洗
             c_count, p_count, p_discard = 0, 0, 0
             for channel in root.findall('channel'):
                 c_id = channel.get('id')
@@ -144,11 +153,8 @@ def download_and_merge_epg():
                     seen_channels.add(c_id); merged_tv.append(channel); c_count += 1
                     
             for prog in root.findall('programme'):
-                # 🌟 识别是否为垃圾节目占位符
                 title_node = prog.find('title')
                 title_text = title_node.text.lower() if title_node is not None and title_node.text else ""
-                
-                # 如果包含黑名单内的关键词，直接抛弃不记录
                 if any(kw in title_text for kw in EPG_BLACKLIST):
                     p_discard += 1
                     continue
@@ -164,7 +170,6 @@ def download_and_merge_epg():
             msg = f"   -> ❌ 获取异常: {type(e).__name__} ({e})"
             live_print(msg); epg_report.append(msg)
 
-    # 保存合并后的纯净版 EPG
     if len(seen_channels) > 0:
         try:
             tree = ET.ElementTree(merged_tv)
@@ -260,7 +265,6 @@ def check_channel(main_name, url):
 # 6. 主程序
 # ===============================
 if __name__ == "__main__":
-    # 🌟 获取 EPG 报告用于写入日志
     epg_report = download_and_merge_epg()
     
     aliases_exact, aliases_regex = load_aliases()
@@ -307,7 +311,6 @@ if __name__ == "__main__":
                         ftxt.write(f"\n{cat},#genre#\n")
                         cat_written_in_txt = True
                     
-                    # 按速度最快排序 (耗时短到长)
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
                         logo = f"https://gcore.jsdelivr.net/gh/taksssss/tv/icon/{name}.png"
@@ -336,7 +339,6 @@ if __name__ == "__main__":
         f.write(f"过滤失效总数: {len(logs_fail)} 个链接\n")
         f.write(f"================================================\n\n")
         
-        # 🌟 自动将收集到的 EPG 报告完美打印在日志文件中
         if epg_report:
             f.write(f"=============== EPG 整合及清理报告 ===============\n")
             f.write("\n".join(epg_report) + "\n\n")
