@@ -19,6 +19,13 @@ LOG_FILE = "log.txt"
 # 修改为经过 CDN 加速的 gz 格式 EPG 链接
 M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/refs/heads/main/epg.xml.gz"\n'
 
+# 🌟 无效 EPG 关键词黑名单（全小写，只要标题包含这些词汇将被无情过滤）
+EPG_BLACKLIST =[
+    "未能提供", "暂无节目", "精彩节目", "精彩節目", 
+    "没有节目", "未提供节目", "未提供節目", 
+    "no program", "no data", "精彩剧集", "暂未提供"
+]
+
 def live_print(content):
     print(content, flush=True)
 
@@ -80,67 +87,84 @@ def load_demo_template():
     return category_order, channel_to_category, channels_in_category
 
 # ===============================
-# 3. 抓取与整合 EPG (彻底修复版本)
+# 3. 抓取、清理与整合 EPG 
 # ===============================
 def download_and_merge_epg():
     epg_urls =[]
+    epg_report =[]  # 🌟 用于收集 EPG 整合日志
     if os.path.exists(EPG_FILE):
         with open(EPG_FILE, 'r', encoding='utf-8') as f:
             epg_urls =[line.strip() for line in f if line.strip() and not line.startswith('#')]
             
-    if not epg_urls: return
-    live_print("::group::📅 开始下载并整合 EPG 节目单")
+    if not epg_urls: return epg_report
+    
+    live_print("::group::📅 开始下载并整合 EPG 节目单 (附带无效节目清洗)")
     merged_tv = ET.Element("tv")
     merged_tv.set("generator-info-name", "Merged EPG by GitHub Actions")
     seen_channels, seen_programmes = set(), set()
     
     for url in epg_urls:
+        epg_report.append(f"▶ 来源: {url}")
         try:
             live_print(f"📥 正在获取 EPG: {url}")
-            # 加入假装浏览器的 Headers 避免被拦截返回 HTML
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"}
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
             r = requests.get(url, headers=headers, timeout=20)
             
             content = r.content
             if not content:
-                live_print("   -> ❌ 获取失败: 数据为空")
+                msg = "   -> ❌ 获取失败: 数据为空"
+                live_print(msg); epg_report.append(msg)
                 continue
                 
-            # 🌟 智能解压核心：通过 gzip 的"魔法头部"(\x1f\x8b)判断是否为真压缩流
             if content.startswith(b'\x1f\x8b'):
                 try:
                     content = gzip.decompress(content)
                 except Exception as e:
-                    live_print(f"   -> ❌ Gzip 解压失败: {e}")
+                    msg = f"   -> ❌ Gzip 解压失败: {e}"
+                    live_print(msg); epg_report.append(msg)
                     continue
 
-            # 开始尝试解析 XML
             try:
                 root = ET.parse(io.BytesIO(content)).getroot()
                 if root.tag != 'tv': 
-                    live_print("   -> ❌ 内容不是标准 EPG 格式 (未发现 <tv> 标签)")
+                    msg = "   -> ❌ 内容不是标准 EPG 格式 (未发现 <tv> 标签)"
+                    live_print(msg); epg_report.append(msg)
                     continue
             except ET.ParseError as e:
-                # 截取前 30 个字符并打印，方便诊断到底是哪个网页返回了错误
                 preview = content[:30].decode('utf-8', errors='ignore').replace('\n', ' ')
-                live_print(f"   -> ❌ XML 解析失败: {e} (疑似非XML数据，文件头: {preview})")
+                msg = f"   -> ❌ XML 解析失败: {e} (头数据: {preview})"
+                live_print(msg); epg_report.append(msg)
                 continue
             
-            # 数据提取
-            c_count, p_count = 0, 0
+            # 数据提取与垃圾清洗
+            c_count, p_count, p_discard = 0, 0, 0
             for channel in root.findall('channel'):
                 c_id = channel.get('id')
                 if c_id not in seen_channels:
                     seen_channels.add(c_id); merged_tv.append(channel); c_count += 1
+                    
             for prog in root.findall('programme'):
+                # 🌟 识别是否为垃圾节目占位符
+                title_node = prog.find('title')
+                title_text = title_node.text.lower() if title_node is not None and title_node.text else ""
+                
+                # 如果包含黑名单内的关键词，直接抛弃不记录
+                if any(kw in title_text for kw in EPG_BLACKLIST):
+                    p_discard += 1
+                    continue
+                    
                 key = (prog.get('channel'), prog.get('start'), prog.get('stop'))
                 if key not in seen_programmes:
                     seen_programmes.add(key); merged_tv.append(prog); p_count += 1
-            live_print(f"   -> ✅ 成功提取: {c_count} 个频道，{p_count} 条节目单")
+            
+            msg = f"   -> ✅ 提取频道: {c_count} 个 | 有效节目: {p_count} 条 | 🗑️ 拦截垃圾: {p_discard} 条"
+            live_print(msg); epg_report.append(msg)
+            
         except Exception as e: 
-            live_print(f"   -> ❌ 获取异常: {type(e).__name__} ({e})")
+            msg = f"   -> ❌ 获取异常: {type(e).__name__} ({e})"
+            live_print(msg); epg_report.append(msg)
 
-    # 保存文件
+    # 保存合并后的纯净版 EPG
     if len(seen_channels) > 0:
         try:
             tree = ET.ElementTree(merged_tv)
@@ -149,12 +173,18 @@ def download_and_merge_epg():
                 tree.write(f, encoding='utf-8', xml_declaration=False)
             with open(OUTPUT_EPG, 'rb') as f_in, gzip.open(OUTPUT_EPG_GZ, 'wb') as f_out:
                 f_out.writelines(f_in)
-            live_print(f"🎉 EPG 整合完成！共去重整合 {len(seen_channels)} 个频道，{len(seen_programmes)} 条节目。")
+            final_msg = f"🎉 EPG 整合完成！共去重整合 {len(seen_channels)} 个频道，{len(seen_programmes)} 条有效节目。"
+            live_print(final_msg)
+            epg_report.append("\n" + final_msg)
         except Exception as e:
-            live_print(f"❌ EPG 保存失败: {e}")
+            msg = f"❌ EPG 保存失败: {e}"
+            live_print(msg); epg_report.append(msg)
     else:
-        live_print("⚠️ 所有 EPG 获取均失败，本次未生成/更新 EPG 文件。")
+        msg = "⚠️ 所有 EPG 获取均失败，本次未生成/更新 EPG 文件。"
+        live_print(msg); epg_report.append(msg)
+        
     live_print("::endgroup::")
+    return epg_report
 
 # ===============================
 # 4. 抓取直播源并进行别名映射
@@ -230,7 +260,8 @@ def check_channel(main_name, url):
 # 6. 主程序
 # ===============================
 if __name__ == "__main__":
-    download_and_merge_epg()
+    # 🌟 获取 EPG 报告用于写入日志
+    epg_report = download_and_merge_epg()
     
     aliases_exact, aliases_regex = load_aliases()
     cat_order, chan_to_cat, chans_in_cat = load_demo_template()
@@ -304,6 +335,12 @@ if __name__ == "__main__":
         f.write(f"最终有效总数: {len(logs_success)} 个链接\n")
         f.write(f"过滤失效总数: {len(logs_fail)} 个链接\n")
         f.write(f"================================================\n\n")
+        
+        # 🌟 自动将收集到的 EPG 报告完美打印在日志文件中
+        if epg_report:
+            f.write(f"=============== EPG 整合及清理报告 ===============\n")
+            f.write("\n".join(epg_report) + "\n\n")
+            
         f.write("✅ 存活链接详情 (按处理顺序):\n")
         f.write("\n".join(logs_success) + "\n\n")
         f.write("❌ 失效链接详情 (含失败原因):\n")
