@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]  # 当你推送代码到 main 分支时触发
   schedule:
-    - cron: '0 0,12 * * *'
+    - cron: '0 */3 * * *'
   workflow_dispatch:
 
 # 🌟 新增：并发控制，如果连续触发两次，自动取消前一次（或排队），防止冲突
