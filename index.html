@@ -107,11 +107,11 @@
         
         <!-- 下载按钮区 (已全面挂载 CDN 加速) -->
         <div class="d-flex justify-content-center gap-3 mb-5 flex-wrap">
-            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/live.m3u" class="btn btn-custom btn-m3u" download>⬇️ 下载 M3U</a>
-            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/live.txt" class="btn btn-custom btn-txt" download>⬇️ 下载 TXT</a>
-            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/epg.xml" class="btn btn-custom btn-epg" target="_blank">📺 EPG (XML)</a>
-            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/epg.xml.gz" class="btn btn-custom btn-gz" download>🗜️ EPG (GZ)</a>
-            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/log.txt" class="btn btn-custom btn-log" target="_blank">📄 系统日志</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u" class="btn btn-custom btn-m3u" download>⬇️ 下载 M3U</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.txt" class="btn btn-custom btn-txt" download>⬇️ 下载 TXT</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml" class="btn btn-custom btn-epg" target="_blank">📺 EPG (XML)</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz" class="btn btn-custom btn-gz" download>🗜️ EPG (GZ)</a>
+            <a href="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/log.txt" class="btn btn-custom btn-log" target="_blank">📄 系统日志</a>
         </div>
 
         <div class="table-responsive rounded">
@@ -137,7 +137,7 @@
 
 <script>
     // 渲染网页用的展示数据，直接读取本地 GitHub Pages 缓存的 live.txt
-    fetch('live.txt')
+    fetch('output/live.txt')
         .then(response => response.text())
         .then(data => {
             const lines = data.split('\n');
