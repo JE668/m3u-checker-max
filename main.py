@@ -1,4 +1,4 @@
-import os, time, concurrent.futures, requests, gzip, io
+import os, time, concurrent.futures, requests, gzip, io, re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
@@ -7,148 +7,162 @@ from datetime import datetime
 # ===============================
 SOURCES_FILE = "UPSTREAM_SOURCES.txt"
 EPG_FILE = "UPSTREAM_EPG.txt"
+ALIAS_FILE = "alias.txt"
+DEMO_FILE = "demo.txt"
 
 OUTPUT_TXT = "live.txt"
 OUTPUT_M3U = "live.m3u"
 OUTPUT_EPG = "epg.xml"
+OUTPUT_EPG_GZ = "epg.xml.gz"
 LOG_FILE = "log.txt"
+
+M3U_HEADER = '#EXTM3U x-tvg-url="https://raw.githubusercontent.com/JE668/m3u-checker-max/refs/heads/main/epg.xml"\n'
 
 def live_print(content):
     print(content, flush=True)
 
-def load_urls_from_file(filename):
-    """从本地 txt 文件读取 URL 列表，忽略空行和注释"""
-    if not os.path.exists(filename):
-        live_print(f"⚠️ 未找到配置文件: {filename}")
-        return[]
-    with open(filename, 'r', encoding='utf-8') as f:
-        return [line.strip() for line in f if line.strip() and not line.startswith('#')]
+# ===============================
+# 2. 核心字典：加载别名与分类
+# ===============================
+def load_aliases():
+    """读取别名文件，生成精准匹配字典和正则匹配列表"""
+    aliases_exact, aliases_regex = {},[]
+    if not os.path.exists(ALIAS_FILE): return aliases_exact, aliases_regex
+    with open(ALIAS_FILE, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'): continue
+            parts = line.split(',')
+            main_name = parts[0].strip()
+            for alias in parts[1:]:
+                alias = alias.strip()
+                if alias.startswith("re:"):
+                    try:
+                        aliases_regex.append((re.compile(alias[3:]), main_name))
+                    except: pass
+                else:
+                    aliases_exact[alias] = main_name
+    return aliases_exact, aliases_regex
+
+def get_main_name(raw_name, aliases_exact, aliases_regex):
+    """根据别名规则获取标准名称"""
+    if raw_name in aliases_exact: return aliases_exact[raw_name]
+    if raw_name in aliases_exact.values(): return raw_name
+    for reg, main_name in aliases_regex:
+        if reg.match(raw_name): return main_name
+    return raw_name
+
+def load_demo_template():
+    """读取 demo.txt，获取频道分类和排序骨架"""
+    category_order =[]
+    channel_to_category = {}
+    channels_in_category = {}
+    
+    if not os.path.exists(DEMO_FILE): return category_order, channel_to_category, channels_in_category
+    
+    current_category = "未分类频道"
+    with open(DEMO_FILE, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') and "#genre#" not in line: continue
+            if "#genre#" in line:
+                current_category = line.split(',')[0].strip()
+                if current_category not in category_order:
+                    category_order.append(current_category)
+                    channels_in_category[current_category] =[]
+            else:
+                main_name = line
+                channel_to_category[main_name] = current_category
+                if main_name not in channels_in_category[current_category]:
+                    channels_in_category[current_category].append(main_name)
+    return category_order, channel_to_category, channels_in_category
 
 # ===============================
-# 2. 抓取与整合 EPG (支持 .gz 解压与去重)
+# 3. 抓取与整合 EPG
 # ===============================
-def download_and_merge_epg(epg_urls):
-    if not epg_urls:
-        return None
-        
+def download_and_merge_epg():
+    epg_urls =[]
+    if os.path.exists(EPG_FILE):
+        with open(EPG_FILE, 'r', encoding='utf-8') as f:
+            epg_urls =[line.strip() for line in f if line.strip() and not line.startswith('#')]
+            
+    if not epg_urls: return
     live_print("::group::📅 开始下载并整合 EPG 节目单")
     merged_tv = ET.Element("tv")
     merged_tv.set("generator-info-name", "Merged EPG by GitHub Actions")
-    
-    seen_channels = set()
-    seen_programmes = set()
+    seen_channels, seen_programmes = set(), set()
     
     for url in epg_urls:
-        live_print(f"📥 正在获取 EPG: {url}")
         try:
             r = requests.get(url, timeout=20)
-            if r.status_code != 200:
-                live_print(f"⚠️ EPG 获取失败，状态码 {r.status_code}")
-                continue
+            content = gzip.decompress(r.content) if url.endswith('.gz') or r.headers.get('Content-Encoding') == 'gzip' else r.content
+            root = ET.parse(io.BytesIO(content)).getroot()
+            if root.tag != 'tv': continue
             
-            content = r.content
-            # 判断是否为 gz 压缩格式
-            if url.endswith('.gz') or r.headers.get('Content-Encoding') == 'gzip':
-                try:
-                    content = gzip.decompress(content)
-                except Exception as e:
-                    live_print(f"⚠️ Gzip 解压失败: {e}")
-                    continue
-            
-            # 解析 XML
-            try:
-                tree = ET.parse(io.BytesIO(content))
-                root = tree.getroot()
-            except ET.ParseError as e:
-                live_print(f"⚠️ XML 解析失败: {e}")
-                continue
-                
-            if root.tag != 'tv':
-                live_print("⚠️ 根节点不是 <tv>，跳过。")
-                continue
-                
-            # 处理频道信息去重 (<channel> 标签基于 id 去重)
-            new_channels = 0
             for channel in root.findall('channel'):
                 c_id = channel.get('id')
                 if c_id not in seen_channels:
-                    seen_channels.add(c_id)
-                    merged_tv.append(channel)
-                    new_channels += 1
-                    
-            # 处理节目单信息去重 (<programme> 标签基于 频道+开始+结束时间 去重)
-            new_progs = 0
+                    seen_channels.add(c_id); merged_tv.append(channel)
             for prog in root.findall('programme'):
                 key = (prog.get('channel'), prog.get('start'), prog.get('stop'))
                 if key not in seen_programmes:
-                    seen_programmes.add(key)
-                    merged_tv.append(prog)
-                    new_progs += 1
-                    
-            live_print(f"✅ 成功整合 (新增频道: {new_channels}, 新增节目: {new_progs})")
-        except Exception as e:
-            live_print(f"❌ 处理 EPG 异常 {url}: {e}")
-            
-    # 保存合并后的 EPG
+                    seen_programmes.add(key); merged_tv.append(prog)
+        except: pass
+
+    # 写入 xml 并使用 gzip 压缩生成 .gz
     try:
         tree = ET.ElementTree(merged_tv)
         with open(OUTPUT_EPG, 'wb') as f:
             f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
             tree.write(f, encoding='utf-8', xml_declaration=False)
-        live_print(f"🎉 EPG 整合完成，已保存至 {OUTPUT_EPG} (总频道数: {len(seen_channels)}, 总节目数: {len(seen_programmes)})")
-        live_print("::endgroup::")
-        return OUTPUT_EPG
+        with open(OUTPUT_EPG, 'rb') as f_in, gzip.open(OUTPUT_EPG_GZ, 'wb') as f_out:
+            f_out.writelines(f_in)
+        live_print(f"🎉 EPG 整合完成，已生成 {OUTPUT_EPG} 与 {OUTPUT_EPG_GZ}")
     except Exception as e:
-        live_print(f"❌ 保存合并 EPG 失败: {e}")
-        live_print("::endgroup::")
-        return None
+        live_print(f"❌ EPG 保存失败: {e}")
+    live_print("::endgroup::")
 
 # ===============================
-# 3. 抓取与解析上游直播源
+# 4. 抓取直播源并进行别名映射
 # ===============================
-def fetch_and_parse_channels(sources):
+def fetch_and_parse_channels(aliases_exact, aliases_regex):
     channels =[]
-    live_print("::group::📥 开始抓取并解析上游直播源")
+    if not os.path.exists(SOURCES_FILE): return channels
+    with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
+        sources =[line.strip() for line in f if line.strip() and not line.startswith('#')]
     
+    seen_urls = set()
     for url in sources:
         try:
-            live_print(f"正在获取: {url}")
             r = requests.get(url, timeout=10)
             r.encoding = 'utf-8'
-            lines = r.text.splitlines()
-            
             tmp_name = ""
-            for line in lines:
+            for line in r.text.splitlines():
                 line = line.strip()
                 if not line: continue
                 if line.startswith("#EXTINF"):
                     tmp_name = line.split(",")[-1].strip()
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
-                    channels.append((name, line))
+                    # 关键：应用别名映射
+                    main_name = get_main_name(name, aliases_exact, aliases_regex)
+                    if line not in seen_urls:
+                        channels.append((main_name, line))
+                        seen_urls.add(line)
                     tmp_name = ""
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
-                    channels.append((parts[0].strip(), parts[1].strip()))
-        except Exception as e:
-            live_print(f"❌ 抓取失败 {url}: {e}")
-            
-    # 保持原有顺序去重
-    seen_urls = set()
-    unique_channels =[]
-    for name, url in channels:
-        if url not in seen_urls:
-            unique_channels.append((name, url))
-            seen_urls.add(url)
-            
-    live_print(f"✅ 解析完成，去重后共计获取频道数: {len(unique_channels)}")
-    live_print("::endgroup::")
-    return unique_channels
+                    main_name = get_main_name(parts[0].strip(), aliases_exact, aliases_regex)
+                    if parts[1].strip() not in seen_urls:
+                        channels.append((main_name, parts[1].strip()))
+                        seen_urls.add(parts[1].strip())
+        except: pass
+    return channels
 
 # ===============================
-# 4. 全量测速逻辑
+# 5. 并发测速
 # ===============================
-def check_channel(index, name, url):
+def check_channel(main_name, url):
     start_time = time.time()
     try:
         r = requests.get(url, stream=True, timeout=5)
@@ -157,64 +171,75 @@ def check_channel(index, name, url):
             for chunk in r.iter_content(chunk_size=1024 * 64):
                 downloaded += len(chunk)
                 if downloaded >= 1024 * 128:
-                    elapsed = round(time.time() - start_time, 2)
-                    return True, index, name, url, elapsed
-                if time.time() - start_time > 5:
-                    break
-    except:
-        pass
-    return False, index, name, url, 0
+                    return True, main_name, url, round(time.time() - start_time, 2)
+                if time.time() - start_time > 5: break
+    except: pass
+    return False, main_name, url, 0
 
 # ===============================
-# 5. 主运行逻辑
+# 6. 主程序
 # ===============================
 if __name__ == "__main__":
-    # 1. 整合 EPG
-    epg_urls = load_urls_from_file(EPG_FILE)
-    merged_epg_file = download_and_merge_epg(epg_urls)
+    download_and_merge_epg()
+    
+    aliases_exact, aliases_regex = load_aliases()
+    cat_order, chan_to_cat, chans_in_cat = load_demo_template()
+    
+    channels = fetch_and_parse_channels(aliases_exact, aliases_regex)
+    if not channels: exit(0)
 
-    # 2. 获取直播源
-    sources = load_urls_from_file(SOURCES_FILE)
-    channels = fetch_and_parse_channels(sources)
-    if not channels:
-        live_print("⚠️ 没有获取到任何频道，程序退出。")
-        exit(0)
-
-    # 3. 测速
-    live_print(f"::group::🎬 开始全量连通性检测 (并发量:100)")
-    valid_results, logs = [],[]
+    live_print(f"::group::🎬 开始全量测速 (共 {len(channels)} 个独立链接)")
+    valid_results = {}  # { main_name:[(url, elapsed)] }
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=100) as ex:
-        futures = {ex.submit(check_channel, idx, name, url): idx for idx, (name, url) in enumerate(channels)}
+        futures =[ex.submit(check_channel, name, url) for name, url in channels]
         for future in concurrent.futures.as_completed(futures):
-            is_valid, idx, name, url, elapsed = future.result()
+            is_valid, name, url, elapsed = future.result()
             if is_valid:
-                valid_results.append((idx, name, url))
-                msg = f"🟢 [有效] {name:<15} | 耗时: {elapsed}s"
-                live_print(msg)
-                logs.append(msg)
-            else:
-                logs.append(f"🔴 [失效] {name:<15} | 无法获取视频流")
+                if name not in valid_results: valid_results[name] = []
+                valid_results[name].append((url, elapsed))
+                live_print(f"🟢 [有效] {name:<15} | 耗时 {elapsed}s")
     live_print("::endgroup::")
 
-    # 4. 排序与写入
-    live_print("::group::💾 正在写入文件 (保持原有排序)")
-    valid_results.sort(key=lambda x: x[0])
+    # ===============================
+    # 7. 组装输出结构 (按照 demo.txt 排序)
+    # ===============================
+    live_print("::group::💾 正在写入最终文件")
+    tvg_id = 1
     
-    with open(OUTPUT_TXT, "w", encoding="utf-8") as f:
-        for _, name, url in valid_results:
-            f.write(f"{name},{url}\n")
-            
-    with open(OUTPUT_M3U, "w", encoding="utf-8") as f:
-        # 如果成功合并了 EPG，将其相对路径写入 M3U 的 x-tvg-url 中
-        tvg_url = f' x-tvg-url="{OUTPUT_EPG}"' if merged_epg_file else ""
-        f.write(f'#EXTM3U{tvg_url}\n')
-        for _, name, url in valid_results:
-            f.write(f'#EXTINF:-1,{name}\n{url}\n')
-            
-    with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write(f"频道检测报告 | 时间: {datetime.now()}\n")
-        f.write(f"总计检测: {len(channels)} | 存活: {len(valid_results)} | 失效: {len(channels) - len(valid_results)}\n\n")
-        f.write("\n".join(logs))
+    with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
+        fm3u.write(M3U_HEADER)
+        
+        # 处理在 demo.txt 中的频道
+        for cat in cat_order:
+            cat_written_in_txt = False
+            for name in chans_in_cat[cat]:
+                if name in valid_results:
+                    if not cat_written_in_txt:
+                        ftxt.write(f"\n{cat},#genre#\n")
+                        cat_written_in_txt = True
+                    
+                    # 取出测速有效的链接，可以选择按耗时排序 (这里保留原始并发完成顺序或可改排序)
+                    valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
+                    for url, _ in valid_urls:
+                        logo = f"https://gcore.jsdelivr.net/gh/taksssss/tv/icon/{name}.png"
+                        fm3u.write(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat}",{name}\n')
+                        fm3u.write(f"{url}\n")
+                        ftxt.write(f"{name},{url}\n")
+                    tvg_id += 1
+                    
+        # 处理没有在 demo.txt 中定义，但存活的 "其他频道"
+        other_channels =[n for n in valid_results.keys() if n not in chan_to_cat]
+        if other_channels:
+            ftxt.write(f"\n📺其他频道,#genre#\n")
+            for name in other_channels:
+                valid_urls = sorted(valid_results[name], key=lambda x: x[1])
+                for url, _ in valid_urls:
+                    logo = f"https://gcore.jsdelivr.net/gh/taksssss/tv/icon/{name}.png"
+                    fm3u.write(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="📺其他频道",{name}\n')
+                    fm3u.write(f"{url}\n")
+                    ftxt.write(f"{name},{url}\n")
+                tvg_id += 1
 
-    live_print(f"✅ 处理完成！存活率: {len(valid_results)} / {len(channels)}")
+    live_print("✅ 文件写入完成！")
     live_print("::endgroup::")
