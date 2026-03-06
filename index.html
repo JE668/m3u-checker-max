@@ -19,7 +19,8 @@
     <div class="d-flex justify-content-center gap-3 mb-4">
         <a href="live.m3u" class="btn btn-success" download>⬇️ 下载 M3U</a>
         <a href="live.txt" class="btn btn-primary" download>⬇️ 下载 TXT</a>
-        <a href="epg.xml" class="btn btn-warning" target="_blank">📺 访问 EPG 节目单</a>
+        <a href="epg.xml" class="btn btn-warning" target="_blank">📺 EPG (XML)</a>
+        <a href="epg.xml.gz" class="btn btn-danger" download>🗜️ EPG (GZ)</a>
         <a href="log.txt" class="btn btn-secondary" target="_blank">📄 查看检测日志</a>
     </div>
 
@@ -41,23 +42,35 @@
 </div>
 
 <script>
-    // 异步拉取生成的 live.txt
     fetch('live.txt')
         .then(response => response.text())
         .then(data => {
             const lines = data.split('\n');
             let html = '';
             let index = 1;
+            let currentCategory = '默认频道';
             
             lines.forEach(line => {
-                if (line.includes(',')) {
+                line = line.trim();
+                if (!line) return;
+                
+                // 识别分类行
+                if (line.includes('#genre#')) {
+                    currentCategory = line.split(',')[0];
+                    html += `
+                        <tr class="table-secondary">
+                            <td colspan="4" class="text-center fw-bold text-primary">📁 ${currentCategory}</td>
+                        </tr>
+                    `;
+                } else if (line.includes(',')) {
+                    // 识别频道行
                     const [name, url] = line.split(',');
                     html += `
                         <tr>
                             <td>${index++}</td>
-                            <td class="fw-bold">${name}</td>
+                            <td class="fw-bold"><span class="badge bg-info text-dark me-2">${currentCategory}</span>${name}</td>
                             <td><a href="${url}" target="_blank" class="text-break text-decoration-none">${url}</a></td>
-                            <td><button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('${url}')">复制链接</button></td>
+                            <td><button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('${url}')">复制</button></td>
                         </tr>
                     `;
                 }
@@ -65,13 +78,12 @@
             document.getElementById('channel-list').innerHTML = html || '<tr><td colspan="4" class="text-center">列表为空</td></tr>';
         })
         .catch(err => {
-            document.getElementById('channel-list').innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败，请确认 live.txt 是否已生成。</td></tr>';
+            document.getElementById('channel-list').innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败</td></tr>';
         });
 
-    // 复制链接功能
     function copyToClipboard(text) {
         navigator.clipboard.writeText(text).then(() => {
-            alert('✅ 链接已复制到剪贴板！');
+            alert('✅ 链接已复制！');
         }).catch(err => {
             alert('❌ 复制失败');
         });
