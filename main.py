@@ -56,7 +56,6 @@ def load_aliases():
     return aliases_exact, aliases_regex
 
 def get_main_name(raw_name, aliases_exact, aliases_regex):
-    # 先去除左右空格
     raw_name = raw_name.strip()
     if raw_name in aliases_exact: return aliases_exact[raw_name]
     if raw_name in aliases_exact.values(): return raw_name
@@ -72,10 +71,12 @@ def load_demo_template():
     if not os.path.exists(DEMO_FILE): return category_order, channel_to_category, channels_in_category
     
     current_category = "未分类频道"
+    
     with open(DEMO_FILE, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith('#') and "#genre#" not in line: continue
+            
             if "#genre#" in line:
                 current_category = line.split(',')[0].strip()
                 if current_category not in category_order:
@@ -83,6 +84,12 @@ def load_demo_template():
                     channels_in_category[current_category] = []
             else:
                 main_name = line
+                # 🌟 [修复核心]：如果当前分类尚未初始化（例如文件开头就是频道名），则立即创建
+                if current_category not in channels_in_category:
+                    channels_in_category[current_category] = []
+                    if current_category not in category_order:
+                        category_order.append(current_category)
+                
                 channel_to_category[main_name] = current_category
                 if main_name not in channels_in_category[current_category]:
                     channels_in_category[current_category].append(main_name)
@@ -90,7 +97,7 @@ def load_demo_template():
     return category_order, channel_to_category, channels_in_category
 
 # ===============================
-# 3. 抓取、清理与整合 EPG (含重名日志)
+# 3. 抓取、清理与整合 EPG
 # ===============================
 def download_and_merge_epg(aliases_exact, aliases_regex):
     epg_urls = []
@@ -136,10 +143,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
                     orig_name = display_name_elem.text.strip()
                     main_name = get_main_name(orig_name, aliases_exact, aliases_regex)
                     
-                    # 🌟 记录 EPG 中的名称变更
                     if orig_name != main_name:
-                        # 仅记录前5个重名示例，防止日志爆炸，或全部记录
-                        # epg_report.append(f"   -> 🔧 EPG修正: {orig_name} => {main_name}")
                         rename_count += 1
                     
                     id_mapping[orig_id] = main_name
@@ -188,7 +192,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
     return epg_report
 
 # ===============================
-# 4. 抓取直播源 (含重名日志)
+# 4. 抓取直播源
 # ===============================
 def fetch_and_parse_channels(aliases_exact, aliases_regex):
     channels = []
@@ -212,8 +216,6 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = get_main_name(name, aliases_exact, aliases_regex)
-                    
-                    # 🌟 实时打印直播源的名称变更
                     if name != main_name:
                         live_print(f"   🔧 [修正] {name} => {main_name}")
                     
@@ -225,8 +227,6 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                     parts = line.split(",", 1)
                     raw_name = parts[0].strip()
                     main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
-                    
-                    # 🌟 实时打印直播源的名称变更
                     if raw_name != main_name:
                         live_print(f"   🔧 [修正] {raw_name} => {main_name}")
                         
@@ -314,10 +314,19 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
 if __name__ == "__main__":
     aliases_exact, aliases_regex = load_aliases()
     epg_report = download_and_merge_epg(aliases_exact, aliases_regex)
-    cat_order, chan_to_cat, chans_in_cat = load_demo_template()
+    
+    # 🌟 修复点：在加载模板时增加防御性编程
+    try:
+        cat_order, chan_to_cat, chans_in_cat = load_demo_template()
+    except Exception as e:
+        live_print(f"❌ demo.txt 加载严重错误: {e}")
+        exit(1)
+        
     channels = fetch_and_parse_channels(aliases_exact, aliases_regex)
     
-    if not channels: exit(0)
+    if not channels: 
+        live_print("⚠️ 未获取到任何有效直播源，退出。")
+        exit(0)
 
     live_print(f"\n🚀 开始全量测速 (总数: {len(channels)} 个，并发: 100)...\n")
     
