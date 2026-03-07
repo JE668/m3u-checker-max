@@ -40,10 +40,9 @@ jobs:
           git config --local user.name "github-actions[bot]"
           
           # 🌟 核心改动：加入 config/demo.txt，将程序的“自我进化”固化到代码仓库中
-          git add config/demo.txt output/live.txt output/live.m3u output/epg.xml output/epg.xml.gz output/log.txt
-          
+          git add config/demo.txt output/live.txt output/live.m3u output/epg.xml output/epg.xml.gz output/log.txt output/unmatched.txt
           if ! git diff --staged --quiet; then
-            git commit -m "Auto Update IPTV Sources & Evolution demo: $(date +'%Y-%m-%d %H:%M')"
+            git commit -m "Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
             git pull --rebase origin main
             git push
           else
