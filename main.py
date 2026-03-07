@@ -16,7 +16,7 @@ OUTPUT_M3U = "output/live.m3u"
 OUTPUT_EPG = "output/epg.xml"
 OUTPUT_EPG_GZ = "output/epg.xml.gz"
 LOG_FILE = "output/log.txt"
-UNMATCHED_FILE = "output/unmatched.txt"  # 🌟 新增：未匹配频道收集清单
+UNMATCHED_FILE = "output/unmatched.txt"
 
 # M3U 头部 (CDN 加速)
 M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
@@ -40,7 +40,7 @@ def live_print(content):
 # ===============================
 def load_aliases():
     aliases_exact, aliases_regex = {},[]
-    known_main_names = set()  # 🌟 记录所有的主名，防止主名也被误判为未匹配
+    known_main_names = set()
     
     live_print("::group::⚙️ 加载系统配置文件")
     if not os.path.exists(ALIAS_FILE): 
@@ -53,7 +53,7 @@ def load_aliases():
             if not line or line.startswith('#'): continue
             parts = line.split(',')
             main_name = parts[0].strip()
-            known_main_names.add(main_name)  # 录入主名
+            known_main_names.add(main_name)
             
             for alias in parts[1:]:
                 alias = alias.strip()
@@ -69,32 +69,41 @@ def load_aliases():
 
 def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_set=None):
     raw_name = raw_name.strip()
-    
-    # 1. 检查是否已经是标准主名
     if raw_name in known_main_names: return raw_name
-    
-    # 2. 检查精确别名匹配
     if raw_name in aliases_exact: return aliases_exact[raw_name]
-    
-    # 3. 检查正则匹配
     for reg, main_name in aliases_regex:
         if reg.match(raw_name): return main_name
-        
-    # 🌟 4. 如果全都没匹配上，将其记录到漏网之鱼清单中
     if unmatched_set is not None:
         unmatched_set.add(raw_name)
-        
     return raw_name
 
 def get_local_logo_url(name):
+    """
+    智能图标匹配引擎 (支持降级兜底)
+    """
     base_url = "https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
     if not os.path.exists(ICON_DIR): return ""
     files = os.listdir(ICON_DIR)
-    def clean(s): return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+    
+    # 🌟 修复点：保留加号(+)以区分 CCTV5 和 CCTV5+
+    def clean(s): return re.sub(r'[^a-zA-Z0-9\+]', '', s).lower()
+    
     target = clean(name)
+    
+    # 第一层：精确匹配 (比如找 东方卫视4k.png)
     for f in files:
         if clean(os.path.splitext(f)[0]) == target:
             return base_url + f
+            
+    # 第二层：降级匹配 (去除后缀如 4k, 8k, hd 后再找)
+    # 例如将 "东方卫视-4K" 降级为 "东方卫视"，去找 东方卫视.png
+    base_name = re.sub(r'(?i)[\-\s\_]*(4k|8k|hd|fhd|超清|高清|标清|测试)$', '', name)
+    if base_name != name:
+        target_base = clean(base_name)
+        for f in files:
+            if clean(os.path.splitext(f)[0]) == target_base:
+                return base_url + f
+                
     return "" 
 
 def load_demo_template(aliases_exact, aliases_regex, known_main_names):
@@ -174,6 +183,9 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
             rename_count = 0
             id_mapping = {}
             
+            # 🌟 新增：去重记录器，防止同一个频道修正日志刷屏
+            seen_epg_renames = set()
+            
             for channel in root.findall('channel'):
                 orig_id = channel.get('id')
                 display_name_elem = channel.find('display-name')
@@ -181,7 +193,11 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
                     orig_name = display_name_elem.text.strip()
                     main_name = get_main_name(orig_name, aliases_exact, aliases_regex, known_main_names)
                     
-                    if orig_name != main_name: rename_count += 1
+                    if orig_name != main_name: 
+                        rename_count += 1
+                        if (orig_name, main_name) not in seen_epg_renames:
+                            live_print(f"   📝 [EPG修正] {orig_name} => {main_name}")
+                            seen_epg_renames.add((orig_name, main_name))
                     
                     id_mapping[orig_id] = main_name
                     channel.set('id', main_name)
@@ -207,7 +223,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
                         merged_tv.append(prog)
                         p_count += 1
             
-            msg = f"   -> ✅ 提取频道: {c_count} | 节目: {p_count} | 🗑️ 过滤: {p_discard} | 🔧 修正名称: {rename_count}"
+            msg = f"   -> ✅ 提取频道: {c_count} | 节目: {p_count} | 🗑️ 过滤: {p_discard} | 🔧 总修正: {rename_count}次"
             live_print(msg); epg_report.append(msg)
         except Exception as e: 
             msg = f"   -> ❌ 异常: {e}"
@@ -229,11 +245,11 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
     return epg_report
 
 # ===============================
-# 4. 抓取直播源 (并收集未匹配项)
+# 4. 抓取直播源
 # ===============================
 def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
     channels =[]
-    unmatched_names = set()  # 🌟 实例化未匹配漏网之鱼集合
+    unmatched_names = set() 
     
     if not os.path.exists(SOURCES_FILE): return channels
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
@@ -247,6 +263,10 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
             r.encoding = 'utf-8'
             tmp_name = ""
             count = 0
+            
+            # 🌟 新增：去重记录器，防止同一个源里大量同名修正刷屏
+            seen_source_renames = set()
+            
             for line in r.text.splitlines():
                 line = line.strip()
                 if not line: continue
@@ -255,6 +275,11 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = get_main_name(name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
+                    
+                    if name != main_name and (name, main_name) not in seen_source_renames:
+                        live_print(f"   📝 [名称修正] {name} => {main_name}")
+                        seen_source_renames.add((name, main_name))
+                        
                     if line not in seen_urls:
                         channels.append((main_name, line))
                         seen_urls.add(line); count += 1
@@ -263,13 +288,17 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
                     parts = line.split(",", 1)
                     raw_name = parts[0].strip()
                     main_name = get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
+                    
+                    if raw_name != main_name and (raw_name, main_name) not in seen_source_renames:
+                        live_print(f"   📝 [名称修正] {raw_name} => {main_name}")
+                        seen_source_renames.add((raw_name, main_name))
+                        
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip()))
                         seen_urls.add(parts[1].strip()); count += 1
             live_print(f"✅ {url} -> 提取 {count} 条")
         except: live_print(f"❌ 连接失败: {url}")
         
-    # 🌟 将漏网之鱼写入清单
     if unmatched_names:
         with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
             f.write(f"=============== 未匹配频道名单 ===============\n")
@@ -281,7 +310,6 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
                 f.write(f"{name}\n")
         live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
     else:
-        # 如果全匹配上了，清理掉旧的清单文件
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
         
     live_print("::endgroup::")
@@ -433,7 +461,6 @@ if __name__ == "__main__":
                 logs_success.append(msg)
             else:
                 msg = f"{progress} 🔴 {name:<12} | {reason:<10} | {url}"
-                # live_print(msg) # 失效信息打印容易刷屏，可以注释掉
                 logs_fail.append(msg)
 
     live_print(f"\n🏁 测速结束: 有效 {len(logs_success)} / 失效 {len(logs_fail)}\n")
@@ -453,6 +480,7 @@ if __name__ == "__main__":
                     
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
+                        # 🌟 第三层保障：如果所有本地匹配都失败，最后回退至该链接
                         logo = get_local_logo_url(name)
                         if not logo:
                             logo = f"https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
