@@ -2,7 +2,7 @@
 
 [![GitHub Actions Status](https://img.shields.io/badge/GitHub_Actions-Auto_Update-00f3ff?style=flat-square&logo=github-actions)](https://github.com/JE668/m3u-checker-max/actions)
 [![Python Version](https://img.shields.io/badge/Python-3.10-3b82f6?style=flat-square&logo=python)](#)
-[![CDN Accelerated](https://img.shields.io/badge/CDN-gh.llkk.cc-f59e0b?style=flat-square)](#)
+[![CDN Accelerated](https://img.shields.io/badge/CDN-gh.felicity.ac.cn-f59e0b?style=flat-square)](#)
 
 这是一个高级的全自动 IPTV 直播源验证与管理系统。通过 GitHub Actions 每天定时运行，为您提供**无死链、秒开加载、带有完整 EPG 节目单**的纯净直播源列表。
 
@@ -39,7 +39,7 @@
   - **防呆设计**：自动将 Gitee/GitHub 的误填网页链接 (blob) 纠错修正为真实的底层数据流 (raw)。
   - **垃圾信息清洗**：自动剔除包含“未提供节目表”、“精彩节目”等视觉污染数据。
 - 🔤 **别名正则映射引擎**：自带 `alias.txt`，将杂乱名归一化。
-- 🌐 **沉浸式科技感网页面板**：全自动部署至 GitHub Pages，所有分发链路强制挂载 `gh.llkk.cc` 节点 CDN 代理加速，国内直连秒开。
+- 🌐 **沉浸式科技感网页面板**：全自动部署至 GitHub Pages。
 
 ## 🚀 如何开始使用？
 
