@@ -9,6 +9,7 @@ SOURCES_FILE = "config/sources.txt"
 EPG_FILE = "config/epg.txt"
 ALIAS_FILE = "config/alias.txt"
 DEMO_FILE = "config/demo.txt"
+ICON_DIR = "icons"
 
 OUTPUT_TXT = "output/live.txt"
 OUTPUT_M3U = "output/live.m3u"
@@ -19,28 +20,26 @@ LOG_FILE = "output/log.txt"
 # M3U 头部 (CDN 加速)
 M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
 
-# 🌟 图标源配置 (可修改为其他更全的源)
-# 注意：{name} 会被自动替换为频道名
-LOGO_BASE_URL = "https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
-
 # EPG 垃圾词汇过滤库
-EPG_BLACKLIST = [
+EPG_BLACKLIST =[
     "未能提供", "暂无节目", "精彩节目", "精彩節目", 
     "没有节目", "未提供节目", "未提供節目", 
     "no program", "no data", "精彩剧集", "暂未提供"
 ]
 
+# 确保必要的目录存在
 os.makedirs("output", exist_ok=True)
 os.makedirs("config", exist_ok=True)
+os.makedirs(ICON_DIR, exist_ok=True)
 
 def live_print(content):
     print(content, flush=True)
 
 # ===============================
-# 2. 核心字典：加载别名与分类
+# 2. 核心字典：加载别名、图标与分类模板
 # ===============================
 def load_aliases():
-    aliases_exact, aliases_regex = {}, []
+    aliases_exact, aliases_regex = {},[]
     if not os.path.exists(ALIAS_FILE): return aliases_exact, aliases_regex
     with open(ALIAS_FILE, 'r', encoding='utf-8') as f:
         for line in f:
@@ -66,16 +65,32 @@ def get_main_name(raw_name, aliases_exact, aliases_regex):
         if reg.match(raw_name): return main_name
     return raw_name
 
+# 🌟 新增：图标资产管理引擎
+def get_local_logo_url(name):
+    # 本地图标库最终在 GitHub Pages 的访问路径
+    base_url = "https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
+    
+    if not os.path.exists(ICON_DIR): return ""
+    files = os.listdir(ICON_DIR)
+    
+    # 预处理：将文件名和频道名都变为小写、去符号，方便模糊匹配
+    def clean(s): return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+    
+    target = clean(name)
+    for f in files:
+        if clean(os.path.splitext(f)[0]) == target:
+            return base_url + f
+            
+    return "" # 没找到则返回空
+
 def load_demo_template(aliases_exact, aliases_regex):
-    category_order = []
+    category_order =[]
     channel_to_category = {}
     channels_in_category = {}
     
     if not os.path.exists(DEMO_FILE): return category_order, channel_to_category, channels_in_category
-
-    # 🌟 修复关键：默认不设置分类。如果在 #genre# 之前出现频道，直接忽略（视为新频道，交给 auto_update_demo 处理）
-    current_category = None
     
+    current_category = None
     with open(DEMO_FILE, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
@@ -85,16 +100,14 @@ def load_demo_template(aliases_exact, aliases_regex):
                 current_category = line.split(',')[0].strip()
                 if current_category not in category_order:
                     category_order.append(current_category)
-                    channels_in_category[current_category] = []
+                    channels_in_category[current_category] =[]
             elif current_category:
                 raw_name = line
                 main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
                 
-                # 确保当前分类字典存在
                 if current_category not in channels_in_category:
                     channels_in_category[current_category] = []
                 
-                # 建立映射：标准名 -> 分类
                 channel_to_category[main_name] = current_category
                 if main_name not in channels_in_category[current_category]:
                     channels_in_category[current_category].append(main_name)
@@ -106,10 +119,10 @@ def load_demo_template(aliases_exact, aliases_regex):
 # ===============================
 def download_and_merge_epg(aliases_exact, aliases_regex):
     epg_urls = []
-    epg_report = []
+    epg_report =[]
     if os.path.exists(EPG_FILE):
         with open(EPG_FILE, 'r', encoding='utf-8') as f:
-            epg_urls = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            epg_urls =[line.strip() for line in f if line.strip() and not line.startswith('#')]
             
     if not epg_urls: return epg_report
     
@@ -200,10 +213,10 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
 # 4. 抓取直播源
 # ===============================
 def fetch_and_parse_channels(aliases_exact, aliases_regex):
-    channels = []
+    channels =[]
     if not os.path.exists(SOURCES_FILE): return channels
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
-        sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        sources =[line.strip() for line in f if line.strip() and not line.startswith('#')]
     
     seen_urls = set()
     live_print("::group::📥 开始抓取直播源")
@@ -257,49 +270,60 @@ def check_channel(main_name, url):
     return False, main_name, url, round(time.time() - start_time, 2), "未知"
 
 # ===============================
-# 6. 核心：自适应进化 demo.txt (修改版：保留原手动分类)
+# 6. 自适应进化 demo.txt
 # ===============================
+def channel_sort_key(name):
+    nums = re.findall(r'\d+', name)
+    val = int(nums[0]) if nums else 999
+    name_upper = name.upper()
+    if "4K" in name_upper and "CCTV" in name_upper: return (0, val, name)
+    if "8K" in name_upper and "CCTV" in name_upper: return (1, val, name)
+    if "CCTV" in name_upper: return (2, val, name)
+    if "CETV" in name_upper: return (3, val, name)
+    if "卫视" in name_upper: return (4, val, name)
+    return (5, val, name)
+
 def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
     live_print("::group::🧠 自适应进化 demo.txt (保留手动配置)")
     new_channels_count = 0
     
-    # 建立一个当前的频道分类查找表
+    # 获取现有分组情况
     current_map = {}
     for cat, channels in chans_in_cat.items():
         for ch in channels:
             current_map[ch] = cat
 
-    # 识别新频道并归类
+    # 对新频道自动分类
     for name in valid_names:
         if name not in current_map:
             name_upper = name.upper()
-            # 智能分类规则
             if "4K" in name_upper or "8K" in name_upper: cat = "☘️4K/8K超高清频道,#genre#"
             elif "CCTV" in name_upper or "CETV" in name_upper: cat = "📺央视频道,#genre#"
             elif "卫视" in name_upper: cat = "📡卫视频道,#genre#"
             else: cat = "📺其他频道,#genre#"
             
-            # 确保分类存在于 cat_order
             if cat not in cat_order:
                 cat_order.append(cat)
                 chans_in_cat[cat] = []
-            
+                
             chans_in_cat[cat].append(name)
             current_map[name] = cat
             new_channels_count += 1
-            live_print(f"   -> 🆕 发现并自动归类: [{name}] => [{cat.split(',')[0]}]")
+            live_print(f"   -> 🆕 发现并自动归类: [{name}] =>[{cat.split(',')[0]}]")
 
-    # 覆写 demo.txt (保持原有的手动分组顺序和频道)
+    # 对所有频道在分组内进行排序保护
+    for cat in cat_order:
+        chans_in_cat[cat] = sorted(chans_in_cat[cat], key=channel_sort_key)
+
     try:
         with open(DEMO_FILE, 'w', encoding='utf-8') as f:
             for cat in cat_order:
-                # 只写入在当前分类里的频道（即保留了原来的频道，并追加了新频道）
-                channels_to_write = chans_in_cat.get(cat, [])
+                channels_to_write = chans_in_cat.get(cat,[])
                 if not channels_to_write: continue
                 
                 f.write(f"{cat}\n")
-                # 排序规则：保持原有的手动顺序（这里简单处理为字母排序，如有特定排序需求可改）
-                for name in sorted(list(set(channels_to_write))):
+                # 去重后写入
+                for name in sorted(list(set(channels_to_write)), key=channel_sort_key):
                     f.write(f"{name}\n")
                 f.write("\n")
         live_print(f"✅ demo.txt 保护性更新完毕，新增 {new_channels_count} 个频道")
@@ -316,7 +340,6 @@ if __name__ == "__main__":
     aliases_exact, aliases_regex = load_aliases()
     epg_report = download_and_merge_epg(aliases_exact, aliases_regex)
     
-    # 加载模板时进行别名清洗
     try:
         cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex)
     except Exception as e:
@@ -332,12 +355,12 @@ if __name__ == "__main__":
     live_print(f"\n🚀 开始全量测速 (总数: {len(channels)} 个，并发: 100)...\n")
     
     valid_results = {}
-    logs_success, logs_fail = [], []
+    logs_success, logs_fail = [],[]
     total = len(channels)
     processed = 0
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=100) as ex:
-        futures = [ex.submit(check_channel, name, url) for name, url in channels]
+        futures =[ex.submit(check_channel, name, url) for name, url in channels]
         for future in concurrent.futures.as_completed(futures):
             processed += 1
             is_valid, name, url, elapsed, reason = future.result()
@@ -356,7 +379,6 @@ if __name__ == "__main__":
 
     live_print(f"\n🏁 测速结束: 有效 {len(logs_success)} / 失效 {len(logs_fail)}\n")
 
-    # 进化 Demo，这里会处理所有之前被跳过的“无家可归”频道
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
 
     live_print("::group::💾 写入结果文件")
@@ -364,15 +386,19 @@ if __name__ == "__main__":
         fm3u.write(M3U_HEADER)
         for cat in cat_order:
             cat_written_in_txt = False
-            for name in chans_in_cat[cat]:
+            for name in chans_in_cat.get(cat,[]):
                 if name in valid_results:
                     if not cat_written_in_txt:
                         ftxt.write(f"\n{cat}\n")
                         cat_written_in_txt = True
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
-                        # 🌟 使用配置好的图标源
-                        logo = LOGO_BASE_URL.format(name=name)
+                        # 🌟 使用新增的图标引擎进行查找
+                        logo = get_local_logo_url(name)
+                        if not logo:
+                            # 没找到本地图标则使用备用远程库
+                            logo = f"https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
+                            
                         cat_clean = cat.split(',')[0]
                         fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
                         fm3u.write(f"{url}\n")
