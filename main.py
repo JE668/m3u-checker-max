@@ -26,7 +26,6 @@ EPG_BLACKLIST = [
     "no program", "no data", "精彩剧集", "暂未提供"
 ]
 
-# 确保输出目录存在
 os.makedirs("output", exist_ok=True)
 os.makedirs("config", exist_ok=True)
 
@@ -63,7 +62,8 @@ def get_main_name(raw_name, aliases_exact, aliases_regex):
         if reg.match(raw_name): return main_name
     return raw_name
 
-def load_demo_template():
+# 🌟 核心修复：传入别名库，让 demo.txt 也进行标准化清洗
+def load_demo_template(aliases_exact, aliases_regex):
     category_order = []
     channel_to_category = {}
     channels_in_category = {}
@@ -83,13 +83,17 @@ def load_demo_template():
                     category_order.append(current_category)
                     channels_in_category[current_category] = []
             else:
-                main_name = line
-                # 🌟 [修复核心]：如果当前分类尚未初始化（例如文件开头就是频道名），则立即创建
+                raw_name = line
+                # 🌟 重点：这里也必须用 alias 进行清洗，确保和 fetch_channels 的结果一致
+                main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
+                
+                # 初始化分类（防止第一行就是频道名导致报错）
                 if current_category not in channels_in_category:
                     channels_in_category[current_category] = []
                     if current_category not in category_order:
                         category_order.append(current_category)
                 
+                # 建立映射：标准名 -> 分类
                 channel_to_category[main_name] = current_category
                 if main_name not in channels_in_category[current_category]:
                     channels_in_category[current_category].append(main_name)
@@ -216,8 +220,11 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = get_main_name(name, aliases_exact, aliases_regex)
+                    # 记录修正情况
                     if name != main_name:
-                        live_print(f"   🔧 [修正] {name} => {main_name}")
+                         # 这里注释掉以免刷屏，调试可开启
+                         live_print(f"   🔧 [修正] {name} => {main_name}")
+                         pass
                     
                     if line not in seen_urls:
                         channels.append((main_name, line))
@@ -227,9 +234,6 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                     parts = line.split(",", 1)
                     raw_name = parts[0].strip()
                     main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
-                    if raw_name != main_name:
-                        live_print(f"   🔧 [修正] {raw_name} => {main_name}")
-                        
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip()))
                         seen_urls.add(parts[1].strip()); count += 1
@@ -315,9 +319,9 @@ if __name__ == "__main__":
     aliases_exact, aliases_regex = load_aliases()
     epg_report = download_and_merge_epg(aliases_exact, aliases_regex)
     
-    # 🌟 修复点：在加载模板时增加防御性编程
+    # 🌟 传入别名库，确保 demo.txt 里的名字也被清洗，与直播源一致
     try:
-        cat_order, chan_to_cat, chans_in_cat = load_demo_template()
+        cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex)
     except Exception as e:
         live_print(f"❌ demo.txt 加载严重错误: {e}")
         exit(1)
