@@ -18,7 +18,7 @@ OUTPUT_EPG_GZ = "output/epg.xml.gz"
 LOG_FILE = "output/log.txt"
 UNMATCHED_FILE = "output/unmatched.txt"
 
-# 🌟 M3U 头部 (已更换为新 CDN 加速)
+# M3U 头部 (CDN 加速)
 M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
 
 # EPG 垃圾词汇过滤库
@@ -78,29 +78,23 @@ def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unma
     return raw_name
 
 def get_local_logo_url(name):
-    """智能图标匹配引擎 (支持降级兜底)"""
-    # 🌟 本地图标库地址 (已更换为新 CDN 加速)
+    """
+    🌟 修复后的本地图标精准匹配引擎
+    """
     base_url = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
     if not os.path.exists(ICON_DIR): return ""
     files = os.listdir(ICON_DIR)
     
-    def clean(s): return re.sub(r'[^a-zA-Z0-9\+]', '', s).lower()
+    # 修复：仅去除空格、下划线、短横杠，并转小写。严格保留中文字符！
+    def clean(s): return re.sub(r'[\s\-_]', '', s).lower()
     
     target = clean(name)
     
-    # 第一层：精确匹配
+    # 精准匹配：只允许例如 "深圳卫视-4K" 匹配 "深圳卫视4k.png"，绝不串台
     for f in files:
         if clean(os.path.splitext(f)[0]) == target:
             return base_url + f
             
-    # 第二层：降级匹配
-    base_name = re.sub(r'(?i)[\-\s\_]*(4k|8k|hd|fhd|超清|高清|标清|测试)$', '', name)
-    if base_name != name:
-        target_base = clean(base_name)
-        for f in files:
-            if clean(os.path.splitext(f)[0]) == target_base:
-                return base_url + f
-                
     return "" 
 
 def load_demo_template(aliases_exact, aliases_regex, known_main_names):
@@ -475,7 +469,7 @@ if __name__ == "__main__":
                     for url, elapsed in valid_urls:
                         logo = get_local_logo_url(name)
                         if not logo:
-                            # 🌟 远程图标兜底 (已更换为新 CDN 加速)
+                            # 远程图标兜底
                             logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
                             
                         cat_clean = cat.split(',')[0]
