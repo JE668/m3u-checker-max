@@ -16,6 +16,7 @@ OUTPUT_M3U = "output/live.m3u"
 OUTPUT_EPG = "output/epg.xml"
 OUTPUT_EPG_GZ = "output/epg.xml.gz"
 LOG_FILE = "output/log.txt"
+UNMATCHED_FILE = "output/unmatched.txt"  # 🌟 新增：未匹配频道收集清单
 
 # M3U 头部 (CDN 加速)
 M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
@@ -39,13 +40,21 @@ def live_print(content):
 # ===============================
 def load_aliases():
     aliases_exact, aliases_regex = {},[]
-    if not os.path.exists(ALIAS_FILE): return aliases_exact, aliases_regex
+    known_main_names = set()  # 🌟 记录所有的主名，防止主名也被误判为未匹配
+    
+    live_print("::group::⚙️ 加载系统配置文件")
+    if not os.path.exists(ALIAS_FILE): 
+        live_print(f"⚠️ 未找到别名配置文件: {ALIAS_FILE}")
+        return aliases_exact, aliases_regex, known_main_names
+        
     with open(ALIAS_FILE, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith('#'): continue
             parts = line.split(',')
             main_name = parts[0].strip()
+            known_main_names.add(main_name)  # 录入主名
+            
             for alias in parts[1:]:
                 alias = alias.strip()
                 if alias.startswith("re:"):
@@ -54,38 +63,49 @@ def load_aliases():
                     except: pass
                 else:
                     aliases_exact[alias] = main_name
-    return aliases_exact, aliases_regex
+                    
+    live_print(f"✅ {ALIAS_FILE} (只读): 成功载入精确映射 {len(aliases_exact)} 个，正则映射 {len(aliases_regex)} 个。")
+    return aliases_exact, aliases_regex, known_main_names
 
-def get_main_name(raw_name, aliases_exact, aliases_regex):
+def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_set=None):
     raw_name = raw_name.strip()
+    
+    # 1. 检查是否已经是标准主名
+    if raw_name in known_main_names: return raw_name
+    
+    # 2. 检查精确别名匹配
     if raw_name in aliases_exact: return aliases_exact[raw_name]
-    if raw_name in aliases_exact.values(): return raw_name
+    
+    # 3. 检查正则匹配
     for reg, main_name in aliases_regex:
         if reg.match(raw_name): return main_name
+        
+    # 🌟 4. 如果全都没匹配上，将其记录到漏网之鱼清单中
+    if unmatched_set is not None:
+        unmatched_set.add(raw_name)
+        
     return raw_name
 
 def get_local_logo_url(name):
-    # 本地图标库最终在 GitHub Pages 的访问路径
     base_url = "https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
-    
     if not os.path.exists(ICON_DIR): return ""
     files = os.listdir(ICON_DIR)
-    
     def clean(s): return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
-    
     target = clean(name)
     for f in files:
         if clean(os.path.splitext(f)[0]) == target:
             return base_url + f
-            
     return "" 
 
-def load_demo_template(aliases_exact, aliases_regex):
+def load_demo_template(aliases_exact, aliases_regex, known_main_names):
     category_order =[]
     channel_to_category = {}
     channels_in_category = {}
     
-    if not os.path.exists(DEMO_FILE): return category_order, channel_to_category, channels_in_category
+    if not os.path.exists(DEMO_FILE): 
+        live_print(f"⚠️ 未找到分类模板文件: {DEMO_FILE}")
+        live_print("::endgroup::")
+        return category_order, channel_to_category, channels_in_category
     
     current_category = None
     with open(DEMO_FILE, 'r', encoding='utf-8') as f:
@@ -100,23 +120,24 @@ def load_demo_template(aliases_exact, aliases_regex):
                     channels_in_category[current_category] =[]
             elif current_category:
                 raw_name = line
-                # 记录的是标准名，保证 M3U 能够匹配到直播源
-                main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
+                main_name = get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names)
                 
                 if current_category not in channels_in_category:
                     channels_in_category[current_category] =[]
                 
                 channel_to_category[main_name] = current_category
                 if main_name not in channels_in_category[current_category]:
-                    # 按原本的读取顺序追加，保证生成 m3u 时不乱序
                     channels_in_category[current_category].append(main_name)
                     
+    total_channels = sum(len(v) for v in channels_in_category.values())
+    live_print(f"✅ {DEMO_FILE} (读写): 成功载入 {len(category_order)} 个大类，包含 {total_channels} 个已知频道。")
+    live_print("::endgroup::")
     return category_order, channel_to_category, channels_in_category
 
 # ===============================
 # 3. 抓取、清理与整合 EPG
 # ===============================
-def download_and_merge_epg(aliases_exact, aliases_regex):
+def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
     epg_urls =[]
     epg_report =[]
     if os.path.exists(EPG_FILE):
@@ -158,7 +179,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
                 display_name_elem = channel.find('display-name')
                 if orig_id and display_name_elem is not None and display_name_elem.text:
                     orig_name = display_name_elem.text.strip()
-                    main_name = get_main_name(orig_name, aliases_exact, aliases_regex)
+                    main_name = get_main_name(orig_name, aliases_exact, aliases_regex, known_main_names)
                     
                     if orig_name != main_name: rename_count += 1
                     
@@ -208,10 +229,12 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
     return epg_report
 
 # ===============================
-# 4. 抓取直播源
+# 4. 抓取直播源 (并收集未匹配项)
 # ===============================
-def fetch_and_parse_channels(aliases_exact, aliases_regex):
+def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
     channels =[]
+    unmatched_names = set()  # 🌟 实例化未匹配漏网之鱼集合
+    
     if not os.path.exists(SOURCES_FILE): return channels
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources =[line.strip() for line in f if line.strip() and not line.startswith('#')]
@@ -231,7 +254,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                     tmp_name = line.split(",")[-1].strip()
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
-                    main_name = get_main_name(name, aliases_exact, aliases_regex)
+                    main_name = get_main_name(name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
                     if line not in seen_urls:
                         channels.append((main_name, line))
                         seen_urls.add(line); count += 1
@@ -239,12 +262,28 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
                     raw_name = parts[0].strip()
-                    main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
+                    main_name = get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip()))
                         seen_urls.add(parts[1].strip()); count += 1
             live_print(f"✅ {url} -> 提取 {count} 条")
         except: live_print(f"❌ 连接失败: {url}")
+        
+    # 🌟 将漏网之鱼写入清单
+    if unmatched_names:
+        with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
+            f.write(f"=============== 未匹配频道名单 ===============\n")
+            f.write(f"时间: {datetime.now()}\n")
+            f.write(f"说明: 以下 {len(unmatched_names)} 个频道在抓取时未能在 config/alias.txt 中找到匹配。\n")
+            f.write(f"建议: 将它们复制到 alias.txt 中进行别名映射，以保持列表纯净。\n")
+            f.write(f"==============================================\n\n")
+            for name in sorted(unmatched_names):
+                f.write(f"{name}\n")
+        live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
+    else:
+        # 如果全匹配上了，清理掉旧的清单文件
+        if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
+        
     live_print("::endgroup::")
     return channels
 
@@ -282,19 +321,18 @@ def channel_sort_key(name):
     return (5, val, name)
 
 def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
-    """采用绝对无损读取模式，只在对应分类底部追加新频道，绝不打乱原有排序和空行"""
+    live_print("\n::group::🧠 自适应进化 config/demo.txt (无损追加模式)")
     
-    # 1. 识别真正的新频道 (不在现有分组里)
-    new_channels = [n for n in valid_names if n not in chan_to_cat]
+    new_channels =[n for n in valid_names if n not in chan_to_cat]
+    
     if not new_channels:
-        live_print("::group::🧠 自适应进化 demo.txt")
-        live_print("✅ 未发现分类外的新频道，demo.txt 保持原样。")
+        live_print("ℹ️ 状态: 测速存活的频道均已存在于 config/demo.txt 当前分组中。")
+        live_print("✅ 动作: 模板保持原样，无需写入更新。")
         live_print("::endgroup::")
         return cat_order, chan_to_cat, chans_in_cat
 
-    live_print("::group::🧠 自适应进化 demo.txt (无损追加模式)")
+    live_print(f"ℹ️ 状态: 发现了 {len(new_channels)} 个全新的存活频道！准备自动归类并追加写入...")
     
-    # 2. 将新频道进行归类
     additions = {}
     for name in new_channels:
         name_upper = name.upper()
@@ -305,27 +343,21 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
         
         additions.setdefault(cat,[]).append(name)
         
-        # 同步更新内存里的结构，以供后续输出 M3U 使用
         if cat not in cat_order:
             cat_order.append(cat)
             chans_in_cat[cat] =[]
         chans_in_cat[cat].append(name)
         chan_to_cat[name] = cat
-        live_print(f"   -> 🆕 追加收录: [{name}] => [{cat.split(',')[0]}]")
+        live_print(f"   -> 🆕 自动追加: [{name}] 归入 [{cat.split(',')[0]}]")
 
-    # 3. 读取原版 demo.txt，以纯文本行数组形式操作
     if os.path.exists(DEMO_FILE):
         with open(DEMO_FILE, 'r', encoding='utf-8') as f:
             lines = f.readlines()
     else:
         lines =[]
 
-    # 4. 精准定位并插入新频道
     for cat, names in additions.items():
-        # 新增频道按规则简单排个序，避免插进去乱糟糟的
         sorted_names = sorted(names, key=channel_sort_key)
-        
-        # 寻找分类在文本中的位置
         cat_idx = -1
         for i, line in enumerate(lines):
             if line.strip() == cat:
@@ -333,22 +365,16 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
                 break
                 
         if cat_idx != -1:
-            # 找到了该分类。往下找，直到遇到下一个分类 (#genre#) 或文本结尾
             insert_idx = cat_idx + 1
             while insert_idx < len(lines):
                 if "#genre#" in lines[insert_idx]:
                     break
                 insert_idx += 1
-            
-            # 为了美观，把插入点提起到换行符前面（如果有的话）
             while insert_idx > 0 and lines[insert_idx-1].strip() == "":
                 insert_idx -= 1
-                
-            # 切片组合注入！
             insert_lines =[n + "\n" for n in sorted_names]
             lines = lines[:insert_idx] + insert_lines + lines[insert_idx:]
         else:
-            # 文本里根本没有这个分类，那就全量加在最后面
             if lines and lines[-1].strip() != "":
                 lines.append("\n")
             lines.append(cat + "\n")
@@ -356,13 +382,12 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
                 lines.append(n + "\n")
             lines.append("\n")
 
-    # 5. 回写覆盖 demo.txt
     try:
         with open(DEMO_FILE, 'w', encoding='utf-8') as f:
             f.writelines(lines)
-        live_print(f"✅ demo.txt 无损更新完毕！原结构已完美保留。")
+        live_print(f"✅ 动作: config/demo.txt 已无损更新！原结构完美保留，底部已成功追加上述新频道。")
     except Exception as e:
-        live_print(f"❌ demo.txt 更新失败: {e}")
+        live_print(f"❌ 动作: config/demo.txt 更新失败: {e}")
         
     live_print("::endgroup::")
     return cat_order, chan_to_cat, chans_in_cat
@@ -371,16 +396,16 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
 # 7. 主程序
 # ===============================
 if __name__ == "__main__":
-    aliases_exact, aliases_regex = load_aliases()
-    epg_report = download_and_merge_epg(aliases_exact, aliases_regex)
+    aliases_exact, aliases_regex, known_main_names = load_aliases()
+    epg_report = download_and_merge_epg(aliases_exact, aliases_regex, known_main_names)
     
     try:
-        cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex)
+        cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex, known_main_names)
     except Exception as e:
-        live_print(f"❌ demo.txt 加载严重错误: {e}")
+        live_print(f"❌ config/demo.txt 加载严重错误: {e}")
         exit(1)
         
-    channels = fetch_and_parse_channels(aliases_exact, aliases_regex)
+    channels = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names)
     
     if not channels: 
         live_print("⚠️ 未获取到任何有效直播源，退出。")
@@ -408,18 +433,16 @@ if __name__ == "__main__":
                 logs_success.append(msg)
             else:
                 msg = f"{progress} 🔴 {name:<12} | {reason:<10} | {url}"
-                live_print(msg)
+                # live_print(msg) # 失效信息打印容易刷屏，可以注释掉
                 logs_fail.append(msg)
 
     live_print(f"\n🏁 测速结束: 有效 {len(logs_success)} / 失效 {len(logs_fail)}\n")
 
-    # 🌟 调用全新的无损进化模块
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
 
     live_print("::group::💾 写入结果文件")
     with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
         fm3u.write(M3U_HEADER)
-        # 保证按照 demo.txt 原有的分类顺序和频道顺序输出！
         for cat in cat_order:
             cat_written_in_txt = False
             for name in chans_in_cat.get(cat,[]):
@@ -428,7 +451,6 @@ if __name__ == "__main__":
                         ftxt.write(f"\n{cat}\n")
                         cat_written_in_txt = True
                     
-                    # 只有同名的不同测速链接才按速度排序
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
                         logo = get_local_logo_url(name)
@@ -448,5 +470,5 @@ if __name__ == "__main__":
         f.write("✅ 有效源:\n" + "\n".join(logs_success) + "\n\n")
         f.write("❌ 失效源:\n" + "\n".join(logs_fail))
     
-    live_print("✅ 所有文件已生成至 output/ 目录")
+    live_print(f"✅ 所有结果文件已生成至 output/ 目录")
     live_print("::endgroup::")
