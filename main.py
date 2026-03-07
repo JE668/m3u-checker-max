@@ -18,8 +18,8 @@ OUTPUT_EPG_GZ = "output/epg.xml.gz"
 LOG_FILE = "output/log.txt"
 UNMATCHED_FILE = "output/unmatched.txt"
 
-# M3U 头部 (CDN 加速)
-M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
+# 🌟 M3U 头部 (已更换为新 CDN 加速)
+M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
 
 # EPG 垃圾词汇过滤库
 EPG_BLACKLIST =[
@@ -78,25 +78,22 @@ def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unma
     return raw_name
 
 def get_local_logo_url(name):
-    """
-    智能图标匹配引擎 (支持降级兜底)
-    """
-    base_url = "https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
+    """智能图标匹配引擎 (支持降级兜底)"""
+    # 🌟 本地图标库地址 (已更换为新 CDN 加速)
+    base_url = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
     if not os.path.exists(ICON_DIR): return ""
     files = os.listdir(ICON_DIR)
     
-    # 🌟 修复点：保留加号(+)以区分 CCTV5 和 CCTV5+
     def clean(s): return re.sub(r'[^a-zA-Z0-9\+]', '', s).lower()
     
     target = clean(name)
     
-    # 第一层：精确匹配 (比如找 东方卫视4k.png)
+    # 第一层：精确匹配
     for f in files:
         if clean(os.path.splitext(f)[0]) == target:
             return base_url + f
             
-    # 第二层：降级匹配 (去除后缀如 4k, 8k, hd 后再找)
-    # 例如将 "东方卫视-4K" 降级为 "东方卫视"，去找 东方卫视.png
+    # 第二层：降级匹配
     base_name = re.sub(r'(?i)[\-\s\_]*(4k|8k|hd|fhd|超清|高清|标清|测试)$', '', name)
     if base_name != name:
         target_base = clean(base_name)
@@ -182,8 +179,6 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
             c_count, p_count, p_discard = 0, 0, 0
             rename_count = 0
             id_mapping = {}
-            
-            # 🌟 新增：去重记录器，防止同一个频道修正日志刷屏
             seen_epg_renames = set()
             
             for channel in root.findall('channel'):
@@ -263,8 +258,6 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
             r.encoding = 'utf-8'
             tmp_name = ""
             count = 0
-            
-            # 🌟 新增：去重记录器，防止同一个源里大量同名修正刷屏
             seen_source_renames = set()
             
             for line in r.text.splitlines():
@@ -480,10 +473,10 @@ if __name__ == "__main__":
                     
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
-                        # 🌟 第三层保障：如果所有本地匹配都失败，最后回退至该链接
                         logo = get_local_logo_url(name)
                         if not logo:
-                            logo = f"https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
+                            # 🌟 远程图标兜底 (已更换为新 CDN 加速)
+                            logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
                             
                         cat_clean = cat.split(',')[0]
                         fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
