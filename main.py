@@ -5,6 +5,7 @@ from datetime import datetime
 # ===============================
 # 1. 核心配置区
 # ===============================
+# 确保路径与你的新目录结构一致
 SOURCES_FILE = "config/sources.txt"
 EPG_FILE = "config/epg.txt"
 ALIAS_FILE = "config/alias.txt"
@@ -16,25 +17,29 @@ OUTPUT_EPG = "output/epg.xml"
 OUTPUT_EPG_GZ = "output/epg.xml.gz"
 LOG_FILE = "output/log.txt"
 
+# M3U 头部 (CDN 加速)
 M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
 
-EPG_BLACKLIST =[
+# EPG 垃圾词汇过滤库
+EPG_BLACKLIST = [
     "未能提供", "暂无节目", "精彩节目", "精彩節目", 
     "没有节目", "未提供节目", "未提供節目", 
     "no program", "no data", "精彩剧集", "暂未提供"
 ]
 
-def live_print(content):
-    print(content, flush=True)
-
+# 确保输出目录存在
 os.makedirs("output", exist_ok=True)
 os.makedirs("config", exist_ok=True)
+
+def live_print(content):
+    # 强制刷新缓冲区，确保 GitHub Actions 实时看到日志
+    print(content, flush=True)
 
 # ===============================
 # 2. 核心字典：加载别名与分类
 # ===============================
 def load_aliases():
-    aliases_exact, aliases_regex = {},[]
+    aliases_exact, aliases_regex = {}, []
     if not os.path.exists(ALIAS_FILE): return aliases_exact, aliases_regex
     with open(ALIAS_FILE, 'r', encoding='utf-8') as f:
         for line in f:
@@ -60,7 +65,7 @@ def get_main_name(raw_name, aliases_exact, aliases_regex):
     return raw_name
 
 def load_demo_template():
-    category_order =[]
+    category_order = []
     channel_to_category = {}
     channels_in_category = {}
     
@@ -75,7 +80,7 @@ def load_demo_template():
                 current_category = line.split(',')[0].strip()
                 if current_category not in category_order:
                     category_order.append(current_category)
-                    channels_in_category[current_category] =[]
+                    channels_in_category[current_category] = []
             else:
                 main_name = line
                 channel_to_category[main_name] = current_category
@@ -87,12 +92,12 @@ def load_demo_template():
 # ===============================
 # 3. 抓取、清理与整合 EPG
 # ===============================
-def download_and_merge_epg():
-    epg_urls =[]
-    epg_report =[]
+def download_and_merge_epg(aliases_exact, aliases_regex):
+    epg_urls = []
+    epg_report = []
     if os.path.exists(EPG_FILE):
         with open(EPG_FILE, 'r', encoding='utf-8') as f:
-            epg_urls =[line.strip() for line in f if line.strip() and not line.startswith('#')]
+            epg_urls = [line.strip() for line in f if line.strip() and not line.startswith('#')]
             
     if not epg_urls: return epg_report
     
@@ -107,44 +112,56 @@ def download_and_merge_epg():
             
         epg_report.append(f"▶ 来源: {url}")
         try:
-            live_print(f"📥 正在获取 EPG: {url}")
+            live_print(f"📥 正在获取: {url}")
             headers = {"User-Agent": "Mozilla/5.0"}
             r = requests.get(url, headers=headers, timeout=20)
-            
             content = r.content
             if not content: continue
-                
             if content.startswith(b'\x1f\x8b'):
                 try: content = gzip.decompress(content)
                 except: continue
-
             try:
                 root = ET.parse(io.BytesIO(content)).getroot()
                 if root.tag != 'tv': continue
             except: continue
             
             c_count, p_count, p_discard = 0, 0, 0
+            id_mapping = {}
+            
             for channel in root.findall('channel'):
-                c_id = channel.get('id')
-                if c_id not in seen_channels:
-                    seen_channels.add(c_id); merged_tv.append(channel); c_count += 1
-                    
+                orig_id = channel.get('id')
+                display_name_elem = channel.find('display-name')
+                if orig_id and display_name_elem is not None and display_name_elem.text:
+                    orig_name = display_name_elem.text.strip()
+                    main_name = get_main_name(orig_name, aliases_exact, aliases_regex)
+                    id_mapping[orig_id] = main_name
+                    channel.set('id', main_name)
+                    display_name_elem.text = main_name
+                    if main_name not in seen_channels:
+                        seen_channels.add(main_name)
+                        merged_tv.append(channel)
+                        c_count += 1
+                        
             for prog in root.findall('programme'):
                 title_node = prog.find('title')
                 title_text = title_node.text.lower() if title_node is not None and title_node.text else ""
                 if any(kw in title_text for kw in EPG_BLACKLIST):
                     p_discard += 1
                     continue
-                    
-                key = (prog.get('channel'), prog.get('start'), prog.get('stop'))
-                if key not in seen_programmes:
-                    seen_programmes.add(key); merged_tv.append(prog); p_count += 1
+                orig_channel_id = prog.get('channel')
+                if orig_channel_id in id_mapping:
+                    new_id = id_mapping[orig_channel_id]
+                    prog.set('channel', new_id)
+                    key = (new_id, prog.get('start'), prog.get('stop'))
+                    if key not in seen_programmes:
+                        seen_programmes.add(key)
+                        merged_tv.append(prog)
+                        p_count += 1
             
-            msg = f"   -> ✅ 提取频道: {c_count} 个 | 有效节目: {p_count} 条 | 🗑️ 拦截垃圾: {p_discard} 条"
+            msg = f"   -> ✅ 提取频道: {c_count} | 节目: {p_count} | 🗑️ 过滤: {p_discard}"
             live_print(msg); epg_report.append(msg)
-            
         except Exception as e: 
-            msg = f"   -> ❌ 获取异常: {e}"
+            msg = f"   -> ❌ 异常: {e}"
             live_print(msg); epg_report.append(msg)
 
     if len(seen_channels) > 0:
@@ -155,25 +172,24 @@ def download_and_merge_epg():
                 tree.write(f, encoding='utf-8', xml_declaration=False)
             with open(OUTPUT_EPG, 'rb') as f_in, gzip.open(OUTPUT_EPG_GZ, 'wb') as f_out:
                 f_out.writelines(f_in)
-            final_msg = f"🎉 EPG 整合完成！共去重整合 {len(seen_channels)} 个频道，{len(seen_programmes)} 条有效节目。"
+            final_msg = f"🎉 EPG 整合完成！规范频道数: {len(seen_channels)}"
             live_print(final_msg)
             epg_report.append("\n" + final_msg)
         except: pass
-        
     live_print("::endgroup::")
     return epg_report
 
 # ===============================
-# 4. 抓取直播源并进行别名映射
+# 4. 抓取直播源
 # ===============================
 def fetch_and_parse_channels(aliases_exact, aliases_regex):
-    channels =[]
+    channels = []
     if not os.path.exists(SOURCES_FILE): return channels
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
-        sources =[line.strip() for line in f if line.strip() and not line.startswith('#')]
+        sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
     
     seen_urls = set()
-    live_print("::group::📥 开始抓取并解析上游直播源")
+    live_print("::group::📥 开始抓取直播源")
     for url in sources:
         try:
             r = requests.get(url, timeout=10)
@@ -198,13 +214,13 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip()))
                         seen_urls.add(parts[1].strip()); count += 1
-            live_print(f"✅ {url} -> {count} 条")
-        except: pass
+            live_print(f"✅ {url} -> 提取 {count} 条")
+        except: live_print(f"❌ 连接失败: {url}")
     live_print("::endgroup::")
     return channels
 
 # ===============================
-# 5. 并发测速
+# 5. 并发测速 (增强版日志)
 # ===============================
 def check_channel(main_name, url):
     start_time = time.time()
@@ -217,20 +233,18 @@ def check_channel(main_name, url):
                 if downloaded >= 1024 * 128:
                     return True, main_name, url, round(time.time() - start_time, 2), "成功"
                 if time.time() - start_time > 5: 
-                    return False, main_name, url, round(time.time() - start_time, 2), "下载超时(流无数据)"
-        else: return False, main_name, url, round(time.time() - start_time, 2), f"状态码异常: {r.status_code}"
-    except Exception as e: return False, main_name, url, round(time.time() - start_time, 2), "连接失败"
-    return False, main_name, url, round(time.time() - start_time, 2), "未知错误"
+                    return False, main_name, url, round(time.time() - start_time, 2), "超时无流"
+        else: return False, main_name, url, round(time.time() - start_time, 2), f"Error {r.status_code}"
+    except Exception: return False, main_name, url, round(time.time() - start_time, 2), "连接失败"
+    return False, main_name, url, round(time.time() - start_time, 2), "未知"
 
 # ===============================
-# 6. 核心：自适应进化 demo.txt 模板
+# 6. 自适应进化 demo.txt
 # ===============================
 def channel_sort_key(name):
-    """排序算法：提取频道名称中的数字进行排序，央视/卫视优先"""
     nums = re.findall(r'\d+', name)
     val = int(nums[0]) if nums else 999
     name_upper = name.upper()
-    
     if "4K" in name_upper and "CCTV" in name_upper: return (0, val, name)
     if "8K" in name_upper and "CCTV" in name_upper: return (1, val, name)
     if "CCTV" in name_upper: return (2, val, name)
@@ -239,10 +253,7 @@ def channel_sort_key(name):
     return (5, val, name)
 
 def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
-    """将发现的新频道自动归类，并覆写 demo.txt，实现系统的自我进化"""
-    live_print("::group::🧠 触发自适应进化引擎：更新 demo.txt")
-    
-    # 智能归类新生频道
+    live_print("::group::🧠 自适应进化 demo.txt")
     new_channels_count = 0
     for name in valid_names:
         if name not in chan_to_cat:
@@ -254,18 +265,16 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
             
             if cat not in cat_order:
                 cat_order.append(cat)
-                chans_in_cat[cat] =[]
+                chans_in_cat[cat] = []
                 
             chans_in_cat[cat].append(name)
             chan_to_cat[name] = cat
             new_channels_count += 1
-            live_print(f"   -> 🆕 发现新频道: [{name}]，已自动归类至 [{cat.split(',')[0]}]")
+            live_print(f"   -> 🆕 自动收录: [{name}] => [{cat.split(',')[0]}]")
 
-    # 对所有分类内的频道执行智能排序
     for cat in cat_order:
         chans_in_cat[cat] = sorted(chans_in_cat[cat], key=channel_sort_key)
 
-    # 覆写保存最新的 demo.txt
     try:
         with open(DEMO_FILE, 'w', encoding='utf-8') as f:
             for cat in cat_order:
@@ -274,10 +283,9 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
                 for name in chans_in_cat[cat]:
                     f.write(f"{name}\n")
                 f.write("\n")
-        live_print(f"✅ demo.txt 自适应更新完毕！本次自动收录并排序了 {new_channels_count} 个全新频道。")
+        live_print(f"✅ 更新完成，新增 {new_channels_count} 个频道")
     except Exception as e:
-        live_print(f"❌ demo.txt 更新失败: {e}")
-        
+        live_print(f"❌ 更新失败: {e}")
     live_print("::endgroup::")
     return cat_order, chan_to_cat, chans_in_cat
 
@@ -285,44 +293,50 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
 # 7. 主程序
 # ===============================
 if __name__ == "__main__":
-    epg_report = download_and_merge_epg()
     aliases_exact, aliases_regex = load_aliases()
+    epg_report = download_and_merge_epg(aliases_exact, aliases_regex)
     cat_order, chan_to_cat, chans_in_cat = load_demo_template()
-    
     channels = fetch_and_parse_channels(aliases_exact, aliases_regex)
+    
     if not channels: exit(0)
 
-    live_print(f"::group::🎬 开始全量测速 (并发量: 100)")
-    valid_results = {}  
-    logs_success, logs_fail = [],[]
+    # 🌟 修复日志不实时输出的问题
+    # 不使用 ::group:: 包裹测速过程，防止 GitHub Actions 默认折叠导致看起来像卡死
+    live_print(f"\n🚀 开始全量测速 (总数: {len(channels)} 个，并发: 100)...\n")
+    
+    valid_results = {}
+    logs_success, logs_fail = [], []
+    total = len(channels)
+    processed = 0
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=100) as ex:
-        futures =[ex.submit(check_channel, name, url) for name, url in channels]
+        futures = [ex.submit(check_channel, name, url) for name, url in channels]
         for future in concurrent.futures.as_completed(futures):
+            processed += 1
             is_valid, name, url, elapsed, reason = future.result()
+            
+            # 🌟 实时日志：带进度条、对齐、状态图标
+            progress = f"[{processed}/{total}]"
             if is_valid:
-                if name not in valid_results: valid_results[name] =[]
+                if name not in valid_results: valid_results[name] = []
                 valid_results[name].append((url, elapsed))
-                msg = f"🟢 [有效] {name:<15} | 耗时 {elapsed}s | {url}"
+                msg = f"{progress} 🟢 {name:<12} | {elapsed:>4}s | {url}"
+                live_print(msg)
                 logs_success.append(msg)
             else:
-                msg = f"🔴 [失效] {name:<15} | 耗时 {elapsed}s | {reason:<15} | {url}"
+                msg = f"{progress} 🔴 {name:<12} | {reason:<10} | {url}"
+                live_print(msg)
                 logs_fail.append(msg)
-    live_print(f"✅ 测速完毕: 有效源 {len(logs_success)} 个，失效源 {len(logs_fail)} 个")
-    live_print("::endgroup::")
 
-    # 🌟 触发核心动作：根据存活频道自动进化 demo.txt
+    live_print(f"\n🏁 测速结束: 有效 {len(logs_success)} / 失效 {len(logs_fail)}\n")
+
+    # 进化 Demo
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
 
-    # ===============================
-    # 8. 组装输出与文件写入
-    # ===============================
-    live_print("::group::💾 正在写入最终流文件")
-    tvg_id = 1
-    
+    # 写入文件
+    live_print("::group::💾 写入结果文件")
     with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
         fm3u.write(M3U_HEADER)
-        
         for cat in cat_order:
             cat_written_in_txt = False
             for name in chans_in_cat[cat]:
@@ -330,29 +344,24 @@ if __name__ == "__main__":
                     if not cat_written_in_txt:
                         ftxt.write(f"\n{cat}\n")
                         cat_written_in_txt = True
-                    
+                    # 速度排序
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
-                        # 生成 CDN 加速的 GitHub TV Logo (避免出现无效链接可保留，或者用自己的 logo 库)
                         logo = f"https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
                         cat_clean = cat.split(',')[0]
-                        fm3u.write(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
+                        # 核心：tvg-id 设为 name，与 EPG 严格对应
+                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
                         fm3u.write(f"{url}\n")
                         ftxt.write(f"{name},{url}\n")
-                    tvg_id += 1
-
+    
+    # 写入详细 Log
     with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write(f"=============== 频道检测详细报告 ===============\n")
         f.write(f"任务时间: {datetime.now()}\n")
-        f.write(f"最终有效总数: {len(logs_success)} 个链接\n")
-        f.write(f"过滤失效总数: {len(logs_fail)} 个链接\n")
-        f.write(f"================================================\n\n")
+        f.write(f"有效源: {len(logs_success)} | 失效源: {len(logs_fail)}\n\n")
         if epg_report:
-            f.write(f"=============== EPG 整合及清理报告 ===============\n")
             f.write("\n".join(epg_report) + "\n\n")
-        f.write("✅ 存活链接详情 (按处理顺序):\n")
-        f.write("\n".join(logs_success) + "\n\n")
-        f.write("❌ 失效链接详情 (含失败原因):\n")
-        f.write("\n".join(logs_fail))
-
+        f.write("✅ 有效源:\n" + "\n".join(logs_success) + "\n\n")
+        f.write("❌ 失效源:\n" + "\n".join(logs_fail))
+    
+    live_print("✅ 所有文件已生成至 output/ 目录")
     live_print("::endgroup::")
