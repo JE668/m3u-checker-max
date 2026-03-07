@@ -19,6 +19,10 @@ LOG_FILE = "output/log.txt"
 # M3U 头部 (CDN 加速)
 M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.llkk.cc/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz"\n'
 
+# 🌟 图标源配置 (可修改为其他更全的源)
+# 注意：{name} 会被自动替换为频道名
+LOGO_BASE_URL = "https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
+
 # EPG 垃圾词汇过滤库
 EPG_BLACKLIST = [
     "未能提供", "暂无节目", "精彩节目", "精彩節目", 
@@ -62,7 +66,6 @@ def get_main_name(raw_name, aliases_exact, aliases_regex):
         if reg.match(raw_name): return main_name
     return raw_name
 
-# 🌟 核心修复：传入别名库，让 demo.txt 也进行标准化清洗
 def load_demo_template(aliases_exact, aliases_regex):
     category_order = []
     channel_to_category = {}
@@ -70,7 +73,8 @@ def load_demo_template(aliases_exact, aliases_regex):
     
     if not os.path.exists(DEMO_FILE): return category_order, channel_to_category, channels_in_category
     
-    current_category = "未分类频道"
+    # 🌟 修复关键：默认不设置分类。如果在 #genre# 之前出现频道，直接忽略（视为新频道，交给 auto_update_demo 处理）
+    current_category = None
     
     with open(DEMO_FILE, 'r', encoding='utf-8') as f:
         for line in f:
@@ -83,15 +87,13 @@ def load_demo_template(aliases_exact, aliases_regex):
                     category_order.append(current_category)
                     channels_in_category[current_category] = []
             else:
+                # 如果还没有读到第一个分类标签，直接跳过该行
+                # 让它变成“无主孤魂”，后续 auto_update_demo 会自动把它抓进“央视”或“其他”里
+                if not current_category:
+                    continue
+
                 raw_name = line
-                # 🌟 重点：这里也必须用 alias 进行清洗，确保和 fetch_channels 的结果一致
                 main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
-                
-                # 初始化分类（防止第一行就是频道名导致报错）
-                if current_category not in channels_in_category:
-                    channels_in_category[current_category] = []
-                    if current_category not in category_order:
-                        category_order.append(current_category)
                 
                 # 建立映射：标准名 -> 分类
                 channel_to_category[main_name] = current_category
@@ -220,12 +222,6 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = get_main_name(name, aliases_exact, aliases_regex)
-                    # 记录修正情况
-                    if name != main_name:
-                         # 这里注释掉以免刷屏，调试可开启
-                         live_print(f"   🔧 [修正] {name} => {main_name}")
-                         pass
-                    
                     if line not in seen_urls:
                         channels.append((main_name, line))
                         seen_urls.add(line); count += 1
@@ -279,6 +275,7 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
     live_print("::group::🧠 自适应进化 demo.txt")
     new_channels_count = 0
     for name in valid_names:
+        # 🌟 重点：所有不在 demo.txt 分类中的频道，都会进入这里被重新分配
         if name not in chan_to_cat:
             name_upper = name.upper()
             if "4K" in name_upper or "8K" in name_upper: cat = "☘️4K/8K超高清频道,#genre#"
@@ -319,7 +316,7 @@ if __name__ == "__main__":
     aliases_exact, aliases_regex = load_aliases()
     epg_report = download_and_merge_epg(aliases_exact, aliases_regex)
     
-    # 🌟 传入别名库，确保 demo.txt 里的名字也被清洗，与直播源一致
+    # 加载模板时进行别名清洗
     try:
         cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex)
     except Exception as e:
@@ -359,6 +356,7 @@ if __name__ == "__main__":
 
     live_print(f"\n🏁 测速结束: 有效 {len(logs_success)} / 失效 {len(logs_fail)}\n")
 
+    # 进化 Demo，这里会处理所有之前被跳过的“无家可归”频道
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
 
     live_print("::group::💾 写入结果文件")
@@ -373,7 +371,8 @@ if __name__ == "__main__":
                         cat_written_in_txt = True
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
-                        logo = f"https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
+                        # 🌟 使用配置好的图标源
+                        logo = LOGO_BASE_URL.format(name=name)
                         cat_clean = cat.split(',')[0]
                         fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
                         fm3u.write(f"{url}\n")
