@@ -72,7 +72,7 @@ def load_demo_template(aliases_exact, aliases_regex):
     channels_in_category = {}
     
     if not os.path.exists(DEMO_FILE): return category_order, channel_to_category, channels_in_category
-    
+
     # 🌟 修复关键：默认不设置分类。如果在 #genre# 之前出现频道，直接忽略（视为新频道，交给 auto_update_demo 处理）
     current_category = None
     
@@ -86,14 +86,13 @@ def load_demo_template(aliases_exact, aliases_regex):
                 if current_category not in category_order:
                     category_order.append(current_category)
                     channels_in_category[current_category] = []
-            else:
-                # 如果还没有读到第一个分类标签，直接跳过该行
-                # 让它变成“无主孤魂”，后续 auto_update_demo 会自动把它抓进“央视”或“其他”里
-                if not current_category:
-                    continue
-
+            elif current_category:
                 raw_name = line
                 main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
+                
+                # 确保当前分类字典存在
+                if current_category not in channels_in_category:
+                    channels_in_category[current_category] = []
                 
                 # 建立映射：标准名 -> 分类
                 channel_to_category[main_name] = current_category
@@ -258,54 +257,55 @@ def check_channel(main_name, url):
     return False, main_name, url, round(time.time() - start_time, 2), "未知"
 
 # ===============================
-# 6. 自适应进化 demo.txt
+# 6. 核心：自适应进化 demo.txt (修改版：保留原手动分类)
 # ===============================
-def channel_sort_key(name):
-    nums = re.findall(r'\d+', name)
-    val = int(nums[0]) if nums else 999
-    name_upper = name.upper()
-    if "4K" in name_upper and "CCTV" in name_upper: return (0, val, name)
-    if "8K" in name_upper and "CCTV" in name_upper: return (1, val, name)
-    if "CCTV" in name_upper: return (2, val, name)
-    if "CETV" in name_upper: return (3, val, name)
-    if "卫视" in name_upper: return (4, val, name)
-    return (5, val, name)
-
 def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
-    live_print("::group::🧠 自适应进化 demo.txt")
+    live_print("::group::🧠 自适应进化 demo.txt (保留手动配置)")
     new_channels_count = 0
+    
+    # 建立一个当前的频道分类查找表
+    current_map = {}
+    for cat, channels in chans_in_cat.items():
+        for ch in channels:
+            current_map[ch] = cat
+
+    # 识别新频道并归类
     for name in valid_names:
-        # 🌟 重点：所有不在 demo.txt 分类中的频道，都会进入这里被重新分配
-        if name not in chan_to_cat:
+        if name not in current_map:
             name_upper = name.upper()
+            # 智能分类规则
             if "4K" in name_upper or "8K" in name_upper: cat = "☘️4K/8K超高清频道,#genre#"
             elif "CCTV" in name_upper or "CETV" in name_upper: cat = "📺央视频道,#genre#"
             elif "卫视" in name_upper: cat = "📡卫视频道,#genre#"
             else: cat = "📺其他频道,#genre#"
             
+            # 确保分类存在于 cat_order
             if cat not in cat_order:
                 cat_order.append(cat)
                 chans_in_cat[cat] = []
-                
+            
             chans_in_cat[cat].append(name)
-            chan_to_cat[name] = cat
+            current_map[name] = cat
             new_channels_count += 1
-            live_print(f"   -> 🆕 自动收录: [{name}] => [{cat.split(',')[0]}]")
+            live_print(f"   -> 🆕 发现并自动归类: [{name}] => [{cat.split(',')[0]}]")
 
-    for cat in cat_order:
-        chans_in_cat[cat] = sorted(chans_in_cat[cat], key=channel_sort_key)
-
+    # 覆写 demo.txt (保持原有的手动分组顺序和频道)
     try:
         with open(DEMO_FILE, 'w', encoding='utf-8') as f:
             for cat in cat_order:
-                if not chans_in_cat.get(cat): continue
+                # 只写入在当前分类里的频道（即保留了原来的频道，并追加了新频道）
+                channels_to_write = chans_in_cat.get(cat, [])
+                if not channels_to_write: continue
+                
                 f.write(f"{cat}\n")
-                for name in chans_in_cat[cat]:
+                # 排序规则：保持原有的手动顺序（这里简单处理为字母排序，如有特定排序需求可改）
+                for name in sorted(list(set(channels_to_write))):
                     f.write(f"{name}\n")
                 f.write("\n")
-        live_print(f"✅ 更新完成，新增 {new_channels_count} 个频道")
+        live_print(f"✅ demo.txt 保护性更新完毕，新增 {new_channels_count} 个频道")
     except Exception as e:
-        live_print(f"❌ 更新失败: {e}")
+        live_print(f"❌ demo.txt 更新失败: {e}")
+        
     live_print("::endgroup::")
     return cat_order, chan_to_cat, chans_in_cat
 
