@@ -5,7 +5,6 @@ from datetime import datetime
 # ===============================
 # 1. 核心配置区
 # ===============================
-# 确保路径与你的新目录结构一致
 SOURCES_FILE = "config/sources.txt"
 EPG_FILE = "config/epg.txt"
 ALIAS_FILE = "config/alias.txt"
@@ -32,7 +31,6 @@ os.makedirs("output", exist_ok=True)
 os.makedirs("config", exist_ok=True)
 
 def live_print(content):
-    # 强制刷新缓冲区，确保 GitHub Actions 实时看到日志
     print(content, flush=True)
 
 # ===============================
@@ -58,6 +56,8 @@ def load_aliases():
     return aliases_exact, aliases_regex
 
 def get_main_name(raw_name, aliases_exact, aliases_regex):
+    # 先去除左右空格
+    raw_name = raw_name.strip()
     if raw_name in aliases_exact: return aliases_exact[raw_name]
     if raw_name in aliases_exact.values(): return raw_name
     for reg, main_name in aliases_regex:
@@ -90,7 +90,7 @@ def load_demo_template():
     return category_order, channel_to_category, channels_in_category
 
 # ===============================
-# 3. 抓取、清理与整合 EPG
+# 3. 抓取、清理与整合 EPG (含重名日志)
 # ===============================
 def download_and_merge_epg(aliases_exact, aliases_regex):
     epg_urls = []
@@ -126,6 +126,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
             except: continue
             
             c_count, p_count, p_discard = 0, 0, 0
+            rename_count = 0
             id_mapping = {}
             
             for channel in root.findall('channel'):
@@ -134,6 +135,13 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
                 if orig_id and display_name_elem is not None and display_name_elem.text:
                     orig_name = display_name_elem.text.strip()
                     main_name = get_main_name(orig_name, aliases_exact, aliases_regex)
+                    
+                    # 🌟 记录 EPG 中的名称变更
+                    if orig_name != main_name:
+                        # 仅记录前5个重名示例，防止日志爆炸，或全部记录
+                        # epg_report.append(f"   -> 🔧 EPG修正: {orig_name} => {main_name}")
+                        rename_count += 1
+                    
                     id_mapping[orig_id] = main_name
                     channel.set('id', main_name)
                     display_name_elem.text = main_name
@@ -158,7 +166,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
                         merged_tv.append(prog)
                         p_count += 1
             
-            msg = f"   -> ✅ 提取频道: {c_count} | 节目: {p_count} | 🗑️ 过滤: {p_discard}"
+            msg = f"   -> ✅ 提取频道: {c_count} | 节目: {p_count} | 🗑️ 过滤: {p_discard} | 🔧 修正名称: {rename_count}"
             live_print(msg); epg_report.append(msg)
         except Exception as e: 
             msg = f"   -> ❌ 异常: {e}"
@@ -180,7 +188,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex):
     return epg_report
 
 # ===============================
-# 4. 抓取直播源
+# 4. 抓取直播源 (含重名日志)
 # ===============================
 def fetch_and_parse_channels(aliases_exact, aliases_regex):
     channels = []
@@ -204,13 +212,24 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = get_main_name(name, aliases_exact, aliases_regex)
+                    
+                    # 🌟 实时打印直播源的名称变更
+                    if name != main_name:
+                        live_print(f"   🔧 [修正] {name} => {main_name}")
+                    
                     if line not in seen_urls:
                         channels.append((main_name, line))
                         seen_urls.add(line); count += 1
                     tmp_name = ""
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
-                    main_name = get_main_name(parts[0].strip(), aliases_exact, aliases_regex)
+                    raw_name = parts[0].strip()
+                    main_name = get_main_name(raw_name, aliases_exact, aliases_regex)
+                    
+                    # 🌟 实时打印直播源的名称变更
+                    if raw_name != main_name:
+                        live_print(f"   🔧 [修正] {raw_name} => {main_name}")
+                        
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip()))
                         seen_urls.add(parts[1].strip()); count += 1
@@ -220,7 +239,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex):
     return channels
 
 # ===============================
-# 5. 并发测速 (增强版日志)
+# 5. 并发测速
 # ===============================
 def check_channel(main_name, url):
     start_time = time.time()
@@ -300,8 +319,6 @@ if __name__ == "__main__":
     
     if not channels: exit(0)
 
-    # 🌟 修复日志不实时输出的问题
-    # 不使用 ::group:: 包裹测速过程，防止 GitHub Actions 默认折叠导致看起来像卡死
     live_print(f"\n🚀 开始全量测速 (总数: {len(channels)} 个，并发: 100)...\n")
     
     valid_results = {}
@@ -315,7 +332,6 @@ if __name__ == "__main__":
             processed += 1
             is_valid, name, url, elapsed, reason = future.result()
             
-            # 🌟 实时日志：带进度条、对齐、状态图标
             progress = f"[{processed}/{total}]"
             if is_valid:
                 if name not in valid_results: valid_results[name] = []
@@ -330,10 +346,8 @@ if __name__ == "__main__":
 
     live_print(f"\n🏁 测速结束: 有效 {len(logs_success)} / 失效 {len(logs_fail)}\n")
 
-    # 进化 Demo
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
 
-    # 写入文件
     live_print("::group::💾 写入结果文件")
     with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
         fm3u.write(M3U_HEADER)
@@ -344,17 +358,14 @@ if __name__ == "__main__":
                     if not cat_written_in_txt:
                         ftxt.write(f"\n{cat}\n")
                         cat_written_in_txt = True
-                    # 速度排序
                     valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
                     for url, elapsed in valid_urls:
                         logo = f"https://gh.llkk.cc/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
                         cat_clean = cat.split(',')[0]
-                        # 核心：tvg-id 设为 name，与 EPG 严格对应
                         fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
                         fm3u.write(f"{url}\n")
                         ftxt.write(f"{name},{url}\n")
     
-    # 写入详细 Log
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"任务时间: {datetime.now()}\n")
         f.write(f"有效源: {len(logs_success)} | 失效源: {len(logs_fail)}\n\n")
