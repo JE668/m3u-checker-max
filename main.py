@@ -9,6 +9,8 @@ SOURCES_FILE = "config/sources.txt"
 EPG_FILE = "config/epg.txt"
 ALIAS_FILE = "config/alias.txt"
 DEMO_FILE = "config/demo.txt"
+BLACKLIST_FILE = "config/blacklist.txt"  # 🌟 新增：黑名单配置
+WHITELIST_FILE = "config/whitelist.txt"  # 🌟 新增：白名单配置
 ICON_DIR = "icons"
 
 OUTPUT_TXT = "output/live.txt"
@@ -36,8 +38,20 @@ def live_print(content):
     print(content, flush=True)
 
 # ===============================
-# 2. 核心字典：加载别名、图标与分类模板
+# 2. 核心字典：加载配置、黑白名单、别名与分类
 # ===============================
+def load_filter_lists(filepath):
+    """通用黑/白名单加载器，自动区分频道名与具体链接"""
+    names, urls = set(), set()
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'): continue
+                if line.startswith('http'): urls.add(line)
+                else: names.add(line)
+    return names, urls
+
 def load_aliases():
     aliases_exact, aliases_regex = {},[]
     known_main_names = set()
@@ -78,19 +92,13 @@ def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unma
     return raw_name
 
 def get_local_logo_url(name):
-    """
-    🌟 修复后的本地图标精准匹配引擎
-    """
     base_url = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
     if not os.path.exists(ICON_DIR): return ""
     files = os.listdir(ICON_DIR)
     
-    # 修复：仅去除空格、下划线、短横杠，并转小写。严格保留中文字符！
     def clean(s): return re.sub(r'[\s\-_]', '', s).lower()
     
     target = clean(name)
-    
-    # 精准匹配：只允许例如 "深圳卫视-4K" 匹配 "深圳卫视4k.png"，绝不串台
     for f in files:
         if clean(os.path.splitext(f)[0]) == target:
             return base_url + f
@@ -412,6 +420,11 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
 # ===============================
 if __name__ == "__main__":
     aliases_exact, aliases_regex, known_main_names = load_aliases()
+    
+    # 🌟 新增：加载黑白名单
+    blacklist_names, blacklist_urls = load_filter_lists(BLACKLIST_FILE)
+    whitelist_names, whitelist_urls = load_filter_lists(WHITELIST_FILE)
+    
     epg_report = download_and_merge_epg(aliases_exact, aliases_regex, known_main_names)
     
     try:
@@ -426,15 +439,35 @@ if __name__ == "__main__":
         live_print("⚠️ 未获取到任何有效直播源，退出。")
         exit(0)
 
-    live_print(f"\n🚀 开始全量测速 (总数: {len(channels)} 个，并发: 100)...\n")
-    
+    # 🌟 新增：黑白名单分流过滤
+    to_test = []
     valid_results = {}
     logs_success, logs_fail = [],[]
-    total = len(channels)
+    logs_blacklist, logs_whitelist = [],[]
+    
+    for name, url in channels:
+        # 黑名单校验：直接丢弃
+        if name in blacklist_names or url in blacklist_urls:
+            logs_blacklist.append(f"⚫ [黑名单屏蔽] {name:<12} | {url}")
+            continue
+            
+        # 白名单校验：强制通过测速，赋予 0秒 的顶级响应时间
+        if name in whitelist_names or url in whitelist_urls:
+            if name not in valid_results: valid_results[name] = []
+            valid_results[name].append((url, 0.00))
+            logs_whitelist.append(f"⚪ [白名单免测] {name:<12} | 0.00s | {url}")
+            continue
+            
+        # 其他正常的加入测速队列
+        to_test.append((name, url))
+
+    live_print(f"\n🚀 开始全量测速 (待测: {len(to_test)} 条, 免测: {len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
+    
+    total = len(to_test)
     processed = 0
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=100) as ex:
-        futures =[ex.submit(check_channel, name, url) for name, url in channels]
+        futures =[ex.submit(check_channel, name, url) for name, url in to_test]
         for future in concurrent.futures.as_completed(futures):
             processed += 1
             is_valid, name, url, elapsed, reason = future.result()
@@ -450,7 +483,7 @@ if __name__ == "__main__":
                 msg = f"{progress} 🔴 {name:<12} | {reason:<10} | {url}"
                 logs_fail.append(msg)
 
-    live_print(f"\n🏁 测速结束: 有效 {len(logs_success)} / 失效 {len(logs_fail)}\n")
+    live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
 
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
 
@@ -469,7 +502,6 @@ if __name__ == "__main__":
                     for url, elapsed in valid_urls:
                         logo = get_local_logo_url(name)
                         if not logo:
-                            # 远程图标兜底
                             logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
                             
                         cat_clean = cat.split(',')[0]
@@ -479,11 +511,20 @@ if __name__ == "__main__":
     
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"任务时间: {datetime.now()}\n")
-        f.write(f"有效源: {len(logs_success)} | 失效源: {len(logs_fail)}\n\n")
+        f.write(f"白名单免测: {len(logs_whitelist)} | 黑名单拦截: {len(logs_blacklist)}\n")
+        f.write(f"常规测速有效: {len(logs_success)} | 常规测速失效: {len(logs_fail)}\n\n")
+        
         if epg_report:
             f.write("\n".join(epg_report) + "\n\n")
-        f.write("✅ 有效源:\n" + "\n".join(logs_success) + "\n\n")
-        f.write("❌ 失效源:\n" + "\n".join(logs_fail))
+            
+        if logs_whitelist:
+            f.write("✅ 白名单免测:\n" + "\n".join(logs_whitelist) + "\n\n")
+            
+        if logs_blacklist:
+            f.write("❌ 黑名单拦截:\n" + "\n".join(logs_blacklist) + "\n\n")
+            
+        f.write("🟢 测速有效源:\n" + "\n".join(logs_success) + "\n\n")
+        f.write("🔴 测速失效源:\n" + "\n".join(logs_fail))
     
     live_print(f"✅ 所有结果文件已生成至 output/ 目录")
     live_print("::endgroup::")
