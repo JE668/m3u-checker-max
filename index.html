@@ -256,16 +256,22 @@
 
 <script>
  const PAGE_SIZE = 50;
- let allRows = [];      // 所有行的 HTML
- let filteredRows = [];  // 过滤后的行 HTML
+ let allRows = []; // 所有行的 HTML
+ let filteredRows = []; // 过滤后的行 HTML
  let currentPage = 1;
  let channelCount = 0, categoryCount = 0, sourceCount = 0;
+
+ // P2-13: XSS 防护 — 转义 HTML 特殊字符
+ function esc(str) {
+ const d = document.createElement('div');
+ d.textContent = str;
+ return d.innerHTML;
+ }
 
  fetch('output/live.txt')
  .then(response => response.text())
  .then(data => {
  const lines = data.split('\n');
- let html = '';
  let index = 1;
  let currentCategory = '未分类节点';
 
@@ -276,7 +282,8 @@
  if (line.includes('#genre#')) {
  currentCategory = line.split(',')[0];
  categoryCount++;
- html = `<tr class="category-row" data-category="${currentCategory}"><td colspan="4" class="text-center fw-bold">📂 ${currentCategory}</td></tr>`;
+ const safeCat = esc(currentCategory);
+ const html = `<tr class="category-row" data-category="${safeCat}"><td colspan="4" class="text-center fw-bold">📂 ${safeCat}</td></tr>`;
  allRows.push({ type: 'cat', html, category: currentCategory });
  } else if (line.includes(',')) {
  const parts = line.split(',');
@@ -284,14 +291,22 @@
  const url = parts.slice(1).join(','); // URL 可能含逗号
  sourceCount++;
  channelCount++;
- html = `<tr data-category="${currentCategory}" data-name="${name.toLowerCase()}" data-url="${url.toLowerCase()}">
+ const safeName = esc(name);
+ const safeUrl = esc(url);
+ const html = `<tr data-category="${esc(currentCategory)}" data-name="${name.toLowerCase()}" data-url="${url.toLowerCase()}">
  <td><span class="text-secondary">${index++}</span></td>
- <td class="fw-bold"><span class="badge badge-custom me-2">${currentCategory}</span>${name}</td>
- <td><a href="${url}" target="_blank" class="text-break">${url}</a></td>
- <td class="text-center"><button class="copy-btn" onclick="copyToClipboard('${url.replace(/'/g, "\\'")}')">复制源</button></td>
+ <td class="fw-bold"><span class="badge badge-custom me-2">${esc(currentCategory)}</span>${safeName}</td>
+ <td><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-break">${safeUrl}</a></td>
+ <td class="text-center"><button class="copy-btn" data-url="${safeUrl}">复制源</button></td>
  </tr>`;
  allRows.push({ type: 'channel', html, category: currentCategory, name: name.toLowerCase(), url: url.toLowerCase() });
  }
+ });
+
+ // 事件委托：复制按钮（避免 inline onclick 的 XSS 风险）
+ document.getElementById('channel-list').addEventListener('click', function(e) {
+ const btn = e.target.closest('.copy-btn');
+ if (btn) copyToClipboard(btn.dataset.url);
  });
 
  // 统计
