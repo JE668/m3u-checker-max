@@ -2,7 +2,7 @@ name: Update IPTV Links
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   schedule:
     - cron: '0 */1 * * *'
   workflow_dispatch:
@@ -38,8 +38,13 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          git add config/demo.txt output/live.txt output/live.m3u output/epg.xml output/epg.xml.gz output/log.txt output/unmatched.txt
+
+          # 必须存在的输出文件
+          git add config/demo.txt output/live.txt output/live.m3u output/epg.xml output/epg.xml.gz output/log.txt
+
+          # 可选文件：unmatched.txt 仅在存在时才添加
+          [ -f output/unmatched.txt ] && git add output/unmatched.txt || true
+
           if ! git diff --staged --quiet; then
             git commit -m "Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
             git pull --rebase origin main
