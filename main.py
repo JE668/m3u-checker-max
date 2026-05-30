@@ -25,10 +25,13 @@ M3U_HEADER = '#EXTM3U x-tvg-url="https://gh.felicity.ac.cn/https://raw.githubuse
 
 # EPG 垃圾词汇过滤库
 EPG_BLACKLIST =[
-    "未能提供", "暂无节目", "精彩节目", "精彩節目", 
-    "没有节目", "未提供节目", "未提供節目", 
-    "no program", "no data", "精彩剧集", "暂未提供"
+ "未能提供", "暂无节目", "精彩节目", "精彩節目", 
+ "没有节目", "未提供节目", "未提供節目", 
+ "no program", "no data", "精彩剧集", "暂未提供"
 ]
+
+# 测速并发线程数 (默认50，过高可能触发上游限速)
+MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "50"))
 
 os.makedirs("output", exist_ok=True)
 os.makedirs("config", exist_ok=True)
@@ -74,7 +77,8 @@ def load_aliases():
                 if alias.startswith("re:"):
                     try:
                         aliases_regex.append((re.compile(alias[3:]), main_name))
-                    except: pass
+                    except re.error as e:
+                        live_print(f"⚠️ 正则编译失败 [{alias}]: {e}")
                 else:
                     aliases_exact[alias] = main_name
                     
@@ -91,19 +95,22 @@ def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unma
         unmatched_set.add(raw_name)
     return raw_name
 
+def _build_logo_index():
+    """一次性扫描 icons/ 目录，构建 {clean_name: filename} 字典，后续 O(1) 查找"""
+    index = {}
+    if os.path.exists(ICON_DIR):
+        for f in os.listdir(ICON_DIR):
+            index[re.sub(r'[\s\-_]', '', os.path.splitext(f)[0]).lower()] = f
+    return index
+
+LOGO_INDEX = _build_logo_index()
+
 def get_local_logo_url(name):
     base_url = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/icons/"
-    if not os.path.exists(ICON_DIR): return ""
-    files = os.listdir(ICON_DIR)
-    
-    def clean(s): return re.sub(r'[\s\-_]', '', s).lower()
-    
-    target = clean(name)
-    for f in files:
-        if clean(os.path.splitext(f)[0]) == target:
-            return base_url + f
-            
-    return "" 
+    target = re.sub(r'[\s\-_]', '', name).lower()
+    if target in LOGO_INDEX:
+        return base_url + LOGO_INDEX[target]
+    return ""
 
 def load_demo_template(aliases_exact, aliases_regex, known_main_names):
     category_order =[]
@@ -172,7 +179,9 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
             if not content: continue
             if content.startswith(b'\x1f\x8b'):
                 try: content = gzip.decompress(content)
-                except: continue
+                except Exception as e:
+                    live_print(f"⚠️ gzip解压失败 [{url}]: {e}")
+                    continue
             try:
                 root = ET.parse(io.BytesIO(content)).getroot()
                 if root.tag != 'tv': continue
@@ -237,7 +246,8 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
             final_msg = f"🎉 EPG 整合完成！规范频道数: {len(seen_channels)}"
             live_print(final_msg)
             epg_report.append("\n" + final_msg)
-        except: pass
+        except Exception as e:
+            live_print(f"❌ EPG写入失败: {e}")
     live_print("::endgroup::")
     return epg_report
 
@@ -314,34 +324,58 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
 # 5. 并发测速
 # ===============================
 def check_channel(main_name, url):
+    """并发测速：下载 128KB 判定存活，使用 with 语句确保连接释放"""
     start_time = time.time()
     try:
-        r = requests.get(url, stream=True, timeout=5)
-        if r.status_code == 200:
+        with requests.get(url, stream=True, timeout=(5, 8)) as r:
+            if r.status_code != 200:
+                return False, main_name, url, round(time.time() - start_time, 2), f"Error {r.status_code}"
             downloaded = 0
             for chunk in r.iter_content(chunk_size=1024 * 64):
                 downloaded += len(chunk)
                 if downloaded >= 1024 * 128:
                     return True, main_name, url, round(time.time() - start_time, 2), "成功"
-                if time.time() - start_time > 5: 
+                if time.time() - start_time > 8:
                     return False, main_name, url, round(time.time() - start_time, 2), "超时无流"
-        else: return False, main_name, url, round(time.time() - start_time, 2), f"Error {r.status_code}"
-    except Exception: return False, main_name, url, round(time.time() - start_time, 2), "连接失败"
-    return False, main_name, url, round(time.time() - start_time, 2), "未知"
+            # 流结束但不足128KB — 可能是短流或空流
+            return False, main_name, url, round(time.time() - start_time, 2), "流数据不足"
+    except requests.exceptions.Timeout:
+        return False, main_name, url, round(time.time() - start_time, 2), "连接超时"
+    except requests.exceptions.ConnectionError:
+        return False, main_name, url, round(time.time() - start_time, 2), "连接失败"
+    except Exception as e:
+        return False, main_name, url, round(time.time() - start_time, 2), f"异常: {e}"
 
 # ===============================
 # 6. 核心：无损追加模式进化 demo.txt
 # ===============================
+# 频道分类规则：(匹配关键词列表, 分类显示名, 排序优先级)
+# 排序优先级: 数值越小越靠前
+CATEGORY_RULES = [
+    (["4K", "8K"],    "☘️4K/8K超高清频道", 0),
+    (["CCTV"],        "📺央视频道",         1),
+    (["CETV"],        "📺央视频道",         2),
+    (["卫视"],        "📡卫视频道",         3),
+]
+
+# 不匹配任何规则的默认分类
+DEFAULT_CATEGORY = ("📺其他频道", 4)
+
+
+def _match_category(name):
+    """根据频道名匹配分类，返回 (分类全名含#genre#, 排序优先级)"""
+    name_upper = name.upper()
+    for keywords, cat_name, priority in CATEGORY_RULES:
+        if any(kw in name_upper for kw in keywords):
+            return f"{cat_name},#genre#", priority
+    return f"{DEFAULT_CATEGORY[0]},#genre#", DEFAULT_CATEGORY[1]
+
+
 def channel_sort_key(name):
     nums = re.findall(r'\d+', name)
     val = int(nums[0]) if nums else 999
-    name_upper = name.upper()
-    if "4K" in name_upper and "CCTV" in name_upper: return (0, val, name)
-    if "8K" in name_upper and "CCTV" in name_upper: return (1, val, name)
-    if "CCTV" in name_upper: return (2, val, name)
-    if "CETV" in name_upper: return (3, val, name)
-    if "卫视" in name_upper: return (4, val, name)
-    return (5, val, name)
+    _, priority = _match_category(name)
+    return (priority, val, name)
 
 def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
     live_print("\n::group::🧠 自适应进化 config/demo.txt (无损追加模式)")
@@ -358,20 +392,14 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
     
     additions = {}
     for name in new_channels:
-        name_upper = name.upper()
-        if "4K" in name_upper or "8K" in name_upper: cat = "☘️4K/8K超高清频道,#genre#"
-        elif "CCTV" in name_upper or "CETV" in name_upper: cat = "📺央视频道,#genre#"
-        elif "卫视" in name_upper: cat = "📡卫视频道,#genre#"
-        else: cat = "📺其他频道,#genre#"
-        
+        cat, _ = _match_category(name)
         additions.setdefault(cat,[]).append(name)
-        
         if cat not in cat_order:
             cat_order.append(cat)
             chans_in_cat[cat] =[]
         chans_in_cat[cat].append(name)
         chan_to_cat[name] = cat
-        live_print(f"   -> 🆕 自动追加: [{name}] 归入 [{cat.split(',')[0]}]")
+        live_print(f" -> 🆕 自动追加: [{name}] 归入 [{cat.split(',')[0]}]")
 
     if os.path.exists(DEMO_FILE):
         with open(DEMO_FILE, 'r', encoding='utf-8') as f:
@@ -418,6 +446,99 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
 # ===============================
 # 7. 主程序
 # ===============================
+
+def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls):
+    """黑白名单分流过滤：黑名单丢弃，白名单免测直通，其余入测速队列"""
+    to_test = []
+    valid_results = {}
+    logs_blacklist, logs_whitelist = [], []
+
+    for name, url in channels:
+        if name in blacklist_names or url in blacklist_urls:
+            logs_blacklist.append(f"⚫ [黑名单屏蔽] {name:<12} | {url}")
+            continue
+        if name in whitelist_names or url in whitelist_urls:
+            if name not in valid_results: valid_results[name] = []
+            valid_results[name].append((url, 0.00))
+            logs_whitelist.append(f"⚪ [白名单免测] {name:<12} | 0.00s | {url}")
+            continue
+        to_test.append((name, url))
+
+    return to_test, valid_results, logs_blacklist, logs_whitelist
+
+
+def run_speed_test(to_test):
+    """并发测速：返回 (valid_results, logs_success, logs_fail)"""
+    valid_results = {}
+    logs_success, logs_fail = [], []
+    total = len(to_test)
+    processed = 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futures = [ex.submit(check_channel, name, url) for name, url in to_test]
+        for future in concurrent.futures.as_completed(futures):
+            processed += 1
+            is_valid, name, url, elapsed, reason = future.result()
+            progress = f"[{processed}/{total}]"
+            if is_valid:
+                if name not in valid_results: valid_results[name] = []
+                valid_results[name].append((url, elapsed))
+                msg = f"{progress} 🟢 {name:<12} | {elapsed:>4}s | {url}"
+                live_print(msg)
+                logs_success.append(msg)
+            else:
+                msg = f"{progress} 🔴 {name:<12} | {reason:<10} | {url}"
+                logs_fail.append(msg)
+
+    live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
+    return valid_results, logs_success, logs_fail
+
+
+def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist):
+    """写入 M3U/TXT 成品 + 日志文件"""
+    live_print("::group::💾 写入结果文件")
+    with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
+        fm3u.write(M3U_HEADER)
+        for cat in cat_order:
+            cat_written_in_txt = False
+            for name in chans_in_cat.get(cat, []):
+                if name in valid_results:
+                    if not cat_written_in_txt:
+                        ftxt.write(f"\n{cat}\n")
+                        cat_written_in_txt = True
+
+                    valid_urls = sorted(valid_results[name], key=lambda x: x[1])
+                    for url, elapsed in valid_urls:
+                        logo = get_local_logo_url(name)
+                        if not logo:
+                            logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
+
+                        cat_clean = cat.split(',')[0]
+                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
+                        fm3u.write(f"{url}\n")
+                        ftxt.write(f"{name},{url}\n")
+
+    with open(LOG_FILE, "w", encoding="utf-8") as f:
+        f.write(f"任务时间: {datetime.now()}\n")
+        f.write(f"白名单免测: {len(logs_whitelist)} | 黑名单拦截: {len(logs_blacklist)}\n")
+        f.write(f"常规测速有效: {len(logs_success)} | 常规测速失效: {len(logs_fail)}\n\n")
+
+        if epg_report:
+            f.write("\n".join(epg_report) + "\n\n")
+
+        if logs_whitelist:
+            f.write("✅ 白名单免测:\n" + "\n".join(logs_whitelist) + "\n\n")
+
+        if logs_blacklist:
+            f.write("❌ 黑名单拦截:\n" + "\n".join(logs_blacklist) + "\n\n")
+
+        f.write("🟢 测速有效源:\n" + "\n".join(logs_success) + "\n\n")
+        f.write("🔴 测速失效源:\n" + "\n".join(logs_fail))
+
+    live_print(f"✅ 所有结果文件已生成至 output/ 目录")
+    live_print("::endgroup::")
+
+
 if __name__ == "__main__":
     aliases_exact, aliases_regex, known_main_names = load_aliases()
     
@@ -432,99 +553,25 @@ if __name__ == "__main__":
     except Exception as e:
         live_print(f"❌ config/demo.txt 加载严重错误: {e}")
         exit(1)
-        
+    
     channels = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names)
     
     if not channels: 
         live_print("⚠️ 未获取到任何有效直播源，退出。")
         exit(0)
 
-    # 🌟 新增：黑白名单分流过滤
-    to_test = []
-    valid_results = {}
-    logs_success, logs_fail = [],[]
-    logs_blacklist, logs_whitelist = [],[]
-    
-    for name, url in channels:
-        # 黑名单校验：直接丢弃
-        if name in blacklist_names or url in blacklist_urls:
-            logs_blacklist.append(f"⚫ [黑名单屏蔽] {name:<12} | {url}")
-            continue
-            
-        # 白名单校验：强制通过测速，赋予 0秒 的顶级响应时间
-        if name in whitelist_names or url in whitelist_urls:
-            if name not in valid_results: valid_results[name] = []
-            valid_results[name].append((url, 0.00))
-            logs_whitelist.append(f"⚪ [白名单免测] {name:<12} | 0.00s | {url}")
-            continue
-            
-        # 其他正常的加入测速队列
-        to_test.append((name, url))
-
+    # 黑白名单分流
+    to_test, valid_results, logs_blacklist, logs_whitelist = apply_filter_lists(
+        channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
+    )
     live_print(f"\n🚀 开始全量测速 (待测: {len(to_test)} 条, 免测: {len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
-    
-    total = len(to_test)
-    processed = 0
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=100) as ex:
-        futures =[ex.submit(check_channel, name, url) for name, url in to_test]
-        for future in concurrent.futures.as_completed(futures):
-            processed += 1
-            is_valid, name, url, elapsed, reason = future.result()
-            
-            progress = f"[{processed}/{total}]"
-            if is_valid:
-                if name not in valid_results: valid_results[name] = []
-                valid_results[name].append((url, elapsed))
-                msg = f"{progress} 🟢 {name:<12} | {elapsed:>4}s | {url}"
-                live_print(msg)
-                logs_success.append(msg)
-            else:
-                msg = f"{progress} 🔴 {name:<12} | {reason:<10} | {url}"
-                logs_fail.append(msg)
 
-    live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
+    # 并发测速
+    test_results, logs_success, logs_fail = run_speed_test(to_test)
+    valid_results.update(test_results)
 
+    # 模板自进化
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
 
-    live_print("::group::💾 写入结果文件")
-    with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
-        fm3u.write(M3U_HEADER)
-        for cat in cat_order:
-            cat_written_in_txt = False
-            for name in chans_in_cat.get(cat,[]):
-                if name in valid_results:
-                    if not cat_written_in_txt:
-                        ftxt.write(f"\n{cat}\n")
-                        cat_written_in_txt = True
-                    
-                    valid_urls = sorted(valid_results[name], key=lambda x: x[1]) 
-                    for url, elapsed in valid_urls:
-                        logo = get_local_logo_url(name)
-                        if not logo:
-                            logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
-                            
-                        cat_clean = cat.split(',')[0]
-                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
-                        fm3u.write(f"{url}\n")
-                        ftxt.write(f"{name},{url}\n")
-    
-    with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write(f"任务时间: {datetime.now()}\n")
-        f.write(f"白名单免测: {len(logs_whitelist)} | 黑名单拦截: {len(logs_blacklist)}\n")
-        f.write(f"常规测速有效: {len(logs_success)} | 常规测速失效: {len(logs_fail)}\n\n")
-        
-        if epg_report:
-            f.write("\n".join(epg_report) + "\n\n")
-            
-        if logs_whitelist:
-            f.write("✅ 白名单免测:\n" + "\n".join(logs_whitelist) + "\n\n")
-            
-        if logs_blacklist:
-            f.write("❌ 黑名单拦截:\n" + "\n".join(logs_blacklist) + "\n\n")
-            
-        f.write("🟢 测速有效源:\n" + "\n".join(logs_success) + "\n\n")
-        f.write("🔴 测速失效源:\n" + "\n".join(logs_fail))
-    
-    live_print(f"✅ 所有结果文件已生成至 output/ 目录")
-    live_print("::endgroup::")
+    # 写入成品
+    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist)
