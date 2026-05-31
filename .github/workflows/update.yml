@@ -11,50 +11,161 @@ concurrency:
 
 jobs:
   update:
+    name: 🔄 Update IPTV Sources
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: write
 
     steps:
-      - name: 检出代码
+      - name: 🛒 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 设置 Python 环境
+      - name: 🐍 设置 Python 环境
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
-      - name: 缓存 pip 依赖
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      - name: 📦 安装依赖
+        run: |
+          echo "::group::pip install 详情"
+          pip install -r requirements.txt
+          echo "::endgroup::"
 
-      - name: 安装依赖
-        run: pip install -r requirements.txt
-
-      - name: 运行核心检测与模板进化脚本
+      - name: 🚀 运行核心检测与模板进化脚本
+        env:
+          PYTHONUNBUFFERED: 1
         run: python main.py
 
-      - name: 提交并推送到仓库
+      - name: 📊 生成运行统计
+        if: always()
         run: |
+          echo "## 📋 运行统计报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 指标 | 数值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+
+          # 存活频道数
+          if [ -f output/live.txt ]; then
+            LIVE_COUNT=$(grep -c '' output/live.txt 2>/dev/null || echo "0")
+            echo "| 📺 存活频道数 | ${LIVE_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📺 存活频道数 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # M3U 条目数
+          if [ -f output/live.m3u ]; then
+            M3U_COUNT=$(grep -c '^#EXTINF' output/live.m3u 2>/dev/null || echo "0")
+            echo "| 📡 M3U 条目数 | ${M3U_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📡 M3U 条目数 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # EPG XML 大小
+          if [ -f output/epg.xml ]; then
+            EPG_SIZE=$(du -h output/epg.xml | cut -f1)
+            echo "| 📖 EPG XML 大小 | ${EPG_SIZE} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📖 EPG XML 大小 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # EPG XML.GZ 大小
+          if [ -f output/epg.xml.gz ]; then
+            EPG_GZ_SIZE=$(du -h output/epg.xml.gz | cut -f1)
+            echo "| 📦 EPG GZ 大小 | ${EPG_GZ_SIZE} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📦 EPG GZ 大小 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # 未匹配频道数
+          if [ -f output/unmatched.txt ]; then
+            UNMATCHED_COUNT=$(grep -c '' output/unmatched.txt 2>/dev/null || echo "0")
+            echo "| ⚠️ 未匹配频道数 | ${UNMATCHED_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| ⚠️ 未匹配频道数 | 0 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # 日志文件大小
+          if [ -f output/log.txt ]; then
+            LOG_SIZE=$(du -h output/log.txt | cut -f1)
+            echo "| 📝 日志大小 | ${LOG_SIZE} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📝 日志大小 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Demo 模板频道数
+          if [ -f config/demo.txt ]; then
+            DEMO_COUNT=$(grep -c '' config/demo.txt 2>/dev/null || echo "0")
+            echo "| 🎯 模板频道数 | ${DEMO_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 🎯 模板频道数 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # 测速统计（从日志中提取）
+          if [ -f output/log.txt ]; then
+            SPEED_PASS=$(grep -ci '✅\|pass\|ok\|success\|存活\|可用' output/log.txt 2>/dev/null || echo "N/A")
+            SPEED_FAIL=$(grep -ci '❌\|fail\|timeout\|超时\|不可用\|失活' output/log.txt 2>/dev/null || echo "N/A")
+            echo "| ✅ 测速通过数 | ${SPEED_PASS} |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ 测速失败数 | ${SPEED_FAIL} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| ✅ 测速通过数 | N/A |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ 测速失败数 | N/A |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_⏱ 运行时间: $(date +'%Y-%m-%d %H:%M:%S')_" >> $GITHUB_STEP_SUMMARY
+
+      - name: 💾 提交并推送到仓库
+        run: |
+          echo "::group::变更检测详情"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          # 必须存在的输出文件
           git add config/demo.txt output/live.txt output/live.m3u output/epg.xml output/epg.xml.gz output/log.txt
-
-          # 可选文件：unmatched.txt 仅在存在时才添加
           [ -f output/unmatched.txt ] && git add output/unmatched.txt || true
 
           if ! git diff --staged --quiet; then
-            git commit -m "Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
+            CHANGED_COUNT=$(git diff --staged --name-only | wc -l | tr -d ' ')
+            CHANGED_FILES=$(git diff --staged --name-only | tr '\n' ' ')
+
+            echo "变更文件数: ${CHANGED_COUNT}"
+            echo "变更文件列表: ${CHANGED_FILES}"
+            echo "::endgroup::"
+
+            git commit -m "🔄 Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
+
+            echo "## 💾 代码提交信息" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| 项目 | 详情 |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 📝 变更文件数 | ${CHANGED_COUNT} |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📂 变更文件 | \`${CHANGED_FILES}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🕐 提交时间 | $(date +'%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
+
             git pull --rebase origin main
             git push
           else
             echo "没有发现任何变更，跳过提交。"
+            echo "::endgroup::"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> ✅ 本次运行无变更，无需提交" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: 🚨 失败告警
+        if: failure()
+        run: |
+          echo "## 🚨 运行失败告警" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ❌ **本次工作流运行失败，请及时检查！**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 详情 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔗 运行链接 | [查看日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏷️ 触发分支 | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⏰ 失败时间 | $(date +'%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*⚠️ 请检查上方步骤日志以定位问题原因*" >> $GITHUB_STEP_SUMMARY
