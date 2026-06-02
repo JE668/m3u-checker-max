@@ -152,21 +152,42 @@ def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unma
         unmatched_set.add(raw_name)
     return raw_name
 
+# icons Release 配置（icons 以 LFS 管理，GH Actions 中不下载 LFS 文件，改用索引匹配）
+ICONS_INDEX_FILE = "config/icons_index.txt"
+
 def _build_logo_index():
-    """一次性扫描 icons/ 目录，构建 {clean_name: filename} 字典，后续 O(1) 查找"""
+    """构建 {clean_name: filename} 字典，O(1) 查找。
+    优先扫描本地 icons/ 目录（开发环境），否则读取预生成索引文件（CI 环境）。"""
     index = {}
-    if os.path.exists(ICON_DIR):
-        for f in os.listdir(ICON_DIR):
-            index[re.sub(r'[\s\-_]', '', os.path.splitext(f)[0]).lower()] = f
+    # 1) 本地 icons 目录（LFS pull 后或开发环境）
+    if os.path.exists(ICON_DIR) and os.path.isdir(ICON_DIR):
+        files = os.listdir(ICON_DIR)
+        if len(files) > 10:  # 目录非空且有一定数量
+            for f in files:
+                if f.startswith('.'): continue
+                index[re.sub(r'[\s\-_]', '', os.path.splitext(f)[0]).lower()] = f
+            return index
+    # 2) 预生成索引文件（CI 环境，无需下载 321MB LFS 文件）
+    if os.path.exists(ICONS_INDEX_FILE):
+        with open(ICONS_INDEX_FILE, "r", encoding="utf-8") as fh:
+            for line in fh:
+                fname = line.strip()
+                if fname and not fname.startswith('#'):
+                    index[re.sub(r'[\s\-_]', '', os.path.splitext(fname)[0]).lower()] = fname
+        live_print(f"📋 图标索引: 从 {ICONS_INDEX_FILE} 加载 {len(index)} 项")
+        return index
+    live_print(f"⚠️ 图标索引不可用: 本地 icons/ 和 {ICONS_INDEX_FILE} 均缺失")
     return index
 
 LOGO_INDEX = _build_logo_index()
 
+# logo URL 指向 CDN 加速的 GitHub Raw（LFS 文件通过 Raw URL 正常返回图片内容）
+_ICONS_BASE_URL = f"{REPO_RAW}/icons"
+
 def get_local_logo_url(name):
-    base_url = f"{REPO_RAW}/icons/"
     target = re.sub(r'[\s\-_]', '', name).lower()
     if target in LOGO_INDEX:
-        return base_url + LOGO_INDEX[target]
+        return f"{_ICONS_BASE_URL}/{LOGO_INDEX[target]}"
     return ""
 
 def load_demo_template(aliases_exact, aliases_regex, known_main_names):
