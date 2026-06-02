@@ -1,4 +1,6 @@
-# Git LFS - 管理 icons 目录下所有 PNG 文件
+# Git LFS - 管理 icons 目录下所有图片文件
 # clone 时只下载指针文件，不下载实际图片（解决 clone 超时）
 # GitHub Raw URL 仍正常返回图片
 icons/** filter=lfs diff=lfs merge=lfs -text
+icons/**.jpg filter=lfs diff=lfs merge=lfs -text
+icons/**.jpeg filter=lfs diff=lfs merge=lfs -text
