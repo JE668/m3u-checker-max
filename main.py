@@ -757,9 +757,9 @@ if __name__ == "__main__":
     # 过滤空分类（测速后无任何存活频道的分类不写入输出）
     non_empty_cats = [cat for cat in cat_order if any(name in valid_results for name in chans_in_cat.get(cat, []))]
     if len(non_empty_cats) < len(cat_order):
-    empty = len(cat_order) - len(non_empty_cats)
-    live_print(f"🧹 过滤 {empty} 个空分类（无存活频道）")
-    cat_order = non_empty_cats
+        empty = len(cat_order) - len(non_empty_cats)
+        live_print(f"🧹 过滤 {empty} 个空分类（无存活频道）")
+        cat_order = non_empty_cats
 
     # 写入成品
     write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist)
