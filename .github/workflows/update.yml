@@ -107,8 +107,7 @@ jobs:
           echo "::group::变更检测详情"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add config/demo.txt config/icons_index.txt output/live.txt output/live.m3u output/epg.xml output/epg.xml.gz output/log.txt
-          [ -f output/unmatched.txt ] && git add output/unmatched.txt || true
+          git add -A config/ output/
           if ! git diff --staged --quiet; then
             CHANGED_COUNT=$(git diff --staged --name-only | wc -l | tr -d ' ')
             CHANGED_FILES=$(git diff --staged --name-only | tr '\n' ' ')
@@ -116,14 +115,9 @@ jobs:
             echo "变更文件列表: ${CHANGED_FILES}"
             echo "::endgroup::"
             git commit -m "🔄 Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
-            echo "## 💾 代码提交信息" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| 项目 | 详情 |" >> $GITHUB_STEP_SUMMARY
-            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-            echo "| 📝 变更文件数 | ${CHANGED_COUNT} |" >> $GITHUB_STEP_SUMMARY
-            echo "| 📂 变更文件 | \`${CHANGED_FILES}\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🕐 提交时间 | $(date +'%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
+            git stash --include-untracked || true
             git pull --rebase origin main
+            git stash pop || true
             git push
           else
             echo "没有发现任何变更，跳过提交。"
