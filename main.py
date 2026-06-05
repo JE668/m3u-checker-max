@@ -497,15 +497,53 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
     return channels
 
 # ===============================
-# 5. 并发测速
+# 5. 并发测速（含缓存复用）
 # ===============================
-def check_channel(main_name, url):
-    """并发测速：下载 128KB 判定存活，总超时保护确保不会卡死"""
+
+# 测速结果缓存：同一 URL 在缓存有效期（默认1h）内不重复测速
+SPEED_CACHE_FILE = "output/.speed_cache.json"
+SPEED_CACHE_TTL = int(os.environ.get("SPEED_CACHE_TTL", "3600"))  # 秒
+
+def _load_speed_cache():
+    """加载上次测速缓存 {url: {"valid": bool, "elapsed": float, "ts": float}}"""
+    import json
+    if not os.path.exists(SPEED_CACHE_FILE):
+        return {}
+    try:
+        with open(SPEED_CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+def _save_speed_cache(cache):
+    """保存测速缓存"""
+    import json
+    try:
+        with open(SPEED_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except OSError:
+        pass
+
+def check_channel(main_name, url, _speed_cache=None, _cache_ttl=None):
+    """并发测速：下载 128KB 判定存活，总超时保护确保不会卡死。
+    优先查缓存，命中则跳过实际网络请求。"""
+    # 缓存命中检查
+    if _speed_cache is not None and url in _speed_cache:
+        entry = _speed_cache[url]
+        if time.time() - entry.get("ts", 0) < (_cache_ttl or SPEED_CACHE_TTL):
+            if entry["valid"]:
+                return True, main_name, url, entry["elapsed"], "缓存命中✅"
+            else:
+                return False, main_name, url, entry["elapsed"], f"缓存失效({entry.get('reason','')})"
+
     start_time = time.time()
     try:
         with get_session().get(url, stream=True, timeout=(CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT)) as r:
             if r.status_code != 200:
-                return False, main_name, url, round(time.time() - start_time, 2), f"HTTP {r.status_code}"
+                result = (False, main_name, url, round(time.time() - start_time, 2), f"HTTP {r.status_code}")
+                if _speed_cache is not None:
+                    _speed_cache[url] = {"valid": False, "elapsed": result[3], "ts": time.time(), "reason": f"HTTP {r.status_code}"}
+                return result
 
             downloaded = 0
             last_chunk_time = time.time()
@@ -514,25 +552,46 @@ def check_channel(main_name, url):
                 now = time.time()
                 # P1-7: 总超时保护 — 无论 chunk 间隔多短，总耗时超限直接终止
                 if now - start_time > CHECK_TOTAL_TIMEOUT:
-                    return False, main_name, url, round(now - start_time, 2), "总超时"
+                    result = (False, main_name, url, round(now - start_time, 2), "总超时")
+                    if _speed_cache is not None:
+                        _speed_cache[url] = {"valid": False, "elapsed": result[3], "ts": time.time(), "reason": "总超时"}
+                    return result
                 # 单 chunk 间隔超时（防止服务器极慢 drip 数据）
                 if now - last_chunk_time > CHECK_READ_TIMEOUT:
-                    return False, main_name, url, round(now - start_time, 2), "读取超时"
+                    result = (False, main_name, url, round(now - start_time, 2), "读取超时")
+                    if _speed_cache is not None:
+                        _speed_cache[url] = {"valid": False, "elapsed": result[3], "ts": time.time(), "reason": "读取超时"}
+                    return result
 
                 downloaded += len(chunk)
                 last_chunk_time = now
                 if downloaded >= CHECK_DOWNLOAD_TARGET:
-                    return True, main_name, url, round(now - start_time, 2), "成功"
+                    elapsed = round(now - start_time, 2)
+                    if _speed_cache is not None:
+                        _speed_cache[url] = {"valid": True, "elapsed": elapsed, "ts": time.time()}
+                    return True, main_name, url, elapsed, "成功"
 
             # 流结束但不足128KB
-            return False, main_name, url, round(time.time() - start_time, 2), "流数据不足"
+            result = (False, main_name, url, round(time.time() - start_time, 2), "流数据不足")
+            if _speed_cache is not None:
+                _speed_cache[url] = {"valid": False, "elapsed": result[3], "ts": time.time(), "reason": "流数据不足"}
+            return result
 
     except requests.exceptions.Timeout:
-        return False, main_name, url, round(time.time() - start_time, 2), "连接超时"
+        result = (False, main_name, url, round(time.time() - start_time, 2), "连接超时")
+        if _speed_cache is not None:
+            _speed_cache[url] = {"valid": False, "elapsed": result[3], "ts": time.time(), "reason": "连接超时"}
+        return result
     except requests.exceptions.ConnectionError as e:
-        return False, main_name, url, round(time.time() - start_time, 2), f"连接失败: {e}"
+        result = (False, main_name, url, round(time.time() - start_time, 2), f"连接失败: {e}")
+        if _speed_cache is not None:
+            _speed_cache[url] = {"valid": False, "elapsed": result[3], "ts": time.time(), "reason": "连接失败"}
+        return result
     except Exception as e:
-        return False, main_name, url, round(time.time() - start_time, 2), f"异常: {type(e).__name__}: {e}"
+        result = (False, main_name, url, round(time.time() - start_time, 2), f"异常: {type(e).__name__}: {e}")
+        if _speed_cache is not None:
+            _speed_cache[url] = {"valid": False, "elapsed": result[3], "ts": time.time(), "reason": f"异常:{type(e).__name__}"}
+        return result
 
 # ===============================
 # 6. 核心：无损追加模式进化 demo.txt
@@ -671,14 +730,17 @@ def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_name
 
 
 def run_speed_test(to_test):
-    """并发测速：返回 (valid_results, logs_success, logs_fail)"""
+    """并发测速（含缓存复用）：返回 (valid_results, logs_success, logs_fail)"""
+    # 加载缓存
+    speed_cache = _load_speed_cache()
+    cache_hits = 0
     valid_results = {}
     logs_success, logs_fail = [], []
     total = len(to_test)
     processed = 0
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        futures = [ex.submit(check_channel, name, url) for name, url in to_test]
+        futures = [ex.submit(check_channel, name, url, speed_cache, SPEED_CACHE_TTL) for name, url in to_test]
         for future in concurrent.futures.as_completed(futures):
             processed += 1
             is_valid, name, url, elapsed, reason = future.result()
@@ -686,14 +748,20 @@ def run_speed_test(to_test):
             if is_valid:
                 if name not in valid_results: valid_results[name] = []
                 valid_results[name].append((url, elapsed))
-                msg = f"{progress} 🟢 {name:<12} | {elapsed:>4}s | {url}"
+                if reason == "缓存命中✅":
+                    cache_hits += 1
+                    msg = f"{progress} 🟢 {name:<12} | {elapsed:>4}s | {url} [缓存]"
+                else:
+                    msg = f"{progress} 🟢 {name:<12} | {elapsed:>4}s | {url}"
                 live_print(msg)
                 logs_success.append(msg)
             else:
                 msg = f"{progress} 🔴 {name:<12} | {reason:<10} | {url}"
                 logs_fail.append(msg)
 
-    live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
+    # 保存缓存
+    _save_speed_cache(speed_cache)
+    live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)} / 缓存命中 {cache_hits}\n")
     return valid_results, logs_success, logs_fail
 
 
@@ -701,8 +769,28 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
     """写入 M3U/TXT 成品 + 日志文件"""
     live_print("::group::💾 写入结果文件")
 
-    # 外部 fallback logo 基础 URL
-    fallback_logo_base = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon"
+    # 外部 fallback logo 基础 URL — 启动时健康检测
+    _fallback_base = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon"
+    _fallback_checked = False
+
+    def _check_fallback_cdn():
+        nonlocal _fallback_checked, _fallback_base
+        if _fallback_checked:
+            return
+        _fallback_checked = True
+        try:
+            r = requests.head(f"{_fallback_base}/CCTV1.png", timeout=5, allow_redirects=True)
+            if r.status_code >= 400:
+                live_print(f"⚠️ Fallback logo CDN 不可用 ({r.status_code})，将跳过外部logo")
+                _fallback_base = ""
+            else:
+                live_print(f"✅ Fallback logo CDN 可用")
+        except requests.RequestException:
+            live_print(f"⚠️ Fallback logo CDN 连接失败，将跳过外部logo")
+            _fallback_base = ""
+
+    _check_fallback_cdn()
+    fallback_logo_base = _fallback_base
 
     with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
         fm3u.write(M3U_HEADER)

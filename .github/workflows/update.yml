@@ -21,7 +21,7 @@ jobs:
       - name: 🛒 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           lfs: false
 
       - name: 🐍 设置 Python 环境
@@ -93,8 +93,10 @@ jobs:
           if [ -f output/log.txt ]; then
             SPEED_PASS=$(grep -ci '✅\|pass\|ok\|success\|存活\|可用' output/log.txt 2>/dev/null || echo "N/A")
             SPEED_FAIL=$(grep -ci '❌\|fail\|timeout\|超时\|不可用\|失活' output/log.txt 2>/dev/null || echo "N/A")
+            SKIP_TEST=$(grep -ci 'iptv-api免测\|🔄.*免测' output/log.txt 2>/dev/null || echo "0")
             echo "| ✅ 测速通过数 | ${SPEED_PASS} |" >> $GITHUB_STEP_SUMMARY
             echo "| ❌ 测速失败数 | ${SPEED_FAIL} |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔄 iptv-api免测数 | ${SKIP_TEST} |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| ✅ 测速通过数 | N/A |" >> $GITHUB_STEP_SUMMARY
             echo "| ❌ 测速失败数 | N/A |" >> $GITHUB_STEP_SUMMARY
