@@ -49,6 +49,10 @@ CHECK_DOWNLOAD_TARGET = 128 * 1024  # 128KB
 # EPG 并发下载数
 EPG_MAX_WORKERS = int(os.environ.get("EPG_MAX_WORKERS", "4"))
 
+# 来源免测配置：iptv-api 已做过测速+分辨率过滤，跳过二次测速
+IPTV_API_SOURCE_URL = "https://raw.githubusercontent.com/JE668/iptv-api/refs/heads/master/output/result.m3u"
+IPTV_API_SKIP_TEST_TTL_HOURS = int(os.environ.get("IPTV_API_SKIP_TEST_TTL_HOURS", "24"))
+
 # 重试配置
 RETRY_MAX_ATTEMPTS = int(os.environ.get("RETRY_MAX_ATTEMPTS", "2"))
 RETRY_BACKOFF = float(os.environ.get("RETRY_BACKOFF", "1.0"))
@@ -396,18 +400,38 @@ _RE_EXTINF_ATTRS = re.compile(r'tvg-logo="([^"]*)"')
 _RE_EXTINF_GROUP = re.compile(r'group-title="([^"]*)"')
 
 def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
-    channels = []
+    channels = []  # [(main_name, url, source_url), ...]
     unmatched_names = set()
 
     if not os.path.exists(SOURCES_FILE): return channels
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
+    # 检查 iptv-api 数据新鲜度（TTL 保护）
+    iptv_api_skip_test = False
+    try:
+        resp = get_session().head(IPTV_API_SOURCE_URL, timeout=10, allow_redirects=True)
+        last_modified = resp.headers.get("Last-Modified")
+        if last_modified:
+            from email.utils import parsedate_to_datetime
+            lm_dt = parsedate_to_datetime(last_modified)
+            age_hours = (datetime.now(lm_dt.tzinfo) - lm_dt).total_seconds() / 3600
+            if age_hours <= IPTV_API_SKIP_TEST_TTL_HOURS:
+                iptv_api_skip_test = True
+                live_print(f"✅ iptv-api 数据新鲜（{age_hours:.1f}h 前），其来源将跳过测速")
+            else:
+                live_print(f"⚠️ iptv-api 数据已过期（{age_hours:.1f}h > {IPTV_API_SKIP_TEST_TTL_HOURS}h TTL），降级为正常测速")
+        else:
+            live_print("⚠️ iptv-api 无 Last-Modified 头，降级为正常测速")
+    except Exception as e:
+        live_print(f"⚠️ iptv-api 新鲜度检查失败: {e}，降级为正常测速")
+
     seen_urls = set()
     live_print("::group::📥 开始抓取直播源")
-    for url in sources:
+    for source_url in sources:
+        skip_this_source = (source_url == IPTV_API_SOURCE_URL and iptv_api_skip_test)
         try:
-            r = retry_request()(lambda u: get_session().get(u, timeout=10))(url)  # P0-3: 使用 Session + UA
+            r = retry_request()(lambda u: get_session().get(u, timeout=10))(source_url)  # P0-3: 使用 Session + UA
             r.encoding = 'utf-8'
             tmp_name = ""
             tmp_logo = ""  # P2-14: 提取 tvg-logo
@@ -435,7 +459,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
                         seen_source_renames.add((name, main_name))
 
                     if line not in seen_urls:
-                        channels.append((main_name, line))
+                        channels.append((main_name, line, source_url))
                         seen_urls.add(line); count += 1
                     tmp_name = ""
                     tmp_logo = ""
@@ -449,11 +473,12 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
                         seen_source_renames.add((raw_name, main_name))
 
                     if parts[1].strip() not in seen_urls:
-                        channels.append((main_name, parts[1].strip()))
+                        channels.append((main_name, parts[1].strip(), source_url))
                         seen_urls.add(parts[1].strip()); count += 1
-            live_print(f"✅ {url} -> 提取 {count} 条")
+            label = "🔄免测" if skip_this_source else "🔍待测"
+            live_print(f"✅ {source_url} -> 提取 {count} 条 [{label}]")
         except Exception as e:  # P0-1: 精确捕获异常并输出详情
-            live_print(f"❌ 连接失败: {url} — {type(e).__name__}: {e}")
+            live_print(f"❌ 连接失败: {source_url} — {type(e).__name__}: {e}")
 
     if unmatched_names:
         with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
@@ -613,24 +638,36 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
 # ===============================
 
 def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls):
-    """黑白名单分流过滤"""
+    """黑白名单 + 来源免测分流过滤
+    
+    channels: [(name, url, source_url), ...]
+    - iptv-api 来源且数据新鲜 → 免测直入 valid_results（elapsed=-1）
+    - 白名单 → 免测直入
+    - 黑名单 → 拦截
+    - 其余 → 进入 to_test 测速
+    """
     to_test = []
     valid_results = {}
-    logs_blacklist, logs_whitelist = [], []
+    logs_blacklist, logs_whitelist, logs_skip_test = [], [], []
 
-    for name, url in channels:
+    for name, url, source_url in channels:
         if name in blacklist_names or url in blacklist_urls:
             logs_blacklist.append(f"⚫ [黑名单屏蔽] {name:<12} | {url}")
             continue
         if name in whitelist_names or url in whitelist_urls:
             if name not in valid_results: valid_results[name] = []
-            # P0-5: 白名单 elapsed=-1 标记，排序时排最前但可区分
             valid_results[name].append((url, -1.0))
             logs_whitelist.append(f"⚪ [白名单免测] {name:<12} | 免测 | {url}")
             continue
+        # iptv-api 来源免测（数据已由 iptv-api 验证过分辨率+速率）
+        if source_url == IPTV_API_SOURCE_URL:
+            if name not in valid_results: valid_results[name] = []
+            valid_results[name].append((url, -1.0))
+            logs_skip_test.append(f"🔄 [iptv-api免测] {name:<12} | 免测 | {url}")
+            continue
         to_test.append((name, url))
 
-    return to_test, valid_results, logs_blacklist, logs_whitelist
+    return to_test, valid_results, logs_blacklist, logs_whitelist, logs_skip_test
 
 
 def run_speed_test(to_test):
@@ -660,7 +697,7 @@ def run_speed_test(to_test):
     return valid_results, logs_success, logs_fail
 
 
-def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist):
+def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_skip_test, logs_blacklist):
     """写入 M3U/TXT 成品 + 日志文件"""
     live_print("::group::💾 写入结果文件")
 
@@ -677,7 +714,7 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
                         ftxt.write(f"\n{cat}\n")
                         cat_written_in_txt = True
 
-                    # P0-5: 白名单 elapsed=-1 排最前，其余按速度升序
+                    # elapsed=-1 排最前（白名单+iptv-api免测），其余按速度升序
                     valid_urls = sorted(valid_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
                     for url, elapsed in valid_urls:
                         logo = get_local_logo_url(name)
@@ -692,7 +729,7 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"任务时间: {datetime.now()}\n")
-        f.write(f"白名单免测: {len(logs_whitelist)} | 黑名单拦截: {len(logs_blacklist)}\n")
+        f.write(f"白名单免测: {len(logs_whitelist)} | iptv-api免测: {len(logs_skip_test)} | 黑名单拦截: {len(logs_blacklist)}\n")
         f.write(f"常规测速有效: {len(logs_success)} | 常规测速失效: {len(logs_fail)}\n\n")
 
         if epg_report:
@@ -700,6 +737,9 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
 
         if logs_whitelist:
             f.write("✅ 白名单免测:\n" + "\n".join(logs_whitelist) + "\n\n")
+
+        if logs_skip_test:
+            f.write("🔄 iptv-api免测:\n" + "\n".join(logs_skip_test) + "\n\n")
 
         if logs_blacklist:
             f.write("❌ 黑名单拦截:\n" + "\n".join(logs_blacklist) + "\n\n")
@@ -732,15 +772,16 @@ if __name__ == "__main__":
         live_print("⚠️ 未获取到任何有效直播源，退出。")
         exit(0)
 
-    # 黑白名单分流
-    to_test, valid_results, logs_blacklist, logs_whitelist = apply_filter_lists(
+    # 黑白名单 + 来源免测分流
+    to_test, valid_results, logs_blacklist, logs_whitelist, logs_skip_test = apply_filter_lists(
         channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
     )
-    live_print(f"\n🚀 开始全量测速 (待测: {len(to_test)} 条, 免测: {len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
+    skip_total = len(logs_whitelist) + len(logs_skip_test)
+    live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)}+iptv-api{len(logs_skip_test)}={skip_total} 条, 拦截: {len(logs_blacklist)} 条)...\n")
 
     # 并发测速
     test_results, logs_success, logs_fail = run_speed_test(to_test)
-    # 合并白名单与测速结果（同名频道 URL 合并去重）
+    # 合并免测与测速结果（同名频道 URL 合并去重）
     for name, url_list in test_results.items():
         if name not in valid_results:
             valid_results[name] = url_list
@@ -762,4 +803,4 @@ if __name__ == "__main__":
         cat_order = non_empty_cats
 
     # 写入成品
-    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist)
+    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_skip_test, logs_blacklist)
