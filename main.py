@@ -1,4 +1,4 @@
-import os, time, concurrent.futures, requests, gzip, io, re, random, json
+import os, time, concurrent.futures, requests, gzip, io, re, random, json, sys
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from urllib.parse import urlparse, quote
