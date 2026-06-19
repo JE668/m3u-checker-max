@@ -465,9 +465,10 @@ _RE_EXTINF_GROUP = re.compile(r'group-title="([^"]*)"')
 
 def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
     channels = []  # [(main_name, url, source_url), ...]
+    url_to_group = {}  # {url: group_title}
     unmatched_names = set()
 
-    if not os.path.exists(SOURCES_FILE): return channels
+    if not os.path.exists(SOURCES_FILE): return channels, url_to_group
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
@@ -480,6 +481,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
             r.encoding = 'utf-8'
             tmp_name = ""
             tmp_logo = ""  # P2-14: 提取 tvg-logo
+            tmp_group = ""  # 记录 group-title
             count = 0
             seen_source_renames = set()
 
@@ -493,8 +495,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
                     logo_match = _RE_EXTINF_ATTRS.search(line)
                     tmp_logo = logo_match.group(1) if logo_match else ""
                     group_match = _RE_EXTINF_GROUP.search(line)
-                    # group-title 暂存，可用于后续分类优化
-                    _ = group_match.group(1) if group_match else ""
+                    tmp_group = group_match.group(1) if group_match else ""
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = get_main_name(name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
@@ -505,9 +506,11 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
 
                     if line not in seen_urls:
                         channels.append((main_name, line, source_url))
+                        url_to_group[line] = tmp_group
                         seen_urls.add(line); count += 1
                     tmp_name = ""
                     tmp_logo = ""
+                    tmp_group = ""
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
                     raw_name = parts[0].strip()
@@ -519,6 +522,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
 
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip(), source_url))
+                        url_to_group[parts[1].strip()] = ""  # 逗号格式无 group-title
                         seen_urls.add(parts[1].strip()); count += 1
             label = "🔍待测"
             live_print(f"✅ {source_url} -> 提取 {count} 条 [{label}]")
@@ -537,7 +541,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
         live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
     else:
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
-    return channels
+    return channels, url_to_group
 
 def fetch_source_meta():
     """获取 get-m3u 探针元数据，返回 {host_port: {bandwidth_mbps: float}}"""
@@ -1545,7 +1549,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 return
 
             start_time = time.time()
-            channels = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names)
+            channels, url_to_group = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names)
 
             if not channels:
                 live_print("⚠️ 未获取到任何有效直播源，退出。")
@@ -1588,8 +1592,13 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 adult_name_matches = 0
                 for name, url in to_test:
                     src = url_to_source.get(url, '')
+                    grp = url_to_group.get(url, '')
                     matched = [a for a in adult_sources if a in src] if adult_sources else []
-                    # 未匹配URL时，再检查频道名关键词
+                    # 未匹配URL时，检查 group-title（捕获从 IPTV-all.m3u 等混合源里过来的成人频道）
+                    if not matched and ADULT_KEYWORDS:
+                        grp_matched = [kw for kw in ADULT_KEYWORDS if kw in grp]
+                        matched = grp_matched
+                    # 仍无匹配时，再检查频道名关键词兜底
                     if not matched and ADULT_KEYWORDS:
                         kw_matched = [kw for kw in ADULT_KEYWORDS if kw in name]
                         if kw_matched:
