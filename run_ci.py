@@ -10,6 +10,13 @@
     PYTHONUNBUFFERED=1   # 建议在 CI 中设置，确保日志实时输出
 """
 import sys
+
+# Python 3.7+: 强制行缓冲 stdout/stderr
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(line_buffering=True)
+
 import main
 
 if __name__ == "__main__":
