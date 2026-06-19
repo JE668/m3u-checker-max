@@ -1142,7 +1142,7 @@ def _classify_failure(reason):
     return "其他"
 
 
-def run_speed_test(to_test, source_meta=None, source_urls=None):
+def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_station=None):
     """并发测速：服务器级预筛 + 全量测速
     
     source_urls: {url: source_url} — 来源统计用
@@ -1159,6 +1159,11 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
     logs_success, logs_fail = [], []
     fail_counts = {}  # 失败原因分类统计
     source_ok, source_total = {}, {}  # 来源统计
+
+    # 频道名+电视台归属显示
+    def _fmt_name(name):
+        s = (channel_to_station or {}).get(name, '')
+        return f"{name}（{s}）" if s else name
 
     if not to_test:
         return valid_results, logs_success, logs_fail, fail_counts, {"ok": {}, "total": {}}
@@ -1246,11 +1251,11 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
                 source_ok[src] = source_ok.get(src, 0) + 1
                 source_total[src] = source_total.get(src, 0) + 1
             valid_results.setdefault(name, []).append((url, elapsed))
-            msg = f"🎯 [{processed}/{total_samples}] 🟢 {name:<12} | {elapsed:>4}s | {reason:<15} | {url}"
+            msg = f"🎯 [{processed}/{total_samples}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
             live_print(msg)
             logs_success.append(msg)
         else:
-            msg = f"🎯 [{processed}/{total_samples}] 🔴 {name:<12} | {reason:<15} | {url}"
+            msg = f"🎯 [{processed}/{total_samples}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
             logs_fail.append(msg)
 
     if all_samples:
@@ -1272,7 +1277,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
         live_print(f"\n💀 淘汰 {len(dead_hosts)} 台死服务器, 跳过 {skipped} 个频道")
         for host in dead_hosts:
             for name, url in remaining_by_host[host]:
-                logs_fail.append(f"⏭️ [服务器死亡] {name:<12} | {url}")
+                logs_fail.append(f"⏭️ [服务器死亡] {_fmt_name(name):<24} | {url}")
 
     # Phase 3: 全量测速存活服务器的剩余频道，按 meta 带宽降序排序
     full_test = []
@@ -1301,7 +1306,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
                         source_ok[src] = source_ok.get(src, 0) + 1
                         source_total[src] = source_total.get(src, 0) + 1
                     valid_results.setdefault(name, []).append((url, elapsed))
-                    msg = f"[{processed}/{total}] 🟢 {name:<12} | {elapsed:>4}s | {reason:<15} | {url}"
+                    msg = f"[{processed}/{total}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
                     live_print(msg)
                     logs_success.append(msg)
                 else:
@@ -1310,7 +1315,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
                     if source_urls:
                         src = source_urls.get(url, "未知")
                         source_total[src] = source_total.get(src, 0) + 1
-                    msg = f"[{processed}/{total}] 🔴 {name:<12} | {reason:<15} | {url}"
+                    msg = f"[{processed}/{total}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
                     logs_fail.append(msg)
 
     live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
@@ -1343,7 +1348,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
     return valid_results, logs_success, logs_fail, fail_counts, {"ok": source_ok, "total": source_total}
 
 
-def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats=None, adult_results=None):
+def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats=None, adult_results=None, channel_to_station=None):
     """写入 M3U/TXT 成品 + 日志文件"""
     if extra_stats is None:
         extra_stats = {}
@@ -1369,11 +1374,15 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
                         if not logo:
                             logo = f"{fallback_logo_base}/{name}.png"
 
+                        # 带上电视台归属信息（如有）
+                        station = (channel_to_station or {}).get(name, '')
+                        name_display = f"{name}（{station}）" if station else name
+
                         cat_clean = cat.split(',')[0]
                         elapsed_display = "免测" if elapsed < 0 else f"{elapsed}s"
-                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
+                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name_display}\n')
                         fm3u.write(f"{url}\n")
-                        ftxt.write(f"{name},{url}\n")
+                        ftxt.write(f"{name_display},{url}\n")
 
     # 写入成人内容（如果有）
     adult_written = 0
@@ -1385,9 +1394,12 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
                 valid_urls = sorted(adult_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
                 for url, elapsed in valid_urls:
                     logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
-                    fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name}\n')
+                    # 成人频道也带电视台归属
+                    station = (channel_to_station or {}).get(name, '')
+                    name_display = f"{name}（{station}）" if station else name
+                    fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name_display}\n')
                     fam3u.write(f"{url}\n")
-                    fatxt.write(f"{name},{url}\n")
+                    fatxt.write(f"{name_display},{url}\n")
                     adult_written += 1
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
@@ -1507,7 +1519,7 @@ if __name__ == "__main__":
     # 并发测速（传入 source_meta 做优先级排序 + source_urls 做来源统计）
     source_meta = fetch_source_meta()
     test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
-        to_test, source_meta=source_meta, source_urls=url_to_source
+        to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
     )
     # 合并免测与测速结果（同名频道 URL 合并去重）
     for name, url_list in test_results.items():
@@ -1569,4 +1581,4 @@ if __name__ == "__main__":
                 cat_live_counts[cat] = sum(1 for n in chans_in_cat.get(cat, []) if n in valid_results)
         # 清理空分类
         cat_order[:] = [cat for cat in cat_order if any(n in valid_results for n in chans_in_cat.get(cat, []))]
-    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats, adult_results=adult_results)
+    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats, adult_results=adult_results, channel_to_station=channel_to_station)
