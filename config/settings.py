@@ -26,7 +26,7 @@ RETRY_BACKOFF = 1.0                  # 重试退避系数（秒）
 # ── 分辨率检测 ──
 PROBE_RESOLUTION = True              # 是否检测分辨率
 PROBE_TIMEOUT = 4                    # ffprobe 超时（秒）
-MIN_RESOLUTION = "0x0"               # 最低分辨率过滤（0x0=不过滤）
+MIN_RESOLUTION = "1920x1080"          # 最低分辨率过滤（0x0=不过滤）
 
 # ── CDN 与数据源 ──
 CDN_BASE = "https://gh.felicity.ac.cn"
