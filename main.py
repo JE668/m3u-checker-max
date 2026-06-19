@@ -1374,15 +1374,11 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
                         if not logo:
                             logo = f"{fallback_logo_base}/{name}.png"
 
-                        # 带上电视台归属信息（如有）
-                        station = (channel_to_station or {}).get(name, '')
-                        name_display = f"{name}（{station}）" if station else name
-
                         cat_clean = cat.split(',')[0]
                         elapsed_display = "免测" if elapsed < 0 else f"{elapsed}s"
-                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name_display}\n')
+                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
                         fm3u.write(f"{url}\n")
-                        ftxt.write(f"{name_display},{url}\n")
+                        ftxt.write(f"{name},{url}\n")
 
     # 写入成人内容（如果有）
     adult_written = 0
@@ -1394,12 +1390,9 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
                 valid_urls = sorted(adult_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
                 for url, elapsed in valid_urls:
                     logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
-                    # 成人频道也带电视台归属
-                    station = (channel_to_station or {}).get(name, '')
-                    name_display = f"{name}（{station}）" if station else name
-                    fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name_display}\n')
+                    fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name}\n')
                     fam3u.write(f"{url}\n")
-                    fatxt.write(f"{name_display},{url}\n")
+                    fatxt.write(f"{name},{url}\n")
                     adult_written += 1
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
