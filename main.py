@@ -1507,6 +1507,25 @@ if __name__ == "__main__":
         live_print(f"🔇 过滤 {ipv6_count} 条 IPv6 链接 (GitHub Actions 无 IPv6 路由)")
     elif ipv6_count:
         live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
+    # 成人来源免测：跳过测速，防止HLS小文件误判带宽不足
+    adult_sources = load_adult_sources()
+    adult_results = {}
+    if adult_sources:
+        still_to_test = []
+        for name, url in to_test:
+            src = url_to_source.get(url, '')
+            if any(a in src for a in adult_sources):
+                if name not in adult_results:
+                    adult_results[name] = [(url, -1)]
+                else:
+                    existing = {u for u, _ in adult_results[name]}
+                    if url not in existing:
+                        adult_results[name].append((url, -1))
+            else:
+                still_to_test.append((name, url))
+        to_test = still_to_test
+        live_print(f"  🔞 成人来源免测: {len(adult_results)} 个频道 → 跳过测速直接收录")
+
     live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
 
     # 加载电视台归属信息（需在测速前加载完毕）
@@ -1525,38 +1544,6 @@ if __name__ == "__main__":
                 if url not in existing_urls:
                     valid_results[name].append((url, elapsed))
                     existing_urls.add(url)
-
-    # 分离成人内容（在分类/过滤前执行──防止非TV过滤误杀成人频道）
-    adult_sources = load_adult_sources()
-    adult_results = {}
-    if adult_sources:
-        live_print(f"  🔞 [调试] valid_results 中共 {len(valid_results)} 个频道")
-        # 收集所有来源URL并检查是否存在成人源匹配
-        src_urls_found = set()
-        for name in list(valid_results.keys()):
-            for url, _ in valid_results.get(name, []):
-                src = url_to_source.get(url, '')
-                if src:
-                    src_urls_found.add(src)
-        # 检查是否有任何来源URL匹配成人源
-        matched_srcs = {src for src in src_urls_found if any(a in src for a in adult_sources)}
-        live_print(f"  🔞 [调试] valid_results 中的来源URL: {len(src_urls_found)} 个唯一来源")
-        for s in sorted(list(src_urls_found)[:10]):
-            snip = s[-60:] if len(s) > 60 else s
-            tag = " ← 匹配成人源!" if any(a in s for a in adult_sources) else ""
-            live_print(f"      📡 ...{snip}{tag}")
-        if len(src_urls_found) > 10:
-            live_print(f"      ... 还有 {len(src_urls_found) - 10} 个来源未列出")
-        live_print(f"  🔞 [调试] 成人来源列表: {adult_sources}")
-        live_print(f"  🔞 [调试] 匹配到的来源: {matched_srcs}")
-        
-        for name in list(valid_results.keys()):
-            for url, _ in valid_results.get(name, []):
-                src = url_to_source.get(url, '')
-                if any(adult_url in src for adult_url in adult_sources):
-                    adult_results[name] = valid_results.pop(name)
-                    break
-        live_print(f"  🔞 成人频道: 分离 {len(adult_results)} 个 → output/adult.*")
 
     # 模板自进化（channel_model 已在测速前加载）
     source_cat_map = load_source_cat()
