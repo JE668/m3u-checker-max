@@ -25,6 +25,38 @@ ADULT_M3U = "output/adult.m3u"
 ADULT_SOURCES_FILE = "config/adult-sources.txt"
 SOURCE_CAT_FILE = "config/source-cat.txt"
 
+# 非电视台频道平台关键词（内置 + source-cat.txt 自动追加）
+# 匹配任一关键词的频道不进 demo.txt/输出，也不上报到 GitHub
+NON_TV_PATTERNS = (
+    # 直播平台
+    "斗鱼", "虎牙", "哔哩", "Bilibili", "bilibili", "抖音", "快手", "Astream",
+    # 海外流媒体/点播
+    "YouTube", "PlutoTV", "Pluto", "Tubi", "Netflix", "奈飞", "Disney+",
+    # 影视点播/非电视
+    "点播", "影视", "电影", "电视剧", "综艺", "MV", "MTV", "Video",
+    # 广播/非电视
+    "广播", "Radio", "电台", "Music", "音乐频道",
+    # 杂项非电视
+    "非合规", "阿塔", "成人", "激情", "赌场", "赌波",
+)
+
+# 平台→分类 推荐映射（用于 source-cat.txt 自学习）
+_PLATFORM_CAT_MAP = {
+    "douyu": "🎮直播平台", "斗鱼": "🎮直播平台",
+    "huya": "🎮直播平台", "虎牙": "🎮直播平台",
+    "bilibili": "🎮直播平台", "哔哩": "🎮直播平台",
+    "douyin": "🎮直播平台", "抖音": "🎮直播平台",
+    "kuaishou": "🎮直播平台", "快手": "🎮直播平台",
+    "youtube": "🌐网络视频", "YouTube": "🌐网络视频",
+    "pluto": "🌐网络视频", "PlutoTV": "🌐网络视频",
+    "tubi": "🌐网络视频", "Tubi": "🌐网络视频",
+    "netflix": "🎬影视点播", "奈飞": "🎬影视点播",
+    "disney": "🎬影视点播",
+    "点播": "🎬影视点播", "影视": "🎬影视点播", "电影": "🎬影视点播",
+    "综艺": "🎬影视点播", "MV": "🎵音乐", "MTV": "🎵音乐",
+    "广播": "📻广播", "Radio": "📻广播", "电台": "📻广播",
+}
+
 # CDN 基础域名（P2-17: 提取为配置，便于更换）
 CDN_BASE = os.environ.get("CDN_BASE", "https://gh.felicity.ac.cn")
 REPO_RAW = f"{CDN_BASE}/https://raw.githubusercontent.com/JE668/m3u-checker-max/main"
