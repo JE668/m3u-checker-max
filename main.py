@@ -856,13 +856,15 @@ def load_channel_model(filename=CHANNEL_MODEL_FILE):
     """加载频道分类数据库
 
     格式 (config/Channel_model.txt):
-      频道名|省份|地级市|频道分组
+      频道名|电视台|省份|地级市|频道分组
 
-    返回: {频道名: 分类}，如 {"CCTV-1": "📺央视频道,#genre#"}
+    返回: ({频道名: 分类}, {频道名: 电视台})
+      如 ({"CCTV-1": "📺央视频道,#genre#"}, {"CCTV-1": "中央广播电视总台"})
     """
     channel_to_cat = {}
+    channel_to_station = {}
     if not os.path.exists(filename):
-        return channel_to_cat
+        return channel_to_cat, channel_to_station
     with open(filename, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
@@ -871,14 +873,25 @@ def load_channel_model(filename=CHANNEL_MODEL_FILE):
             if '|' not in line:
                 continue
             parts = line.split('|')
-            if len(parts) >= 4:
+            if len(parts) >= 5:
+                name = parts[0].strip()
+                station = parts[1].strip()
+                category = parts[4].strip()
+                if name and category:
+                    channel_to_cat[name] = category
+                if name and station:
+                    channel_to_station[name] = station
+            elif len(parts) >= 4:
+                # 兼容旧4列格式
                 name = parts[0].strip()
                 category = parts[3].strip()
                 if name and category:
                     channel_to_cat[name] = category
     if channel_to_cat:
         live_print(f"  📚 [分类数据库] 从 {filename} 加载了 {len(channel_to_cat)} 个频道分类")
-    return channel_to_cat
+    if channel_to_station:
+        live_print(f"  🏢 [电视台库] 从 {filename} 加载了 {len(channel_to_station)} 个电视台归属")
+    return channel_to_cat, channel_to_station
 
 
 def _match_source_category(name, valid_results, url_to_source, source_cat_map):
@@ -1508,7 +1521,7 @@ if __name__ == "__main__":
                     existing_urls.add(url)
 
     # 模板自进化
-    channel_model = load_channel_model()
+    channel_model, channel_to_station = load_channel_model()
     source_cat_map = load_source_cat()
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results, cat_order, chan_to_cat, chans_in_cat,
                                                             url_to_source=url_to_source, source_cat_map=source_cat_map, channel_model=channel_model)
