@@ -3,545 +3,647 @@
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>IPTV Server Max - 直播源验证系统</title>
+ <title>IPTV 直播源 — m3u-checker-max</title>
  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
  <style>
-  /* ── 基础色板 ── */
+  * { box-sizing: border-box; }
   :root {
-    --bg-deep: #080c14;
-    --bg-panel: #0f172a;
-    --border-muted: rgba(148,163,184,0.15);
-    --text-primary: #e2e8f0;
-    --text-muted: #64748b;
-    --accent: #38bdf8;
-    --accent-dim: rgba(56,189,248,0.1);
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2332;
+    --border: rgba(148,163,184,0.12);
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.1);
+    --cyan: #22d3ee;
     --green: #34d399;
     --orange: #fb923c;
     --red: #f87171;
     --radius: 10px;
   }
   body {
-    background: var(--bg-deep);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", system-ui, sans-serif;
     min-height: 100vh;
     padding: 2rem 0;
+    -webkit-font-smoothing: antialiased;
   }
-  /* ── 卡片 ── */
-  .card {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-muted);
-    border-radius: var(--radius);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+
+  .container { max-width: 960px; }
+
+  /* ── 头部 ── */
+  .hero {
+    margin-bottom: 1.5rem;
   }
-  .card-header {
-    background: transparent;
-    border-bottom: 1px solid var(--border-muted);
-    padding: 1rem 1.5rem;
-  }
-  .card-body { padding: 1.5rem; }
-  /* ── 标题 ── */
-  .site-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-  }
-  .site-title span { color: var(--accent); }
-  .site-subtitle { color: var(--text-muted); font-size: 0.85rem; }
-  /* ── 统计卡片 ── */
-  .stat-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border-muted);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    text-align: center;
-    min-width: 100px;
-  }
-  .stat-card .num {
+  .hero h1 {
     font-size: 1.4rem;
-    font-weight: 800;
-    color: var(--accent);
-    line-height: 1.2;
+    font-weight: 700;
+    margin: 0;
   }
-  .stat-card .label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+  .hero h1 span { color: var(--cyan); }
+  .hero .sub {
+    color: var(--text3);
+    font-size: 0.85rem;
     margin-top: 2px;
   }
-  /* ── 按钮 ── */
-  .btn-dl {
-    border: 1px solid var(--border-muted);
-    background: rgba(255,255,255,0.04);
-    color: var(--text-primary);
+  .hero .update {
+    color: var(--text3);
+    font-size: 0.78rem;
+    text-align: right;
+  }
+
+  /* ── 统计卡片 ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 0.5rem;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--cyan);
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 0.68rem;
+    color: var(--text3);
+    letter-spacing: 0.3px;
+  }
+
+  /* ── 操作行 ── */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+  .toolbar .btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 0.4rem 0.9rem;
     border-radius: 6px;
-    padding: 0.45rem 1rem;
-    font-size: 0.85rem;
-    font-weight: 500;
-    transition: all 0.2s;
+    font-size: 0.82rem;
+    cursor: pointer;
     text-decoration: none;
+    transition: all 0.15s;
     white-space: nowrap;
   }
-  .btn-dl:hover {
-    background: var(--accent-dim);
-    border-color: var(--accent);
-    color: var(--accent);
+  .toolbar .btn:hover {
+    background: var(--blue-dim);
+    border-color: var(--blue);
+    color: var(--blue);
   }
-  /* ── 类别折叠 ── */
-  .cat-header {
+  .toolbar .btn-primary {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+  }
+  .toolbar .btn-primary:hover {
+    background: #2563eb;
+    color: #fff;
+  }
+
+  /* ── 使用指南（可折叠） ── */
+  .guide-toggle {
+    color: var(--text3);
+    font-size: 0.8rem;
     cursor: pointer;
     user-select: none;
-    padding: 0.65rem 1rem;
-    border-bottom: 1px solid var(--border-muted);
-    transition: background 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
-  .cat-header:hover { background: rgba(255,255,255,0.03); }
-  .cat-header .cat-name { font-weight: 600; color: var(--accent); }
-  .cat-header .cat-count {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+  .guide-toggle:hover { color: var(--text2); }
+  .guide-box {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+  .guide-box.open { display: block; }
+  .guide-box code {
     background: rgba(255,255,255,0.06);
-    padding: 1px 10px;
-    border-radius: 10px;
-  }
-  .cat-header .chevron {
-    transition: transform 0.2s;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-  }
-  .cat-header .chevron.open { transform: rotate(90deg); }
-  .cat-body { display: none; }
-  .cat-body.open { display: table-row-group; }
-  /* ── 频道行 ── */
-  .chan-row {
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-    transition: background 0.15s;
-  }
-  .chan-row:hover { background: rgba(255,255,255,0.04); }
-  .chan-row td { padding: 0.4rem 1rem !important; vertical-align: middle; }
-  .chan-row .idx { color: var(--text-muted); font-size: 0.8rem; width: 40px; }
-  .chan-row .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
-  .chan-row .url-cell { max-width: 0; }
-  .chan-row .url-cell a {
-    color: #94a3b8;
-    font-size: 0.82rem;
-    text-decoration: none;
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .chan-row .url-cell a:hover { color: var(--accent); }
-  .chan-row .copy-btn {
-    background: transparent;
-    border: 1px solid var(--border-muted);
-    color: var(--text-muted);
+    padding: 2px 8px;
     border-radius: 4px;
-    padding: 2px 10px;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
+    font-size: 0.8rem;
+    color: var(--cyan);
+    word-break: break-all;
   }
-  .chan-row .copy-btn:hover {
-    background: var(--accent-dim);
-    border-color: var(--accent);
-    color: var(--accent);
+  .guide-box table { width: 100%; }
+  .guide-box td {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
   }
-  /* ── 分类筛选 ── */
-  .filter-pills {
+  .guide-box td:first-child {
+    color: var(--text);
+    font-weight: 500;
+    width: 100px;
+  }
+
+  /* ── 筛选行 ── */
+  .filters {
     display: flex;
-    gap: 6px;
     flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 0.75rem 1rem;
   }
-  .filter-pill {
+  .filters input {
     background: rgba(255,255,255,0.04);
-    border: 1px solid var(--border-muted);
-    color: var(--text-muted);
-    border-radius: 14px;
-    padding: 3px 14px;
-    font-size: 0.78rem;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.82rem;
+    outline: none;
+    flex: 1;
+    min-width: 120px;
+  }
+  .filters input:focus { border-color: var(--blue); }
+  .filters input::placeholder { color: var(--text3); }
+
+  .pill {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid transparent;
+    color: var(--text3);
+    border-radius: 12px;
+    padding: 2px 12px;
+    font-size: 0.76rem;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .filter-pill:hover { border-color: var(--accent); color: var(--text-primary); }
-  .filter-pill.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 600; }
-  .filter-pill.all { border-color: transparent; color: var(--text-muted); }
-  .filter-pill.all.active { color: var(--text-primary); font-weight: 600; }
-  /* ── 搜索框 ── */
-  .search-input {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--border-muted);
-    color: var(--text-primary);
-    border-radius: 8px;
-    padding: 0.45rem 0.9rem;
-    font-size: 0.85rem;
-    width: 100%;
-    outline: none;
-    transition: border-color 0.2s;
+  .pill:hover { border-color: var(--border); color: var(--text2); }
+  .pill.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); font-weight: 600; }
+
+  /* ── 频道列表 ── */
+  .cat-group {
+    border-bottom: 1px solid var(--border);
   }
-  .search-input:focus { border-color: var(--accent); }
-  .search-input::placeholder { color: #475569; }
+  .cat-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.65rem 1rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.12s;
+  }
+  .cat-header:hover { background: rgba(255,255,255,0.02); }
+  .cat-header .chev {
+    font-size: 0.65rem;
+    color: var(--text3);
+    transition: transform 0.15s;
+    width: 12px;
+    flex-shrink: 0;
+  }
+  .cat-header .chev.open { transform: rotate(90deg); }
+  .cat-header .cat-name { font-weight: 600; font-size: 0.92rem; }
+  .cat-header .cat-count {
+    font-size: 0.75rem;
+    color: var(--text3);
+    background: rgba(255,255,255,0.05);
+    padding: 0 10px;
+    border-radius: 8px;
+    margin-left: auto;
+  }
+  .cat-body { display: none; }
+  .cat-body.open { display: block; }
+
+  .chan {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 1rem 0.4rem 2rem;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+  .chan:nth-child(even) { background: rgba(255,255,255,0.015); }
+  .chan:hover { background: rgba(255,255,255,0.04); }
+  .chan .name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+  .chan .url {
+    color: var(--text3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    font-size: 0.8rem;
+  }
+  .chan .url a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .chan .url a:hover { color: var(--blue); }
+
+  /* ── 空状态 ── */
+  .empty {
+    display: none;
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text3);
+  }
+  .empty .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
   /* ── Toast ── */
   #toast {
-    position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
-    background: var(--bg-panel); border: 1px solid var(--accent);
-    border-radius: 8px; padding: 0.6rem 1.2rem;
-    font-size: 0.85rem; font-weight: 500;
-    color: var(--accent);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    opacity: 0; transition: opacity 0.25s; pointer-events: none;
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    background: #1e293b; border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px;
+    padding: 0.6rem 1.2rem; font-size: 0.85rem;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+    z-index: 999;
   }
   #toast.show { opacity: 1; }
-  /* ── 空状态 ── */
-  #empty-msg { display: none; }
-  /* ── 响应式 ── */
-  @media (max-width: 768px) {
+
+  .mb-0 { margin-bottom: 0; }
+
+  @media (max-width: 700px) {
     body { padding: 1rem 0; }
-    .card-body { padding: 1rem; }
-    .stat-grid { gap: 6px; }
-    .stat-card { min-width: 70px; padding: 0.5rem; }
-    .stat-card .num { font-size: 1.1rem; }
-    .btn-group-dl { gap: 4px; }
-    .btn-dl { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
-    .chan-row .name { max-width: 120px; }
-    .cat-header { padding: 0.5rem 0.75rem; }
-    .chan-row td { padding: 0.3rem 0.75rem !important; }
-    .filter-pills { gap: 4px; }
-    .filter-pill { padding: 2px 10px; font-size: 0.72rem; }
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .filters { flex-direction: column; }
+    .filters input { width: 100%; }
+    .chan { padding: 0.35rem 0.75rem 0.35rem 1.5rem; flex-wrap: wrap; }
+    .chan .url { width: 100%; }
+    .hero .update { text-align: left; margin-top: 4px; }
   }
  </style>
 </head>
 <body>
-<div class="container-lg">
+<div class="container">
 
-  <!-- ── 标题 ── -->
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <!-- ── 头部 ── -->
+  <div class="d-flex justify-content-between align-items-start flex-wrap hero">
     <div>
-      <div class="site-title">📡 <span>IPTV</span> M3U Checker Max</div>
-      <div class="site-subtitle">全网高并发验证 · 极速源排序 · EPG 聚合</div>
+      <h1>📡 <span>IPTV</span> 直播源</h1>
+      <div class="sub">m3u-checker-max · 全网高并发验证 · 极速源排序</div>
     </div>
-    <div id="last-update" class="site-subtitle" style="font-size:0.78rem;">⏳ 加载中...</div>
+    <div class="update" id="update-time">⏳ 加载中...</div>
   </div>
 
-  <!-- ── 统计行 ── -->
-  <div class="d-flex flex-wrap gap-2 stat-grid mb-3" id="stats-row">
-    <div class="stat-card"><div class="num" id="s-total">-</div><div class="label">直播频道</div></div>
-    <div class="stat-card"><div class="num" id="s-cats">-</div><div class="label">分类</div></div>
-    <div class="stat-card"><div class="num" id="s-m3u">-</div><div class="label">M3U 大小</div></div>
-    <div class="stat-card"><div class="num" id="s-epg">-</div><div class="label">EPG 频道</div></div>
-    <div class="stat-card"><div class="num" id="s-sources">-</div><div class="label">播放源</div></div>
+  <!-- ── 统计 ── -->
+  <div class="stats">
+    <div class="stat"><div class="stat-num" id="s-ch">-</div><div class="stat-label">频道</div></div>
+    <div class="stat"><div class="stat-num" id="s-cat">-</div><div class="stat-label">分类</div></div>
+    <div class="stat"><div class="stat-num" id="s-m3u">-</div><div class="stat-label">M3U 大小</div></div>
+    <div class="stat"><div class="stat-num" id="s-epg">-</div><div class="stat-label">EPG 频道</div></div>
+    <div class="stat"><div class="stat-num" id="s-src">-</div><div class="stat-label">播放源</div></div>
   </div>
 
-  <!-- ── 下载按钮 ── -->
-  <div class="d-flex flex-wrap gap-2 mb-3 btn-group-dl">
-    <a href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u" class="btn-dl" download>⬇ M3U</a>
-    <a href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.txt" class="btn-dl" download>⬇ TXT</a>
-    <a href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml" class="btn-dl" target="_blank">📺 EPG</a>
-    <a href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz" class="btn-dl" download>🗜 EPG(GZ)</a>
-    <a href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/log.txt" class="btn-dl" target="_blank">📄 日志</a>
+  <!-- ── 操作栏 ── -->
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="copyM3U()">📋 复制 M3U 地址</button>
+    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u" download>⬇ M3U</a>
+    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.txt" download>⬇ TXT</a>
+    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml" target="_blank">📺 EPG</a>
+    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz" download>🗜 EPG(GZ)</a>
+    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/log.txt" target="_blank">📄 日志</a>
+    <span class="guide-toggle" onclick="toggleGuide()">❓ 怎么用</span>
   </div>
 
-  <!-- ── 卡片 ── -->
-  <div class="card">
-    <div class="card-header d-flex flex-wrap align-items-center gap-3">
-      <!-- 搜索 -->
-      <input type="text" id="search" class="search-input" style="flex:1;min-width:160px;" placeholder="🔍 搜索频道名称…" autocomplete="off">
-      <!-- 分类筛选 -->
-      <div class="filter-pills" id="filter-pills"></div>
+  <!-- ── 使用指南 ── -->
+  <div class="guide-box" id="guide-box">
+    <div class="mb-2 fw-bold">📺 在播放器中导入 M3U 地址</div>
+    <table>
+      <tr><td>M3U 地址</td><td><code id="m3u-url-copy">https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u</code></td></tr>
+      <tr><td>IPTV Smarters</td><td>设置 → 添加播放列表 → M3U URL → 粘贴上方地址</td></tr>
+      <tr><td>VLC</td><td>媒体 → 打开网络串流 → 粘贴地址</td></tr>
+      <tr><td>Kodi / PVR</td><td>PVR IPTV Simple Client → M3U URL → 粘贴地址</td></tr>
+      <tr><td>PotPlayer</td><td>打开链接 → Ctrl+U → 粘贴地址</td></tr>
+      <tr><td>EPG 地址</td><td><code>https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml</code></td></tr>
+    </table>
+  </div>
+
+  <!-- ── 筛选 ── -->
+  <div class="filters">
+    <input type="text" id="search" placeholder="🔍 搜索频道…" autocomplete="off">
+    <div style="display:flex;flex-wrap:wrap;gap:4px;" id="pills"></div>
+  </div>
+
+  <!-- ── 频道列表 ── -->
+  <div id="list" style="background:var(--surface);border-radius:0 0 var(--radius) var(--radius);">
+    <div class="text-center py-5" id="loading" style="color:var(--text3);">
+      <div style="font-size:1.5rem;margin-bottom:0.3rem;">⏳</div>
+      <div>正在加载频道数据...</div>
     </div>
-    <div class="card-body p-0">
-      <!-- 表格 -->
-      <table class="table table-borderless align-middle mb-0" style="width:100%;">
-        <tbody id="channels-tbody">
-          <tr><td colspan="4" class="text-center py-5" style="color:var(--text-muted);">
-            <div class="mb-2" style="font-size:1.5rem;">⏳</div>
-            <div>正在加载频道数据...</div>
-          </td></tr>
-        </tbody>
-      </table>
-      <!-- 空状态 -->
-      <div id="empty-msg" class="text-center py-5" style="color:var(--text-muted);">
-        <div style="font-size:2rem;margin-bottom:0.5rem;">🔍</div>
-        <div>没有匹配的频道</div>
-        <button class="btn-dl mt-2" onclick="resetFilter()">重置筛选</button>
-      </div>
-    </div>
+  </div>
+  <div class="empty" id="empty">
+    <div class="icon">🔍</div>
+    <div>没有匹配的频道</div>
   </div>
 
 </div>
 
-<!-- Toast -->
 <div id="toast"></div>
 
 <script>
-/* ── 数据 ── */
-const DATA_URL = 'output/live.txt';
-const PAGE_SIZE = 50;
-let categories = {};               // { catName: { chs: [{name,url}], collapsed: false } }
-let catList = [];                 // 有序的分类名
-let currentFilterCat = '__all__'; // '__all__' 或分类名
-let searchTerm = '';
-
-/* ── XSS ── */
+/* ── 工具函数 ── */
 const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
-/* ── Toast ── */
-function toast(msg) {
+function toast(msg, ok=true) {
   const el = document.getElementById('toast');
-  el.textContent = '✅ ' + msg;
+  el.textContent = (ok ? '✅ ' : '⚠ ') + msg;
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2000);
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-/* ── 复制 ── */
-function copyUrl(url) {
-  navigator.clipboard.writeText(url).then(() => toast('已复制到剪贴板')).catch(() => {});
+/* ── 使用指南 ── */
+function toggleGuide() {
+  document.getElementById('guide-box').classList.toggle('open');
 }
 
-/* ── 格式化文件大小 ── */
+/* ── 复制 M3U 地址 ── */
+function copyM3U() {
+  const url = document.getElementById('m3u-url-copy').textContent;
+  navigator.clipboard.writeText(url).then(() => toast('M3U 地址已复制！'));
+}
+
+const M3U_URL = 'https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u';
+const TXT_URL  = 'output/live.txt';
+const LOG_URL  = 'output/log.txt';
+const EPG_URL  = 'output/epg.xml';
+
+/* ── 格式化大小 ── */
 function fmtSize(bytes) {
-  if (!bytes || bytes === 0) return 'N/A';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
-  return (bytes/1024/1024).toFixed(1) + ' MB';
+  if (!bytes || bytes === 0) return '-';
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + 'KB';
+  return (bytes/1024/1024).toFixed(1) + 'MB';
 }
 
-/* ── 从 log.txt 提取补充统计 ── */
+/* ── 获取 EPG 频道数 ── */
+async function fetchEpgCount() {
+  try {
+    const r = await fetch(EPG_URL, { method: 'GET' });
+    // 只读前 30KB 来计数 <channel id=
+    const reader = r.body.getReader();
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      total += value.length;
+      if (total > 30000) break;
+    }
+    reader.cancel();
+    const text = new TextDecoder().decode(Uint8Array.from(chunks.flatMap(c => Array.from(c))));
+    const count = (text.match(/<channel\s+id=/g) || []).length;
+    return count > 0 ? count : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+/* ── 获取额外统计 ── */
 async function fetchExtraStats() {
   try {
-    const r = await fetch('output/log.txt');
+    const r = await fetch(LOG_URL);
     const txt = await r.text();
     const lines = txt.split('\n');
-    let epgCount = 'N/A', m3uSize = 'N/A', updateTime = '';
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i].trim();
-      if (l.startsWith('任务时间:')) updateTime = l.replace('任务时间:','').trim();
-      if (l.startsWith('EPG 共') && l.includes('个频道')) {
-        const m = l.match(/(\d+)\s*个频道/);
-        if (m) epgCount = m[1];
+    let updateTime = '';
+    for (const line of lines) {
+      const l = line.trim();
+      if (l.startsWith('任务时间:')) {
+        updateTime = l.replace('任务时间:', '').trim();
+        break;
       }
     }
-    // fetch M3U size via HEAD
+    // M3U size via HEAD
+    let m3uSize = '-';
     try {
       const h = await fetch('output/live.m3u', { method: 'HEAD' });
       m3uSize = fmtSize(parseInt(h.headers.get('content-length') || '0'));
     } catch(e) {}
-    return { epgCount, m3uSize, updateTime };
-  } catch(e) { return { epgCount: 'N/A', m3uSize: 'N/A', updateTime: '' }; }
+    return { m3uSize, updateTime };
+  } catch(e) {
+    return { m3uSize: '-', updateTime: '' };
+  }
 }
 
 /* ── 渲染 ── */
-function render() {
-  const tbody = document.getElementById('channels-tbody');
-  const emptyMsg = document.getElementById('empty-msg');
+function render(categories, catList, m3uSize, epgCount) {
+  const list = document.getElementById('list');
+  const loading = document.getElementById('loading');
+  const empty  = document.getElementById('empty');
+  const search = document.getElementById('search').value.toLowerCase().trim();
 
-  // 先确定要显示哪些分类
+  // 更新统计
+  let totalCh = 0, totalSrc = 0;
+  for (const cat of catList) {
+    totalCh += categories[cat].chs.length;
+    totalSrc += categories[cat].chs.length;
+  }
+  document.getElementById('s-ch').textContent  = totalCh;
+  document.getElementById('s-cat').textContent = catList.length;
+  document.getElementById('s-src').textContent = totalSrc;
+  document.getElementById('s-m3u').textContent = m3uSize || '-';
+  document.getElementById('s-epg').textContent = epgCount !== null ? epgCount : '-';
+
+  // 确定显示哪些分类
   const showCats = catList.filter(cat => {
-    if (currentFilterCat !== '__all__') return cat === currentFilterCat;
-    return true;
-  }).filter(cat => {
-    if (!searchTerm) return true;
-    return cat.toLowerCase().includes(searchTerm) ||
-      categories[cat].chs.some(ch => ch.name.toLowerCase().includes(searchTerm));
+    if (!search) return true;
+    if (cat.toLowerCase().includes(search)) return true;
+    return categories[cat].chs.some(ch => ch.name.toLowerCase().includes(search));
   });
 
   let html = '';
-  let totalCh = 0, totalSources = 0;
+  let visibleCh = 0;
 
   for (const cat of showCats) {
     const catData = categories[cat];
-    const chs = catData.chs;
-    // 搜索时过滤该分类下的频道
-    let visibleChs = chs;
-    if (searchTerm) {
-      visibleChs = chs.filter(ch => ch.name.toLowerCase().includes(searchTerm) || cat.toLowerCase().includes(searchTerm));
+    const chs = search
+      ? catData.chs.filter(ch => ch.name.toLowerCase().includes(search) || cat.toLowerCase().includes(search))
+      : catData.chs;
+    if (chs.length === 0) continue;
+    visibleCh += chs.length;
+
+    const collapsed = catData._collapsed ? '' : 'open';
+    const chev = catData._collapsed ? '' : 'open';
+
+    html += `<div class="cat-group">
+      <div class="cat-header" onclick="toggleCat('${esc(cat)}')">
+        <span class="chev ${chev}">▶</span>
+        <span class="cat-name">📺 ${esc(cat)}</span>
+        <span class="cat-count">${chs.length}</span>
+      </div>
+      <div class="cat-body ${collapsed}">`;
+
+    for (const ch of chs) {
+      html += `<div class="chan">
+        <span class="name">${esc(ch.name)}</span>
+        <span class="url"><a href="${esc(ch.url)}" target="_blank" rel="noopener" title="${esc(ch.url)}">${esc(ch.url)}</a></span>
+      </div>`;
     }
-    if (visibleChs.length === 0) continue;
 
-    const collapsed = catData.collapsed ? '' : 'open';
-    const chevron = catData.collapsed ? '' : 'open';
-
-    html += `<tr class="cat-header" data-cat="${esc(cat)}" onclick="toggleCat('${esc(cat)}')">
-      <td colspan="4" style="padding:0;">
-        <div class="d-flex align-items-center gap-2">
-          <span class="chevron ${chevron}">▶</span>
-          <span class="cat-name">📂 ${esc(cat)}</span>
-          <span class="cat-count">${visibleChs.length}</span>
-        </div>
-      </td>
-    </tr>`;
-
-    if (!catData.collapsed) {
-      let idx = 1;
-      for (const ch of visibleChs) {
-        totalCh++;
-        totalSources += 1; // 每行一个源（实际可能有多个，但每个url一条记录）
-        html += `<tr class="chan-row">
-          <td class="idx">${idx++}</td>
-          <td class="name" title="${esc(ch.name)}">${esc(ch.name)}</td>
-          <td class="url-cell"><a href="${esc(ch.url)}" target="_blank" rel="noopener" title="${esc(ch.url)}">${esc(ch.url)}</a></td>
-          <td style="width:70px;text-align:right;"><button class="copy-btn" onclick="copyUrl('${esc(ch.url)}')">复制</button></td>
-        </tr>`;
-      }
-    }
+    html += `</div></div>`;
   }
 
-  // 分类统计数
-  document.getElementById('s-cats').textContent = catList.length;
-  document.getElementById('s-total').textContent = totalCh;
-  document.getElementById('s-sources').textContent = totalSources;
+  loading.style.display = 'none';
 
   if (html) {
-    tbody.innerHTML = html;
-    emptyMsg.style.display = 'none';
-  } else if (catList.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-5" style="color:var(--text-muted);">
-      <div style="font-size:2rem;margin-bottom:0.5rem;">📡</div>
-      <div>暂无数据，等待工作流执行完成...</div>
-    </td></tr>`;
-    emptyMsg.style.display = 'none';
+    list.innerHTML = html;
+    empty.style.display = 'none';
   } else {
-    tbody.innerHTML = '';
-    emptyMsg.style.display = 'block';
+    list.innerHTML = '';
+    empty.style.display = 'block';
   }
+
+  // 更新当前显示的频道数
+  document.getElementById('s-ch').textContent = visibleCh;
 }
 
 /* ── 分类折叠 ── */
 function toggleCat(cat) {
-  if (!categories[cat]) return;
-  categories[cat].collapsed = !categories[cat].collapsed;
-  render();
+  const d = window._cats;
+  if (!d || !d[cat]) return;
+  d[cat]._collapsed = !d[cat]._collapsed;
+  render(d, window._catList, window._m3uSize, window._epgCount);
 }
 
 /* ── 全部展开/收起 ── */
-function expandAll() { for (const c of catList) categories[c].collapsed = false; render(); }
-function collapseAll() { for (const c of catList) categories[c].collapsed = true; render(); }
-
-/* ── 重置筛选 ── */
-function resetFilter() {
-  document.getElementById('search').value = '';
-  searchTerm = '';
-  currentFilterCat = '__all__';
-  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-  document.querySelector('.filter-pill.all').classList.add('active');
-  render();
+function expandAll() {
+  const d = window._cats;
+  if (!d) return;
+  for (const c of window._catList) d[c]._collapsed = false;
+  render(d, window._catList, window._m3uSize, window._epgCount);
+}
+function collapseAll() {
+  const d = window._cats;
+  if (!d) return;
+  for (const c of window._catList) d[c]._collapsed = true;
+  render(d, window._catList, window._m3uSize, window._epgCount);
 }
 
 /* ── 主流程 ── */
 async function main() {
-  const pillsContainer = document.getElementById('filter-pills');
+  const pillsContainer = document.getElementById('pills');
 
-  // 创建"全部"按钮
+  // 全部按钮
   const allPill = document.createElement('span');
-  allPill.className = 'filter-pill all active';
+  allPill.className = 'pill active';
   allPill.textContent = '📋 全部';
-  allPill.onclick = () => {
-    currentFilterCat = '__all__';
-    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-    allPill.classList.add('active');
-    render();
-  };
+  allPill._filter = '__all__';
   pillsContainer.appendChild(allPill);
 
-  // 展开/收起按钮
-  const expandBtn = document.createElement('span');
-  expandBtn.className = 'filter-pill';
-  expandBtn.textContent = '📂 展开全部';
-  expandBtn.onclick = expandAll;
-  pillsContainer.appendChild(expandBtn);
+  // 展开/收起
+  const expPill = document.createElement('span');
+  expPill.className = 'pill';
+  expPill.textContent = '📂 展开';
+  expPill.onclick = expandAll;
+  pillsContainer.appendChild(expPill);
 
-  const collapseBtn = document.createElement('span');
-  collapseBtn.className = 'filter-pill';
-  collapseBtn.textContent = '📁 收起全部';
-  collapseBtn.onclick = collapseAll;
-  pillsContainer.appendChild(collapseBtn);
+  const colPill = document.createElement('span');
+  colPill.className = 'pill';
+  colPill.textContent = '📁 收起';
+  colPill.onclick = collapseAll;
+  pillsContainer.appendChild(colPill);
 
-  // 提取 live.txt
+  // 解析 live.txt
   try {
-    const resp = await fetch(DATA_URL);
+    const resp = await fetch(TXT_URL);
     const data = await resp.text();
     const lines = data.split('\n');
 
+    const cats = {};
     let currentCat = '__未分类__';
-    let lastWasCat = false;
 
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      // 分类行：含 #genre# 或空行后独立的纯文本行
-      if (trimmed.includes('#genre#')) {
-        currentCat = trimmed.split(',')[0].trim();
-        lastWasCat = true;
-      } else if (trimmed.indexOf(',') === -1) {
-        // 无逗号 → 分类行 (live.txt 格式：分类名单独一行)
-        currentCat = trimmed;
-        lastWasCat = true;
+      const t = line.trim();
+      if (!t) continue;
+      if (t.includes('#genre#')) {
+        currentCat = t.split(',')[0].trim();
+        if (!cats[currentCat]) { cats[currentCat] = { chs: [], _collapsed: false }; }
+      } else if (t.indexOf(',') === -1) {
+        currentCat = t;
+        if (!cats[currentCat]) { cats[currentCat] = { chs: [], _collapsed: false }; }
       } else {
-        // 有逗号 → 频道行 name,url
-        const commaIdx = trimmed.indexOf(',');
-        const name = trimmed.slice(0, commaIdx).trim();
-        const url = trimmed.slice(commaIdx + 1).trim();
+        const ci = t.indexOf(',');
+        const name = t.slice(0, ci).trim();
+        const url  = t.slice(ci+1).trim();
         if (!name || !url) continue;
-        lastWasCat = false;
-
-        if (!categories[currentCat]) {
-          categories[currentCat] = { chs: [], collapsed: false };
-          catList.push(currentCat);
-        }
-        categories[currentCat].chs.push({ name, url });
-      }
-
-      // 分类行（#genre# 或纯文本分类）需确保存在
-      if (lastWasCat && !categories[currentCat]) {
-        categories[currentCat] = { chs: [], collapsed: false };
-        catList.push(currentCat);
+        if (!cats[currentCat]) { cats[currentCat] = { chs: [], _collapsed: false }; }
+        cats[currentCat].chs.push({ name, url });
       }
     }
 
-    // 建分类 pill
-    for (const cat of catList) {
+    const catNames = Object.keys(cats);
+
+    // 分类 pill
+    for (const cat of catNames) {
       const pill = document.createElement('span');
-      pill.className = 'filter-pill';
-      pill.textContent = esc(cat) + ' (' + categories[cat].chs.length + ')';
-      pill.onclick = () => {
-        currentFilterCat = cat;
-        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        // 展开该分类
-        categories[cat].collapsed = false;
-        render();
+      pill.className = 'pill';
+      pill.textContent = `${cat} (${cats[cat].chs.length})`;
+      pill._filter = cat;
+      pill.onclick = function() {
+        document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+        this.classList.add('active');
+        allPill.classList.remove('active');
+        window._curFilter = this._filter;
+        render(cats, catNames, window._m3uSize, window._epgCount);
       };
       pillsContainer.appendChild(pill);
     }
 
-    // 加载额外统计
-    fetchExtraStats().then(stats => {
-      if (stats.epgCount) document.getElementById('s-epg').textContent = stats.epgCount;
-      if (stats.m3uSize) document.getElementById('s-m3u').textContent = stats.m3uSize;
-      if (stats.updateTime) document.getElementById('last-update').textContent = '🕐 ' + stats.updateTime;
-    });
+    allPill.onclick = function() {
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      this.classList.add('active');
+      window._curFilter = '__all__';
+      render(cats, catNames, window._m3uSize, window._epgCount);
+    };
 
-    // 渲染
-    render();
+    window._cats = cats;
+    window._catList = catNames;
+
+    // 并行获取 EPG 和 M3U 统计
+    const [stats, epgCount] = await Promise.all([
+      fetchExtraStats(),
+      fetchEpgCount()
+    ]);
+    window._m3uSize = stats.m3uSize;
+    window._epgCount = epgCount;
+    if (stats.updateTime) document.getElementById('update-time').textContent = '🕐 ' + stats.updateTime;
+
+    render(cats, catNames, stats.m3uSize, epgCount);
 
   } catch(err) {
-    document.getElementById('channels-tbody').innerHTML =
-      `<tr><td colspan="4" class="text-center py-5" style="color:var(--red);">
-        <div style="font-size:2rem;margin-bottom:0.5rem;">⚠️</div>
-        <div>数据加载失败，请确认工作流已执行完毕。</div>
-        <div style="font-size:0.8rem;margin-top:0.3rem;color:var(--text-muted);">${esc(err.message)}</div>
-      </tr>`;
+    document.getElementById('loading').innerHTML = `
+      <div style="font-size:2rem;margin-bottom:0.3rem;">⚠️</div>
+      <div>数据加载失败</div>
+      <div style="font-size:0.8rem;margin-top:0.3rem;color:var(--text3);">${esc(err.message)}</div>`;
   }
 }
 
 /* ── 搜索 ── */
 document.getElementById('search').addEventListener('input', function() {
-  searchTerm = this.value.toLowerCase().trim();
-  render();
+  render(window._cats, window._catList, window._m3uSize, window._epgCount);
 });
 
 /* ── 启动 ── */
