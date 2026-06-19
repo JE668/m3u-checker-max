@@ -20,6 +20,7 @@ OUTPUT_EPG = "output/epg.xml"
 OUTPUT_EPG_GZ = "output/epg.xml.gz"
 LOG_FILE = "output/log.txt"
 UNMATCHED_FILE = "output/unmatched.txt"
+SOURCE_CAT_FILE = "config/source-cat.txt"
 
 # CDN 基础域名（P2-17: 提取为配置，便于更换）
 CDN_BASE = os.environ.get("CDN_BASE", "https://gh.felicity.ac.cn")
@@ -745,14 +746,60 @@ def _match_category(name, demo_rules=None):
     return f"{DEFAULT_CATEGORY[0]},#genre#", DEFAULT_CATEGORY[1]
 
 
+def load_source_cat(filename=SOURCE_CAT_FILE):
+    """加载来源→分类映射
+
+    格式 (config/source-cat.txt):
+      # 注释
+      文件名后缀 → ☘️综合频道
+      URL关键词 → 📺央视频道
+
+    返回: [(pattern, category), ...]，按行顺序优先匹配
+    """
+    patterns = []
+    if not os.path.exists(filename):
+        return patterns
+    with open(filename, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '→' in line:
+                parts = line.split('→', 1)
+                pattern = parts[0].strip()
+                category = parts[1].strip()
+                if pattern and category:
+                    patterns.append((pattern, category))
+    if patterns:
+        live_print(f"  📂 [来源映射] 从 {filename} 加载了 {len(patterns)} 条来源→分类规则")
+    return patterns
+
+
+def _match_source_category(name, valid_results, url_to_source, source_cat_map):
+    """当频道名无法匹配时，从来源URL推断分类"""
+    if name not in valid_results:
+        return None
+    for url, _ in valid_results[name]:
+        source_url = url_to_source.get(url, '')
+        if not source_url:
+            continue
+        for pattern, cat in source_cat_map:
+            if pattern in source_url:
+                return cat
+    return None
+
+
 def channel_sort_key(name, demo_rules=None):
     nums = _NUM_RE.findall(name)
     val = int(nums[0]) if nums else 999
     _, priority = _match_category(name, demo_rules)
     return (priority if priority >= 0 else 0, val, name)
 
-def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
+def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_results=None, url_to_source=None, source_cat_map=None):
     live_print("\n::group::🧠 自适应进化 config/demo.txt (无损追加模式)")
+
+    if valid_results is None:
+        valid_results = {}
 
     new_channels = [n for n in valid_names if n not in chan_to_cat]
 
@@ -770,6 +817,12 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat):
     additions = {}
     for name in new_channels:
         cat, _ = _match_category(name, demo_rules)
+        # 如果频道名匹配到兜底分类(📺其他频道)，尝试来源URL推断
+        if cat == f"{DEFAULT_CATEGORY[0]},#genre#" and source_cat_map and valid_results and url_to_source:
+            source_cat = _match_source_category(name, valid_results, url_to_source, source_cat_map)
+            if source_cat:
+                cat = f"{source_cat},#genre#"
+                live_print(f"  🏷️ [来源推断] [{name}] → {source_cat} (基于来源URL)")
         additions.setdefault(cat, []).append(name)
         if cat not in cat_order:
             cat_order.append(cat)
@@ -1272,7 +1325,9 @@ if __name__ == "__main__":
                     existing_urls.add(url)
 
     # 模板自进化
-    cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results.keys(), cat_order, chan_to_cat, chans_in_cat)
+    source_cat_map = load_source_cat()
+    cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results, cat_order, chan_to_cat, chans_in_cat,
+                                                            url_to_source=url_to_source, source_cat_map=source_cat_map)
 
     # 过滤空分类（测速后无任何存活频道的分类不写入输出）
     non_empty_cats = [cat for cat in cat_order if any(name in valid_results for name in chans_in_cat.get(cat, []))]
