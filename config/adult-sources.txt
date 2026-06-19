@@ -4,7 +4,9 @@
 # 以下来源的频道将自动分离到 output/adult.txt 和 output/adult.m3u
 # 不会出现在正常输出的 live.txt / live.m3u 中
 #
-# 格式：匹配来源 URL 的任意关键词即可
-# 支持完整 URL 或部分关键词
+# 格式：
+#   - 完整 URL 或来源名关键词（匹配来源URL）
+#   - 频道名关键词匹配已硬编码到 ADULT_KEYWORDS（成人/激情/av）
+#     如需新增名称关键词，请修改 main.py 中的 ADULT_KEYWORDS 元组
 
 https://raw.githubusercontent.com/vicjl/myIPTV/refs/heads/main/Adult.m3u

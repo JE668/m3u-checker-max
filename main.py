@@ -51,7 +51,16 @@ NON_TV_PATTERNS = (
     # 广播/非电视
     "广播", "Radio", "电台", "Music", "音乐频道",
     # 杂项非电视
-    "非合规", "阿塔", "成人", "激情", "赌场", "赌波",
+    "非合规", "阿塔",
+    # 成人内容（URL 匹配不到的混入源，在 URL 匹配阶段已分离到 adult_results）
+    # 注意：此处不包含 "成人""激情""赌场""赌波"，它们在 ADULT_KEYWORDS 中
+    # 由成人检测环节优先捕获后分流到 adult.m3u，不在此处过滤丢弃
+    "赌场", "赌波",
+)
+
+# 成人频道名关键词（用于来源 URL 匹配失败时的名称兜底检测）
+ADULT_KEYWORDS = (
+    "成人", "激情", "av",
 )
 
 # 非 TV 频道过滤日志（统计 + 明细）
@@ -1567,16 +1576,25 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             elif ipv6_count:
                 live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
 
-            # 成人来源免测
+            # 成人来源免测（来源URL匹配 + 频道名关键词兜底）
             adult_sources = load_adult_sources()
             adult_results = {}
-            if adult_sources:
-                live_print(f"  🔞 成人源模式: {adult_sources}")
+            if adult_sources or ADULT_KEYWORDS:
+                if adult_sources:
+                    live_print(f"  🔞 成人源URL模式: {adult_sources}")
+                live_print(f"  🔞 成人名关键词: {ADULT_KEYWORDS}")
                 still_to_test = []
                 adult_debug = []
+                adult_name_matches = 0
                 for name, url in to_test:
                     src = url_to_source.get(url, '')
-                    matched = [a for a in adult_sources if a in src]
+                    matched = [a for a in adult_sources if a in src] if adult_sources else []
+                    # 未匹配URL时，再检查频道名关键词
+                    if not matched and ADULT_KEYWORDS:
+                        kw_matched = [kw for kw in ADULT_KEYWORDS if kw in name]
+                        if kw_matched:
+                            matched = kw_matched
+                            adult_name_matches += 1
                     if matched:
                         if name not in adult_results:
                             adult_results[name] = [(url, -1)]
@@ -1584,7 +1602,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                             existing = {u for u, _ in adult_results[name]}
                             if url not in existing:
                                 adult_results[name].append((url, -1))
-                        adult_debug.append(f"    ✅ 匹配: {name:<20} url={url[:60]}...  source={src[:80]}... 模式={matched[0]}")
+                        adult_debug.append(f"    ✅ 匹配: {name:<30} 来源={'URL' if any(a in src for a in adult_sources) else '名称'} | 模式={matched[0]}")
                     else:
                         still_to_test.append((name, url))
                 to_test = still_to_test
@@ -1592,13 +1610,14 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                     for line in adult_debug:
                         live_print(line)
                 if not adult_results:
-                    # DEBUG: 列出所有来源 URL 的片段，看为什么没有匹配
                     all_sources = set()
                     for _, url in to_test:
                         s = url_to_source.get(url, '')
                         if s:
                             all_sources.add(s.split('/')[-1] if '/' in s else s[:60])
                     live_print(f"  🔍 DEBUG — 当前 {len(to_test)} 个待测频道的来源文件名: {sorted(all_sources)[:20]}")
+                if adult_name_matches:
+                    live_print(f"  🔞 其中 {adult_name_matches} 个频道靠名称关键词匹配")
                 live_print(f"  🔞 成人来源免测: {len(adult_results)} 个频道 → 跳过测速直接收录")
 
             channel_model, channel_to_station = load_channel_model()
