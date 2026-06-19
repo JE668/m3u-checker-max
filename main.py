@@ -938,8 +938,12 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
             host = url
         elif ':' in host:
             host = f"[{host}]"
-        if parsed.port and host != url:
-            host = f"{host}:{parsed.port}"
+        try:
+            port = parsed.port
+        except ValueError:
+            port = None
+        if port and host != url:
+            host = f"{host}:{port}"
         host_groups.setdefault(host.lower(), []).append((name, url))
 
     live_print(f"\n📊 测速分组: {len(host_groups)} 台服务器, {len(to_test)} 个频道")
