@@ -1509,7 +1509,8 @@ if __name__ == "__main__":
         live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
     live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
 
-    # 并发测速（传入 source_meta 做优先级排序 + source_urls 做来源统计）
+    # 加载电视台归属信息（需在测速前加载完毕）
+    channel_model, channel_to_station = load_channel_model()
     source_meta = fetch_source_meta()
     test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
         to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
@@ -1525,8 +1526,7 @@ if __name__ == "__main__":
                     valid_results[name].append((url, elapsed))
                     existing_urls.add(url)
 
-    # 模板自进化
-    channel_model, channel_to_station = load_channel_model()
+    # 模板自进化（channel_model 已在测速前加载）
     source_cat_map = load_source_cat()
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results, cat_order, chan_to_cat, chans_in_cat,
                                                             url_to_source=url_to_source, source_cat_map=source_cat_map, channel_model=channel_model)
