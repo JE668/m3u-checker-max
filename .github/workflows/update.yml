@@ -1,8 +1,8 @@
 name: Update IPTV Links
 
 on:
-  schedule:
-    - cron: '0 */1 * * *'
+  # 定时调度已由 get-m3u 联动触发，不再独立 cron
+  # 如需手动运行，使用 workflow_dispatch
   workflow_dispatch:
 
 concurrency:
