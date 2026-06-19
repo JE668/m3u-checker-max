@@ -1526,6 +1526,18 @@ if __name__ == "__main__":
                     valid_results[name].append((url, elapsed))
                     existing_urls.add(url)
 
+    # 分离成人内容（在分类/过滤前执行──防止非TV过滤误杀成人频道）
+    adult_sources = load_adult_sources()
+    adult_results = {}
+    if adult_sources:
+        for name in list(valid_results.keys()):
+            for url, _ in valid_results.get(name, []):
+                src = url_to_source.get(url, '')
+                if any(adult_url in src for adult_url in adult_sources):
+                    adult_results[name] = valid_results.pop(name)
+                    break
+        live_print(f"  🔞 成人频道: 分离 {len(adult_results)} 个 → output/adult.*")
+
     # 模板自进化（channel_model 已在测速前加载）
     source_cat_map = load_source_cat()
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results, cat_order, chan_to_cat, chans_in_cat,
@@ -1550,34 +1562,4 @@ if __name__ == "__main__":
         "cat_live_counts": cat_live_counts,
         "elapsed_seconds": time.time() - start_time,
     }
-    # 分离成人内容（从指定来源中提取）
-    adult_sources = load_adult_sources()
-    adult_results = {}
-    if adult_sources:
-        adult_names = set()
-        live_print(f"  🔞 [调试] 成人来源列表: {adult_sources}")
-        checked = 0
-        for name in list(valid_results.keys()):
-            for url, _ in valid_results.get(name, []):
-                src = url_to_source.get(url, '')
-                checked += 1
-                if checked <= 10:  # 只打印前10个用于调试
-                    live_print(f"  🔞 [调试] 检查: {name} | src={src[:80] if src else '(空)'}")
-                if any(adult_url in src for adult_url in adult_sources):
-                    adult_names.add(name)
-                    live_print(f"  🔞 [匹配] {name} ← {src[:60]}")
-                    break
-        live_print(f"  🔞 识别到 {len(adult_names)} 个成人频道 (检查了 {checked} 个URL配对)")
-        for name in adult_names:
-            adult_results[name] = valid_results.pop(name)
-            # 从 chans_in_cat 中移除
-            for cat, names in list(chans_in_cat.items()):
-                if name in names:
-                    names.remove(name)
-                    break
-            # 从 cat_live_counts 更新
-            for cat in list(cat_live_counts.keys()):
-                cat_live_counts[cat] = sum(1 for n in chans_in_cat.get(cat, []) if n in valid_results)
-        # 清理空分类
-        cat_order[:] = [cat for cat in cat_order if any(n in valid_results for n in chans_in_cat.get(cat, []))]
     write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats, adult_results=adult_results, channel_to_station=channel_to_station)
