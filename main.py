@@ -1085,7 +1085,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
             count = fail_counts[cat]
             bar = '█' * min(count // 5 + 1, 15)
             live_print(f"  {cat:<12} {count:>5}  {bar}")
-        live_print()
+        live_print("")
 
     # 来源统计
     if source_total:
@@ -1099,7 +1099,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
             bar = '█' * max(1, min(ok * 15 // max(total, 1), 15))
             dim = '░' * (15 - len(bar))
             live_print(f"  {src[-30:]:>30} {ok:>5} {total:>5} {rate:>8}  {bar}{dim}")
-        live_print()
+        live_print("")
 
     return valid_results, logs_success, logs_fail, fail_counts, {"ok": source_ok, "total": source_total}
 
