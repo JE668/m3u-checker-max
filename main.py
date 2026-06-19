@@ -20,6 +20,9 @@ OUTPUT_EPG = "output/epg.xml"
 OUTPUT_EPG_GZ = "output/epg.xml.gz"
 LOG_FILE = "output/log.txt"
 UNMATCHED_FILE = "output/unmatched.txt"
+ADULT_TXT = "output/adult.txt"
+ADULT_M3U = "output/adult.m3u"
+ADULT_SOURCES_FILE = "config/adult-sources.txt"
 SOURCE_CAT_FILE = "config/source-cat.txt"
 
 # CDN 基础域名（P2-17: 提取为配置，便于更换）
@@ -746,6 +749,21 @@ def _match_category(name, demo_rules=None):
     return f"{DEFAULT_CATEGORY[0]},#genre#", DEFAULT_CATEGORY[1]
 
 
+def load_adult_sources(filename=ADULT_SOURCES_FILE):
+    """加载成人内容来源列表"""
+    sources = []
+    if not os.path.exists(filename):
+        return sources
+    with open(filename, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                sources.append(line)
+    if sources:
+        live_print(f"  🔞 [成人来源] 从 {filename} 加载了 {len(sources)} 个成人源")
+    return sources
+
+
 def load_source_cat(filename=SOURCE_CAT_FILE):
     """加载来源→分类映射
 
@@ -1162,7 +1180,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
     return valid_results, logs_success, logs_fail, fail_counts, {"ok": source_ok, "total": source_total}
 
 
-def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats=None):
+def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats=None, adult_results=None):
     """写入 M3U/TXT 成品 + 日志文件"""
     if extra_stats is None:
         extra_stats = {}
@@ -1193,6 +1211,21 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
                         fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
                         fm3u.write(f"{url}\n")
                         ftxt.write(f"{name},{url}\n")
+
+    # 写入成人内容（如果有）
+    adult_written = 0
+    if adult_results:
+        with open(ADULT_M3U, "w", encoding="utf-8") as fam3u, open(ADULT_TXT, "w", encoding="utf-8") as fatxt:
+            fam3u.write(M3U_HEADER)
+            fatxt.write("📛成人内容,#genre#\n")
+            for name in sorted(adult_results.keys()):
+                valid_urls = sorted(adult_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
+                for url, elapsed in valid_urls:
+                    logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
+                    fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name}\n')
+                    fam3u.write(f"{url}\n")
+                    fatxt.write(f"{name},{url}\n")
+                    adult_written += 1
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"任务时间: {datetime.now()}\n")
@@ -1348,4 +1381,28 @@ if __name__ == "__main__":
         "cat_live_counts": cat_live_counts,
         "elapsed_seconds": time.time() - start_time,
     }
-    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats)
+    # 分离成人内容（从指定来源中提取）
+    adult_sources = load_adult_sources()
+    adult_results = {}
+    if adult_sources:
+        adult_names = set()
+        for name in list(valid_results.keys()):
+            for url, _ in valid_results.get(name, []):
+                src = url_to_source.get(url, '')
+                if any(adult_url in src for adult_url in adult_sources):
+                    adult_names.add(name)
+                    break
+        live_print(f"  🔞 识别到 {len(adult_names)} 个成人频道")
+        for name in adult_names:
+            adult_results[name] = valid_results.pop(name)
+            # 从 chans_in_cat 中移除
+            for cat, names in list(chans_in_cat.items()):
+                if name in names:
+                    names.remove(name)
+                    break
+            # 从 cat_live_counts 更新
+            for cat in list(cat_live_counts.keys()):
+                cat_live_counts[cat] = sum(1 for n in chans_in_cat.get(cat, []) if n in valid_results)
+        # 清理空分类
+        cat_order[:] = [cat for cat in cat_order if any(n in valid_results for n in chans_in_cat.get(cat, []))]
+    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats, adult_results=adult_results)
