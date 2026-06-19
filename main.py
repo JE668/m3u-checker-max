@@ -934,10 +934,11 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
     for name, url in to_test:
         parsed = urlparse(url)
         host = parsed.hostname
-        # IPv6 加回方括号（无论是否有端口，确保 key 一致）
-        if ':' in parsed.hostname:
-            host = f"[{parsed.hostname}]"
-        if parsed.port:
+        if host is None:
+            host = url
+        elif ':' in host:
+            host = f"[{host}]"
+        if parsed.port and host != url:
             host = f"{host}:{parsed.port}"
         host_groups.setdefault(host.lower(), []).append((name, url))
 
