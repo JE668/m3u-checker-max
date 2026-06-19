@@ -927,7 +927,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None):
     source_ok, source_total = {}, {}  # 来源统计
 
     if not to_test:
-        return valid_results, logs_success, logs_fail, fail_counts, {}
+        return valid_results, logs_success, logs_fail, fail_counts, {"ok": {}, "total": {}}
 
     # Phase 1: 按 host 分组
     host_groups = {}
