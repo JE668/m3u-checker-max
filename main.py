@@ -11,6 +11,7 @@ EPG_FILE = "config/epg.txt"
 ALIAS_FILE = "config/alias.txt"
 DEMO_FILE = "config/demo.txt"
 BLACKLIST_FILE = "config/blacklist.txt"
+CHANNEL_MODEL_FILE = "config/Channel_model.txt"  # 频道分类数据库
 
 # 无效频道名模式（自动加黑名单）
 INVALID_NAME_PATTERNS = [
@@ -775,14 +776,22 @@ def _build_demo_rules(chans_in_cat):
     return demo_rules
 
 
-def _match_category(name, demo_rules=None):
+def _match_category(name, demo_rules=None, channel_model=None):
     """根据频道名匹配分类
     
     匹配优先级：
+    0. Channel_model.txt 精确匹配（最高优先级）
     1. demo.txt 自学习规则（前缀精确匹配）
     2. CATEGORY_RULES 硬编码规则（关键词包含）
     3. DEFAULT_CATEGORY 兜底
     """
+    # 第 0 步：Channel_model 精确匹配
+    if channel_model and name in channel_model:
+        cat = channel_model[name]
+        if not cat.endswith(",#genre#"):
+            cat = f"{cat},#genre#"
+        return cat, -2  # 数据库优先级最高
+
     # 第一步：demo.txt 自学习规则（前缀匹配，要求位置在开头）
     if demo_rules:
         for kw, cat in sorted(demo_rules.items(), key=lambda x: -len(x[0])):  # 长前缀优先
@@ -843,6 +852,35 @@ def load_source_cat(filename=SOURCE_CAT_FILE):
     return patterns
 
 
+def load_channel_model(filename=CHANNEL_MODEL_FILE):
+    """加载频道分类数据库
+
+    格式 (config/Channel_model.txt):
+      频道名|省份|地级市|频道分组
+
+    返回: {频道名: 分类}，如 {"CCTV-1": "📺央视频道,#genre#"}
+    """
+    channel_to_cat = {}
+    if not os.path.exists(filename):
+        return channel_to_cat
+    with open(filename, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '|' not in line:
+                continue
+            parts = line.split('|')
+            if len(parts) >= 4:
+                name = parts[0].strip()
+                category = parts[3].strip()
+                if name and category:
+                    channel_to_cat[name] = category
+    if channel_to_cat:
+        live_print(f"  📚 [分类数据库] 从 {filename} 加载了 {len(channel_to_cat)} 个频道分类")
+    return channel_to_cat
+
+
 def _match_source_category(name, valid_results, url_to_source, source_cat_map):
     """当频道名无法匹配时，从来源URL推断分类"""
     if name not in valid_results:
@@ -857,17 +895,17 @@ def _match_source_category(name, valid_results, url_to_source, source_cat_map):
     return None
 
 
-def channel_sort_key(name, demo_rules=None):
+def channel_sort_key(name, demo_rules=None, channel_model=None):
     nums = _NUM_RE.findall(name)
     val = int(nums[0]) if nums else 999
-    _, priority = _match_category(name, demo_rules)
+    _, priority = _match_category(name, demo_rules, channel_model)
     return (priority if priority >= 0 else 0, val, name)
 
 def is_non_tv_channel(name):
     """检测是否为非电视台频道（直播平台/影视点播/广播等）"""
     return any(p in name for p in NON_TV_PATTERNS)
 
-def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_results=None, url_to_source=None, source_cat_map=None):
+def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_results=None, url_to_source=None, source_cat_map=None, channel_model=None):
     live_print("\n::group::🧠 自适应进化 config/demo.txt (无损追加模式)")
 
     if valid_results is None:
@@ -928,7 +966,7 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
 
     additions = {}
     for name in tv_channels:
-        cat, _ = _match_category(name, demo_rules)
+        cat, _ = _match_category(name, demo_rules, channel_model)
         # 如果频道名匹配到兜底分类(📺其他频道)，尝试来源URL推断
         if cat == f"{DEFAULT_CATEGORY[0]},#genre#" and source_cat_map and valid_results and url_to_source:
             source_cat = _match_source_category(name, valid_results, url_to_source, source_cat_map)
@@ -1470,9 +1508,10 @@ if __name__ == "__main__":
                     existing_urls.add(url)
 
     # 模板自进化
+    channel_model = load_channel_model()
     source_cat_map = load_source_cat()
     cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results, cat_order, chan_to_cat, chans_in_cat,
-                                                            url_to_source=url_to_source, source_cat_map=source_cat_map)
+                                                            url_to_source=url_to_source, source_cat_map=source_cat_map, channel_model=channel_model)
 
     # 过滤空分类（测速后无任何存活频道的分类不写入输出）
     non_empty_cats = [cat for cat in cat_order if any(name in valid_results for name in chans_in_cat.get(cat, []))]
