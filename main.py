@@ -39,7 +39,10 @@ SOURCE_CAT_FILE = "config/source-cat.txt"
 # 匹配任一关键词的频道不进 demo.txt/输出，也不上报到 GitHub
 NON_TV_PATTERNS = (
     # 直播平台
-    "斗鱼", "虎牙", "哔哩", "Bilibili", "bilibili", "抖音", "快手", "Astream",
+    "斗鱼", "虎牙", "B站", "哔哩", "Bilibili", "bilibili", "抖音", "快手",
+    "Astream", "映客", "花椒", "一直播", "来疯", "陌陌", "YY",
+    # 个人/自媒体频道
+    "挨饿德", "大司马", "PDD", "旭旭宝宝", "卢本伟", "冯提莫",
     # 海外流媒体/点播
     "YouTube", "PlutoTV", "Pluto", "Tubi", "Netflix", "奈飞", "Disney+",
     # 影视点播/非电视
@@ -630,6 +633,7 @@ CATEGORY_RULES = [
     (["CCTV"], "📺央视频道", 1),
     (["CETV"], "📺中国教育电视台", 1),
     (["CGTN"], "📺中国国际电视台", 1),
+    (["春晚"], "🎉春晚频道", 1),
 
     # === 优先级 2：品牌/服务系列（字母均转大写匹配，解决大小写问题） ===
     (["IHOT"], "📺iHOT系列", 2),
