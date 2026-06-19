@@ -11,6 +11,16 @@ EPG_FILE = "config/epg.txt"
 ALIAS_FILE = "config/alias.txt"
 DEMO_FILE = "config/demo.txt"
 BLACKLIST_FILE = "config/blacklist.txt"
+
+# 无效频道名模式（自动加黑名单）
+INVALID_NAME_PATTERNS = [
+    r'^\d{4}-\d{1,2}-\d{1,2}#',  # 2025-1-15#佛系维护...
+    r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$',  # 2026-06-19 06:38:27
+    r'^免费订阅',
+    r'^请勿贩卖',
+    r'^维护时间',
+    r'^佛系维护',
+]
 WHITELIST_FILE = "config/whitelist.txt"
 ICON_DIR = "icons"
 
@@ -39,6 +49,10 @@ NON_TV_PATTERNS = (
     # 杂项非电视
     "非合规", "阿塔", "成人", "激情", "赌场", "赌波",
 )
+
+# 非 TV 频道过滤日志（统计 + 明细）
+NON_TV_LOG = "output/non-tv-filtered.txt"
+
 
 # 平台→分类 推荐映射（用于 source-cat.txt 自学习）
 _PLATFORM_CAT_MAP = {
@@ -845,6 +859,10 @@ def channel_sort_key(name, demo_rules=None):
     _, priority = _match_category(name, demo_rules)
     return (priority if priority >= 0 else 0, val, name)
 
+def is_non_tv_channel(name):
+    """检测是否为非电视台频道（直播平台/影视点播/广播等）"""
+    return any(p in name for p in NON_TV_PATTERNS)
+
 def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_results=None, url_to_source=None, source_cat_map=None):
     live_print("\n::group::🧠 自适应进化 config/demo.txt (无损追加模式)")
 
@@ -859,13 +877,53 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
         live_print("::endgroup::")
         return cat_order, chan_to_cat, chans_in_cat
 
-    live_print(f"ℹ️ 状态: 发现了 {len(new_channels)} 个全新的存活频道！准备自动归类并追加写入...")
+    # ——————————————————————————————————————
+    # P0 过滤：非电视台频道（直播平台/影视点播/广播等）
+    # ——————————————————————————————————————
+    tv_channels = []
+    non_tv_channels = []
+    for name in new_channels:
+        if is_non_tv_channel(name):
+            non_tv_channels.append(name)
+        else:
+            tv_channels.append(name)
+
+    # 写入过滤日志（统计 + 明细）
+    if non_tv_channels:
+        with open(NON_TV_LOG, 'w', encoding='utf-8') as f:
+            f.write(f"# 非 TV 频道过滤日志\n")
+            f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"# 总计: {len(non_tv_channels)} 个频道被过滤\n\n")
+            # 按关键词分组统计
+            from collections import Counter
+            kw_counts = Counter()
+            for name in non_tv_channels:
+                for p in NON_TV_PATTERNS:
+                    if p in name:
+                        kw_counts[p] += 1
+                        break
+            f.write("## 按关键词统计\n")
+            for kw, cnt in kw_counts.most_common():
+                f.write(f"{kw}: {cnt}\n")
+            f.write(f"\n## 被过滤频道列表\n")
+            for name in non_tv_channels:
+                matched_kw = next((p for p in NON_TV_PATTERNS if p in name), "未知")
+                f.write(f"[{matched_kw}] {name}\n")
+        live_print(f"  🚫 [过滤] 跳过 {len(non_tv_channels)} 个非电视频道 → {NON_TV_LOG}")
+
+    if not tv_channels:
+        live_print("ℹ️ 状态: 测速存活的频道均已存在于 config/demo.txt 当前分组中（或全部被过滤）。")
+        live_print("✅ 动作: 模板保持原样，无需写入更新。")
+        live_print("::endgroup::")
+        return cat_order, chan_to_cat, chans_in_cat
+
+    live_print(f"ℹ️ 状态: 发现了 {len(tv_channels)} 个全新的存活电视台频道！准备自动归类并追加写入...")
 
     # 从 demo.txt 现有结构学习分类规则
     demo_rules = _build_demo_rules(chans_in_cat)
 
     additions = {}
-    for name in new_channels:
+    for name in tv_channels:
         cat, _ = _match_category(name, demo_rules)
         # 如果频道名匹配到兜底分类(📺其他频道)，尝试来源URL推断
         if cat == f"{DEFAULT_CATEGORY[0]},#genre#" and source_cat_map and valid_results and url_to_source:
@@ -934,18 +992,28 @@ def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_name
     """黑白名单过滤分流
     
     channels: [(name, url, source_url), ...]
-    - 白名单 → 并发 HEAD 存活检测，在线免测，离线降级
+    - 白名单 → 并发 HEAD 存活检测，在线免测，离级降级
     - 黑名单 → 拦截
+    - 无效频道名 → 自动追加黑名单
     - 其余 → 进入 to_test 测速
     """
     to_test = []
     valid_results = {}
     logs_blacklist, logs_whitelist = [], []
+    auto_blacklist = []  # 自动发现的无效频道名
+    
+    # 检测无效频道名
+    for name, url, source_url in channels:
+        for pattern in INVALID_NAME_PATTERNS:
+            if re.match(pattern, name):
+                auto_blacklist.append(name)
+                logs_blacklist.append(f"⚫ [无效名] {name}")
+                break
 
     # 第一趟：分离白名单条目，并发做存活检测
     whitelist_candidates = []  # [(name, url), ...]
     for name, url, source_url in channels:
-        if name in blacklist_names or url in blacklist_urls:
+        if name in blacklist_names or url in blacklist_urls or name in auto_blacklist:
             logs_blacklist.append(f"⚫ [黑名单屏蔽] {name:<12} | {url}")
         elif name in whitelist_names or url in whitelist_urls:
             whitelist_candidates.append((name, url))
@@ -979,6 +1047,14 @@ def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_name
                     to_test.append((name, url))
                     logs_whitelist.append(f"⚪→🔍 [白名单离线] {name:<12} | 降级测速 | {url}")
 
+    # 自动追加无效频道名到黑名单文件
+    if auto_blacklist:
+        with open(BLACKLIST_FILE, 'a', encoding='utf-8') as f:
+            f.write("\n# 自动追加的无效频道名\n")
+            for name in set(auto_blacklist):
+                f.write(f"{name}\n")
+        live_print(f"  📛 [自动黑名单] 发现 {len(set(auto_blacklist))} 个无效频道名，已追加到 {BLACKLIST_FILE}")
+    
     return to_test, valid_results, logs_blacklist, logs_whitelist
 
 
