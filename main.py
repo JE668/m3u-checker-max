@@ -5,133 +5,47 @@ from urllib.parse import urlparse, quote
 import subprocess
 
 # ===============================
-# 1. 核心配置区
+# 1. 核心配置区 — 从 config/settings.py 加载
 # ===============================
-SOURCES_FILE = "config/sources.txt"
-EPG_FILE = "config/epg.txt"
-ALIAS_FILE = "config/alias.txt"
-DEMO_FILE = "config/demo.txt"
-BLACKLIST_FILE = "config/blacklist.txt"
-CHANNEL_MODEL_FILE = "config/Channel_model.txt"  # 频道分类数据库
+try:
+    from config.settings import *
+except ImportError:
+    pass  # 无 settings.py 时用下方默认值
 
-# 无效频道名模式（自动加黑名单）
-INVALID_NAME_PATTERNS = [
-    r'^\d{4}-\d{1,2}-\d{1,2}#',  # 2025-1-15#佛系维护...
-    r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$',  # 2026-06-19 06:38:27
-    r'^免费订阅',
-    r'^请勿贩卖',
-    r'^维护时间',
-    r'^佛系维护',
-]
-WHITELIST_FILE = "config/whitelist.txt"
-ICON_DIR = "icons"
-
-OUTPUT_TXT = "output/live.txt"
-OUTPUT_M3U = "output/live.m3u"
-OUTPUT_EPG = "output/epg.xml"
-OUTPUT_EPG_GZ = "output/epg.xml.gz"
-LOG_FILE = "output/log.txt"
-UNMATCHED_FILE = "output/unmatched.txt"
-ADULT_TXT = "output/adult.txt"
-ADULT_M3U = "output/adult.m3u"
-ADULT_SOURCES_FILE = "config/adult-sources.txt"
-SOURCE_CAT_FILE = "config/source-cat.txt"
-
-# 非电视台频道平台关键词（内置 + source-cat.txt 自动追加）
-# 匹配任一关键词的频道不进 demo.txt/输出，也不上报到 GitHub
-NON_TV_PATTERNS = (
-    # 直播平台
-    "斗鱼", "虎牙", "B站", "哔哩", "Bilibili", "bilibili", "抖音", "快手",
-    "Astream", "映客", "花椒", "一直播", "来疯", "陌陌", "YY",
-    # 个人/自媒体频道
-    "挨饿德", "大司马", "PDD", "旭旭宝宝", "卢本伟", "冯提莫",
-    # 海外流媒体/点播
-    "YouTube", "PlutoTV", "Pluto", "Tubi", "Netflix", "奈飞", "Disney+",
-    # 影视点播/非电视
-    "点播", "影视", "电影", "电视剧", "综艺", "MV", "MTV", "Video",
-    # 广播/非电视
-    "广播", "Radio", "电台", "Music", "音乐频道",
-    # 杂项非电视
-    "非合规", "阿塔",
-    # 成人内容（URL 匹配不到的混入源，在 URL 匹配阶段已分离到 adult_results）
-    # 注意：此处不包含 "成人""激情""赌场""赌波"，它们在 ADULT_KEYWORDS 中
-    # 由成人检测环节优先捕获后分流到 adult.m3u，不在此处过滤丢弃
-    "赌场", "赌波",
-)
-
-# 成人频道名关键词（用于来源 URL 匹配失败时的名称兜底检测）
-ADULT_KEYWORDS = (
-    "成人", "激情", "av",
-)
-
-# 非 TV 频道过滤日志（统计 + 明细）
-NON_TV_LOG = "output/non-tv-filtered.txt"
-
-
-# 平台→分类 推荐映射（用于 source-cat.txt 自学习）
-_PLATFORM_CAT_MAP = {
-    "douyu": "🎮直播平台", "斗鱼": "🎮直播平台",
-    "huya": "🎮直播平台", "虎牙": "🎮直播平台",
-    "bilibili": "🎮直播平台", "哔哩": "🎮直播平台",
-    "douyin": "🎮直播平台", "抖音": "🎮直播平台",
-    "kuaishou": "🎮直播平台", "快手": "🎮直播平台",
-    "youtube": "🌐网络视频", "YouTube": "🌐网络视频",
-    "pluto": "🌐网络视频", "PlutoTV": "🌐网络视频",
-    "tubi": "🌐网络视频", "Tubi": "🌐网络视频",
-    "netflix": "🎬影视点播", "奈飞": "🎬影视点播",
-    "disney": "🎬影视点播",
-    "点播": "🎬影视点播", "影视": "🎬影视点播", "电影": "🎬影视点播",
-    "综艺": "🎬影视点播", "MV": "🎵音乐", "MTV": "🎵音乐",
-    "广播": "📻广播", "Radio": "📻广播", "电台": "📻广播",
+# ── 环境变量覆盖（CI 场景，优先级最高） ──
+_CFG_ENV = {  # (key, converter, default)
+    "MAX_WORKERS": (int, 50),
+    "SAMPLE_PER_HOST": (int, 2),
+    "CHECK_CONNECT_TIMEOUT": (int, 5),
+    "CHECK_READ_TIMEOUT": (int, 8),
+    "CHECK_TOTAL_TIMEOUT": (int, 15),
+    "MIN_BANDWIDTH_MBPS": (float, 2.0),
+    "EPG_MAX_WORKERS": (int, 4),
+    "RETRY_MAX_ATTEMPTS": (int, 2),
+    "RETRY_BACKOFF": (float, 1.0),
+    "PROBE_TIMEOUT": (int, 4),
+    "CDN_BASE": (str, "https://gh.felicity.ac.cn"),
 }
+for _key, (_conv, _default) in _CFG_ENV.items():
+    if _key in os.environ:
+        globals()[_key] = _conv(os.environ[_key])
+    elif _key not in globals():
+        globals()[_key] = _default
 
-# CDN 基础域名（P2-17: 提取为配置，便于更换）
-CDN_BASE = os.environ.get("CDN_BASE", "https://gh.felicity.ac.cn")
+# ── 布尔/env 特化覆盖 ──
+if "PROBE_RESOLUTION" in os.environ:
+    PROBE_RESOLUTION = os.environ["PROBE_RESOLUTION"].lower() in ("1", "true", "yes")
+if "MIN_RESOLUTION" in os.environ:
+    MIN_RESOLUTION = os.environ["MIN_RESOLUTION"]
+
+# ── 派生值 ──
 REPO_RAW = f"{CDN_BASE}/https://raw.githubusercontent.com/JE668/m3u-checker-max/main"
-
-# M3U 头部
 M3U_HEADER = f'#EXTM3U x-tvg-url="{REPO_RAW}/output/epg.xml.gz"\n'
-
-# get-m3u 探针元数据（用于测速优先级排序）
 SOURCE_META_URL = f"{CDN_BASE}/https://raw.githubusercontent.com/JE668/get-m3u/refs/heads/main/output/source-meta.json"
+if 'DOWNLOAD_TARGET_BYTES' not in globals():
+    DOWNLOAD_TARGET_BYTES = 1048576
 
-# EPG 垃圾词汇过滤库
-EPG_BLACKLIST = [
-    "未能提供", "暂无节目", "精彩节目", "精彩節目",
-    "没有节目", "未提供节目", "未提供節目",
-    "no program", "no data", "精彩剧集", "暂未提供"
-]
-
-# HTTP 请求默认 Headers
-DEFAULT_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-
-# 测速并发线程数
-MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "50"))
-
-# 服务器级预筛：每台服务器先抽检多少个频道判断死活
-SAMPLE_PER_HOST = int(os.environ.get("SAMPLE_PER_HOST", "2"))
-
-# 测速参数
-CHECK_CONNECT_TIMEOUT = int(os.environ.get("CHECK_CONNECT_TIMEOUT", "5"))
-CHECK_READ_TIMEOUT = int(os.environ.get("CHECK_READ_TIMEOUT", "8"))
-CHECK_TOTAL_TIMEOUT = int(os.environ.get("CHECK_TOTAL_TIMEOUT", "15"))
-CHECK_DOWNLOAD_TARGET = 1024 * 1024  # 1MB（从128KB增大，过滤半死不活的流）
-CHECK_MIN_BANDWIDTH_MBPS = float(os.environ.get("CHECK_MIN_BANDWIDTH_MBPS", "2.0"))  # 最小带宽阈值
-
-# EPG 并发下载数
-EPG_MAX_WORKERS = int(os.environ.get("EPG_MAX_WORKERS", "4"))
-
-# 重试配置
-RETRY_MAX_ATTEMPTS = int(os.environ.get("RETRY_MAX_ATTEMPTS", "2"))
-RETRY_BACKOFF = float(os.environ.get("RETRY_BACKOFF", "1.0"))
-
-# 分辨率检测配置
-PROBE_RESOLUTION = os.environ.get("PROBE_RESOLUTION", "true").lower() in ("1", "true", "yes")
-PROBE_TIMEOUT = int(os.environ.get("PROBE_TIMEOUT", "4"))  # ffprobe 超时（秒）
-
-# 最小分辨率过滤（空字符串=不过滤）
-# 格式: "1920x1080" 或 "1280x720" 等
-MIN_RESOLUTION = os.environ.get("MIN_RESOLUTION", "0x0")
+# ── 分辨率辅助函数（纯逻辑，非配置） ──
 def _parse_resolution(s):
     try:
         w, h = s.lower().split("x")
@@ -663,13 +577,13 @@ def check_channel(main_name, url):
                 downloaded += len(chunk)
                 last_chunk_time = now
 
-                if downloaded >= CHECK_DOWNLOAD_TARGET:
+                if downloaded >= DOWNLOAD_TARGET_BYTES:
                     elapsed = time.time() - start_time
                     bandwidth = downloaded * 8 / elapsed / 1_000_000
 
                     # 带宽阈值过滤
-                    if bandwidth < CHECK_MIN_BANDWIDTH_MBPS:
-                        return False, main_name, url, round(elapsed, 2), f"带宽不足({bandwidth:.1f}Mbps < {CHECK_MIN_BANDWIDTH_MBPS})"
+                    if bandwidth < MIN_BANDWIDTH_MBPS:
+                        return False, main_name, url, round(elapsed, 2), f"带宽不足({bandwidth:.1f}Mbps < {MIN_BANDWIDTH_MBPS})"
 
                     # MPEG-TS 同步字节(0x47)校验
                     ts_sample = memoryview(ts_check_data)[:512 * 1024]
