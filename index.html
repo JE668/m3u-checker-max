@@ -3,7 +3,7 @@
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>IPTV 直播源 — m3u-checker-max</title>
+ <title>IPTV 直播源状态 — m3u-checker-max</title>
  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
  <style>
   * { box-sizing: border-box; }
@@ -31,29 +31,14 @@
     padding: 2rem 0;
     -webkit-font-smoothing: antialiased;
   }
-
   .container { max-width: 960px; }
 
   /* ── 头部 ── */
-  .hero {
-    margin-bottom: 1.5rem;
-  }
-  .hero h1 {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin: 0;
-  }
+  .hero { margin-bottom: 1.5rem; }
+  .hero h1 { font-size: 1.4rem; font-weight: 700; margin: 0; }
   .hero h1 span { color: var(--cyan); }
-  .hero .sub {
-    color: var(--text3);
-    font-size: 0.85rem;
-    margin-top: 2px;
-  }
-  .hero .update {
-    color: var(--text3);
-    font-size: 0.78rem;
-    text-align: right;
-  }
+  .hero .sub { color: var(--text3); font-size: 0.85rem; margin-top: 2px; }
+  .hero .update { color: var(--text3); font-size: 0.78rem; text-align: right; }
 
   /* ── 统计卡片 ── */
   .stats {
@@ -69,25 +54,16 @@
     padding: 0.65rem 0.5rem;
     text-align: center;
   }
-  .stat-num {
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: var(--cyan);
-    line-height: 1.2;
-  }
-  .stat-label {
-    font-size: 0.68rem;
-    color: var(--text3);
-    letter-spacing: 0.3px;
-  }
+  .stat-num { font-size: 1.3rem; font-weight: 800; color: var(--cyan); line-height: 1.2; }
+  .stat-label { font-size: 0.68rem; color: var(--text3); letter-spacing: 0.3px; }
 
-  /* ── 操作行 ── */
+  /* ── 操作栏 ── */
   .toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
   }
   .toolbar .btn {
     background: var(--surface);
@@ -101,175 +77,100 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .toolbar .btn:hover {
-    background: var(--blue-dim);
-    border-color: var(--blue);
-    color: var(--blue);
-  }
-  .toolbar .btn-primary {
-    background: var(--blue);
-    border-color: var(--blue);
-    color: #fff;
-  }
-  .toolbar .btn-primary:hover {
-    background: #2563eb;
-    color: #fff;
-  }
-
-  /* ── 使用指南（可折叠） ── */
-  .guide-toggle {
-    color: var(--text3);
-    font-size: 0.8rem;
-    cursor: pointer;
-    user-select: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
+  .toolbar .btn:hover { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+  .toolbar .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .toolbar .btn-primary:hover { background: #2563eb; color: #fff; }
+  .guide-toggle { color: var(--text3); font-size: 0.8rem; cursor: pointer; user-select: none; }
   .guide-toggle:hover { color: var(--text2); }
-  .guide-box {
-    display: none;
+
+  /* ── 使用指南 ── */
+  .guide-box { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; font-size: 0.85rem; }
+  .guide-box.open { display: block; }
+  .guide-box code { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; color: var(--cyan); word-break: break-all; }
+  .guide-box table { width: 100%; }
+  .guide-box td { padding: 0.4rem 0; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .guide-box td:first-child { color: var(--text); font-weight: 500; width: 100px; }
+
+  /* ── 区块卡片 ── */
+  .section {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1rem 1.25rem;
     margin-bottom: 1rem;
-    font-size: 0.85rem;
+    overflow: hidden;
   }
-  .guide-box.open { display: block; }
-  .guide-box code {
-    background: rgba(255,255,255,0.06);
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    color: var(--cyan);
-    word-break: break-all;
-  }
-  .guide-box table { width: 100%; }
-  .guide-box td {
-    padding: 0.4rem 0;
+  .section-title {
+    padding: 0.8rem 1.25rem;
     border-bottom: 1px solid var(--border);
-    color: var(--text2);
+    font-weight: 600;
+    font-size: 0.92rem;
   }
-  .guide-box td:first-child {
-    color: var(--text);
-    font-weight: 500;
-    width: 100px;
-  }
+  .section-body { padding: 0.75rem 1.25rem; }
 
-  /* ── 筛选行 ── */
-  .filters {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+  /* ── 分类存活表 ── */
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 6px;
-    margin-bottom: 0;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    border-radius: var(--radius) var(--radius) 0 0;
-    padding: 0.75rem 1rem;
   }
-  .filters input {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 6px;
-    padding: 0.4rem 0.7rem;
-    font-size: 0.82rem;
-    outline: none;
-    flex: 1;
-    min-width: 120px;
-  }
-  .filters input:focus { border-color: var(--blue); }
-  .filters input::placeholder { color: var(--text3); }
-
-  .pill {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid transparent;
-    color: var(--text3);
-    border-radius: 12px;
-    padding: 2px 12px;
-    font-size: 0.76rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .pill:hover { border-color: var(--border); color: var(--text2); }
-  .pill.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); font-weight: 600; }
-
-  /* ── 频道列表 ── */
-  .cat-group {
-    border-bottom: 1px solid var(--border);
-  }
-  .cat-header {
+  .cat-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0.65rem 1rem;
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.12s;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
   }
-  .cat-header:hover { background: rgba(255,255,255,0.02); }
-  .cat-header .chev {
-    font-size: 0.65rem;
-    color: var(--text3);
-    transition: transform 0.15s;
-    width: 12px;
-    flex-shrink: 0;
-  }
-  .cat-header .chev.open { transform: rotate(90deg); }
-  .cat-header .cat-name { font-weight: 600; font-size: 0.92rem; }
-  .cat-header .cat-count {
-    font-size: 0.75rem;
-    color: var(--text3);
-    background: rgba(255,255,255,0.05);
-    padding: 0 10px;
-    border-radius: 8px;
-    margin-left: auto;
-  }
-  .cat-body { display: none; }
-  .cat-body.open { display: block; }
+  .cat-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
+  .cat-item .count { font-weight: 600; font-size: 0.88rem; white-space: nowrap; }
+  .cat-item .count.good { color: var(--green); }
+  .cat-item .count.ok   { color: var(--orange); }
 
-  .chan {
+  /* ── 失败分布 ── */
+  .fail-row {
     display: flex;
     align-items: center;
-    padding: 0.4rem 1rem 0.4rem 2rem;
     gap: 8px;
+    padding: 0.35rem 0;
     font-size: 0.85rem;
   }
-  .chan:nth-child(even) { background: rgba(255,255,255,0.015); }
-  .chan:hover { background: rgba(255,255,255,0.04); }
-  .chan .name {
-    font-weight: 500;
-    white-space: nowrap;
+  .fail-row .label { width: 90px; flex-shrink: 0; color: var(--text2); }
+  .fail-row .bar {
+    flex: 1;
+    height: 18px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 4px;
     overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-    flex-shrink: 0;
+    position: relative;
   }
-  .chan .url {
-    color: var(--text3);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-    font-size: 0.8rem;
+  .fail-row .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+    min-width: 2px;
   }
-  .chan .url a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .chan .url a:hover { color: var(--blue); }
+  .fail-row .bar-fill.high  { background: linear-gradient(90deg, var(--red), #ef4444); }
+  .fail-row .bar-fill.med   { background: linear-gradient(90deg, var(--orange), #f97316); }
+  .fail-row .bar-fill.low   { background: linear-gradient(90deg, #6366f1, #818cf8); }
+  .fail-row .bar-fill.misc  { background: linear-gradient(90deg, var(--text3), #9ca3af); }
+  .fail-row .num { width: 40px; text-align: right; font-weight: 600; font-size: 0.82rem; flex-shrink: 0; }
 
-  /* ── 空状态 ── */
-  .empty {
-    display: none;
+  /* ── 来源表 ── */
+  .src-table { width: 100%; font-size: 0.85rem; }
+  .src-table th { text-align: left; color: var(--text3); font-weight: 500; font-size: 0.78rem; padding: 0.5rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .src-table td { padding: 0.4rem 0.5rem 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .src-table .src-name { color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+  .src-table .src-rate { font-weight: 600; }
+  .src-rate.good { color: var(--green); }
+  .src-rate.ok   { color: var(--orange); }
+  .src-rate.bad  { color: var(--red); }
+
+  /* ── 运行时间 ── */
+  .runtime {
     text-align: center;
-    padding: 3rem 1rem;
     color: var(--text3);
+    font-size: 0.8rem;
+    padding: 1rem 0;
   }
-  .empty .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
 
   /* ── Toast ── */
   #toast {
@@ -283,16 +184,13 @@
   }
   #toast.show { opacity: 1; }
 
-  .mb-0 { margin-bottom: 0; }
-
   @media (max-width: 700px) {
     body { padding: 1rem 0; }
     .stats { grid-template-columns: repeat(3, 1fr); }
-    .filters { flex-direction: column; }
-    .filters input { width: 100%; }
-    .chan { padding: 0.35rem 0.75rem 0.35rem 1.5rem; flex-wrap: wrap; }
-    .chan .url { width: 100%; }
+    .cat-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .hero .update { text-align: left; margin-top: 4px; }
+    .fail-row .label { width: 70px; }
+    .src-table { font-size: 0.78rem; }
   }
  </style>
 </head>
@@ -302,19 +200,19 @@
   <!-- ── 头部 ── -->
   <div class="d-flex justify-content-between align-items-start flex-wrap hero">
     <div>
-      <h1>📡 <span>IPTV</span> 直播源</h1>
+      <h1>📡 <span>IPTV</span> 直播源状态</h1>
       <div class="sub">m3u-checker-max · 全网高并发验证 · 极速源排序</div>
     </div>
     <div class="update" id="update-time">⏳ 加载中...</div>
   </div>
 
-  <!-- ── 统计 ── -->
+  <!-- ── 统计卡片 ── -->
   <div class="stats">
-    <div class="stat"><div class="stat-num" id="s-ch">-</div><div class="stat-label">频道</div></div>
+    <div class="stat"><div class="stat-num" id="s-ch">-</div><div class="stat-label">直播频道</div></div>
     <div class="stat"><div class="stat-num" id="s-cat">-</div><div class="stat-label">分类</div></div>
     <div class="stat"><div class="stat-num" id="s-m3u">-</div><div class="stat-label">M3U 大小</div></div>
     <div class="stat"><div class="stat-num" id="s-epg">-</div><div class="stat-label">EPG 频道</div></div>
-    <div class="stat"><div class="stat-num" id="s-src">-</div><div class="stat-label">播放源</div></div>
+    <div class="stat"><div class="stat-num" id="s-src">-</div><div class="stat-label">来源</div></div>
   </div>
 
   <!-- ── 操作栏 ── -->
@@ -333,30 +231,53 @@
     <div class="mb-2 fw-bold">📺 在播放器中导入 M3U 地址</div>
     <table>
       <tr><td>M3U 地址</td><td><code id="m3u-url-copy">https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u</code></td></tr>
-      <tr><td>IPTV Smarters</td><td>设置 → 添加播放列表 → M3U URL → 粘贴上方地址</td></tr>
+      <tr><td>IPTV Smarters</td><td>设置 → 添加播放列表 → M3U URL → 粘贴</td></tr>
       <tr><td>VLC</td><td>媒体 → 打开网络串流 → 粘贴地址</td></tr>
-      <tr><td>Kodi / PVR</td><td>PVR IPTV Simple Client → M3U URL → 粘贴地址</td></tr>
-      <tr><td>PotPlayer</td><td>打开链接 → Ctrl+U → 粘贴地址</td></tr>
+      <tr><td>Kodi / PVR</td><td>PVR IPTV Simple Client → M3U URL → 粘贴</td></tr>
+      <tr><td>PotPlayer</td><td>打开链接 → Ctrl+U → 粘贴</td></tr>
       <tr><td>EPG 地址</td><td><code>https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml</code></td></tr>
     </table>
   </div>
 
-  <!-- ── 筛选 ── -->
-  <div class="filters">
-    <input type="text" id="search" placeholder="🔍 搜索频道…" autocomplete="off">
-    <div style="display:flex;flex-wrap:wrap;gap:4px;" id="pills"></div>
+  <!-- ── 加载提示 ── -->
+  <div id="loading" class="text-center py-5" style="color:var(--text3);">
+    <div style="font-size:1.5rem;margin-bottom:0.3rem;">⏳</div>
+    <div>正在加载数据...</div>
   </div>
 
-  <!-- ── 频道列表 ── -->
-  <div id="list" style="background:var(--surface);border-radius:0 0 var(--radius) var(--radius);">
-    <div class="text-center py-5" id="loading" style="color:var(--text3);">
-      <div style="font-size:1.5rem;margin-bottom:0.3rem;">⏳</div>
-      <div>正在加载频道数据...</div>
+  <!-- ── 仪表盘内容 ── -->
+  <div id="dashboard" style="display:none;">
+
+    <!-- 分类频道存活 -->
+    <div class="section">
+      <div class="section-title">📺 分类频道存活</div>
+      <div class="section-body">
+        <div class="cat-grid" id="cat-grid"></div>
+      </div>
     </div>
-  </div>
-  <div class="empty" id="empty">
-    <div class="icon">🔍</div>
-    <div>没有匹配的频道</div>
+
+    <!-- 失败原因分布 -->
+    <div class="section">
+      <div class="section-title">❌ 失败原因分布</div>
+      <div class="section-body">
+        <div id="fail-list"></div>
+      </div>
+    </div>
+
+    <!-- 来源可靠性 -->
+    <div class="section">
+      <div class="section-title">📡 来源可靠性</div>
+      <div class="section-body">
+        <table class="src-table">
+          <thead><tr><th>来源</th><th style="text-align:right;">成功</th><th style="text-align:right;">总计</th><th style="text-align:right;">成功率</th></tr></thead>
+          <tbody id="src-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 运行时间 -->
+    <div class="runtime" id="runtime"></div>
+
   </div>
 
 </div>
@@ -367,30 +288,24 @@
 /* ── 工具函数 ── */
 const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
-function toast(msg, ok=true) {
+function toast(msg) {
   const el = document.getElementById('toast');
-  el.textContent = (ok ? '✅ ' : '⚠ ') + msg;
+  el.textContent = '✅ ' + msg;
   el.classList.add('show');
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-/* ── 使用指南 ── */
-function toggleGuide() {
-  document.getElementById('guide-box').classList.toggle('open');
-}
+function toggleGuide() { document.getElementById('guide-box').classList.toggle('open'); }
 
-/* ── 复制 M3U 地址 ── */
 function copyM3U() {
   const url = document.getElementById('m3u-url-copy').textContent;
   navigator.clipboard.writeText(url).then(() => toast('M3U 地址已复制！'));
 }
 
-const M3U_URL = 'https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u';
-const TXT_URL  = 'output/live.txt';
-const LOG_URL  = 'output/log.txt';
-const EPG_URL  = 'output/epg.xml';
+const EPG_URL = 'output/epg.xml';
+const LOG_URL = 'output/log.txt';
+const TXT_URL = 'output/live.txt';
 
-/* ── 格式化大小 ── */
 function fmtSize(bytes) {
   if (!bytes || bytes === 0) return '-';
   if (bytes < 1024) return bytes + 'B';
@@ -398,11 +313,81 @@ function fmtSize(bytes) {
   return (bytes/1024/1024).toFixed(1) + 'MB';
 }
 
+/* ── 解析 log.txt ── */
+function parseLog(text) {
+  const lines = text.split('\n');
+  let updateTime = '', runtime = '';
+  const categories = [];  // [{name, count}]
+  const failures = [];    // [{label, count}]
+  const sources = [];     // [{name, ok, total, rate}]
+
+  let section = null;
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+
+    // 任务时间
+    if (t.startsWith('任务时间:')) {
+      updateTime = t.replace('任务时间:', '').trim();
+      continue;
+    }
+
+    // 运行时长
+    if (t.startsWith('总运行时长:')) {
+      runtime = t.replace('总运行时长:', '').trim();
+      continue;
+    }
+
+    // 区块标题
+    if (t === '各来源测速结果:') { section = 'sources'; continue; }
+    if (t === '失败原因统计:') { section = 'failures'; continue; }
+    if (t === '分类频道存活情况:') { section = 'categories'; continue; }
+
+    // 分隔线
+    if (t.startsWith('──')) continue;
+
+    // 来源表头
+    if (t.startsWith('来源') && t.includes('成功') && t.includes('总计') && t.includes('成功率')) continue;
+
+    // 解析分类存活: "  ☘️广东频道                                   47 个频道"
+    if (section === 'categories' && !t.startsWith('来源') && !t.startsWith('──')) {
+      const m = t.match(/(.+?)\s+(\d+)\s+个频道/);
+      if (m) {
+        categories.push({ name: m[1].trim(), count: parseInt(m[2]) });
+      }
+    }
+
+    // 解析失败原因: "  流数据不足        745"
+    if (section === 'failures') {
+      const m = t.match(/(.+?)\s+(\d+)$/);
+      if (m) {
+        failures.push({ label: m[1].trim(), count: parseInt(m[2]) });
+      }
+    }
+
+    // 解析来源: "  source-m3u.txt                                        275   1623    16.9%"
+    if (section === 'sources') {
+      // 匹配: 来源名(可含空格/特殊字符) + 数字 + 数字 + 百分比
+      const m = t.match(/^(.+?)\s+(\d+)\s+(\d+)\s+(\d+\.?\d*)%/);
+      if (m) {
+        sources.push({
+          name: m[1].trim(),
+          ok: parseInt(m[2]),
+          total: parseInt(m[3]),
+          rate: parseFloat(m[4])
+        });
+      }
+    }
+  }
+
+  return { updateTime, runtime, categories, failures, sources };
+}
+
 /* ── 获取 EPG 频道数 ── */
 async function fetchEpgCount() {
   try {
-    const r = await fetch(EPG_URL, { method: 'GET' });
-    // 只读前 30KB 来计数 <channel id=
+    const r = await fetch(EPG_URL);
     const reader = r.body.getReader();
     const chunks = [];
     let total = 0;
@@ -415,223 +400,93 @@ async function fetchEpgCount() {
     }
     reader.cancel();
     const text = new TextDecoder().decode(Uint8Array.from(chunks.flatMap(c => Array.from(c))));
-    const count = (text.match(/<channel\s+id=/g) || []).length;
-    return count > 0 ? count : null;
-  } catch(e) {
-    return null;
-  }
+    return (text.match(/<channel\s+id=/g) || []).length || null;
+  } catch(e) { return null; }
 }
 
-/* ── 获取额外统计 ── */
-async function fetchExtraStats() {
+/* ── 获取 M3U 大小、频道数 ── */
+async function fetchM3uStats() {
   try {
-    const r = await fetch(LOG_URL);
-    const txt = await r.text();
-    const lines = txt.split('\n');
-    let updateTime = '';
-    for (const line of lines) {
-      const l = line.trim();
-      if (l.startsWith('任务时间:')) {
-        updateTime = l.replace('任务时间:', '').trim();
-        break;
-      }
+    const [head, txt] = await Promise.all([
+      fetch('output/live.m3u', { method: 'HEAD' }).catch(() => null),
+      fetch(TXT_URL).catch(() => null)
+    ]);
+    let size = '-';
+    if (head) size = fmtSize(parseInt(head.headers.get('content-length') || '0'));
+    let chCount = 0;
+    if (txt) {
+      const data = await txt.text();
+      chCount = data.split('\n').filter(l => l.trim() && l.includes(',')).length;
     }
-    // M3U size via HEAD
-    let m3uSize = '-';
-    try {
-      const h = await fetch('output/live.m3u', { method: 'HEAD' });
-      m3uSize = fmtSize(parseInt(h.headers.get('content-length') || '0'));
-    } catch(e) {}
-    return { m3uSize, updateTime };
-  } catch(e) {
-    return { m3uSize: '-', updateTime: '' };
-  }
+    return { m3uSize: size, chCount };
+  } catch(e) { return { m3uSize: '-', chCount: 0 }; }
 }
 
-/* ── 渲染 ── */
-function render(categories, catList, m3uSize, epgCount) {
-  const list = document.getElementById('list');
-  const loading = document.getElementById('loading');
-  const empty  = document.getElementById('empty');
-  const search = document.getElementById('search').value.toLowerCase().trim();
+/* ── 渲染仪表盘 ── */
+function renderDashboard(d) {
+  // 分类
+  const catGrid = document.getElementById('cat-grid');
+  catGrid.innerHTML = d.categories.map(c => {
+    const cls = c.count >= 10 ? 'good' : c.count >= 3 ? 'ok' : '';
+    return `<div class="cat-item"><span class="name">📺 ${esc(c.name)}</span><span class="count ${cls}">${c.count}</span></div>`;
+  }).join('');
 
-  // 更新统计
-  let totalCh = 0, totalSrc = 0;
-  for (const cat of catList) {
-    totalCh += categories[cat].chs.length;
-    totalSrc += categories[cat].chs.length;
-  }
-  document.getElementById('s-ch').textContent  = totalCh;
-  document.getElementById('s-cat').textContent = catList.length;
-  document.getElementById('s-src').textContent = totalSrc;
-  document.getElementById('s-m3u').textContent = m3uSize || '-';
-  document.getElementById('s-epg').textContent = epgCount !== null ? epgCount : '-';
+  // 失败分布
+  const maxFail = Math.max(...d.failures.map(f => f.count), 1);
+  const failList = document.getElementById('fail-list');
+  failList.innerHTML = d.failures.map(f => {
+    const pct = (f.count / maxFail * 100);
+    const cls = f.count >= 200 ? 'high' : f.count >= 50 ? 'med' : f.count >= 10 ? 'low' : 'misc';
+    return `<div class="fail-row">
+      <span class="label">${esc(f.label)}</span>
+      <div class="bar"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
+      <span class="num">${f.count}</span>
+    </div>`;
+  }).join('');
 
-  // 确定显示哪些分类
-  const showCats = catList.filter(cat => {
-    if (!search) return true;
-    if (cat.toLowerCase().includes(search)) return true;
-    return categories[cat].chs.some(ch => ch.name.toLowerCase().includes(search));
-  });
+  // 来源
+  const srcTbody = document.getElementById('src-tbody');
+  srcTbody.innerHTML = d.sources.map(s => {
+    const cls = s.rate >= 15 ? 'good' : s.rate >= 5 ? 'ok' : 'bad';
+    return `<tr>
+      <td class="src-name" title="${esc(s.name)}">${esc(s.name)}</td>
+      <td style="text-align:right;">${s.ok}</td>
+      <td style="text-align:right;">${s.total}</td>
+      <td style="text-align:right;"><span class="src-rate ${cls}">${s.rate.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join('');
 
-  let html = '';
-  let visibleCh = 0;
-
-  for (const cat of showCats) {
-    const catData = categories[cat];
-    const chs = search
-      ? catData.chs.filter(ch => ch.name.toLowerCase().includes(search) || cat.toLowerCase().includes(search))
-      : catData.chs;
-    if (chs.length === 0) continue;
-    visibleCh += chs.length;
-
-    const collapsed = catData._collapsed ? '' : 'open';
-    const chev = catData._collapsed ? '' : 'open';
-
-    html += `<div class="cat-group">
-      <div class="cat-header" onclick="toggleCat('${esc(cat)}')">
-        <span class="chev ${chev}">▶</span>
-        <span class="cat-name">📺 ${esc(cat)}</span>
-        <span class="cat-count">${chs.length}</span>
-      </div>
-      <div class="cat-body ${collapsed}">`;
-
-    for (const ch of chs) {
-      html += `<div class="chan">
-        <span class="name">${esc(ch.name)}</span>
-        <span class="url"><a href="${esc(ch.url)}" target="_blank" rel="noopener" title="${esc(ch.url)}">${esc(ch.url)}</a></span>
-      </div>`;
-    }
-
-    html += `</div></div>`;
-  }
-
-  loading.style.display = 'none';
-
-  if (html) {
-    list.innerHTML = html;
-    empty.style.display = 'none';
-  } else {
-    list.innerHTML = '';
-    empty.style.display = 'block';
-  }
-
-  // 更新当前显示的频道数
-  document.getElementById('s-ch').textContent = visibleCh;
-}
-
-/* ── 分类折叠 ── */
-function toggleCat(cat) {
-  const d = window._cats;
-  if (!d || !d[cat]) return;
-  d[cat]._collapsed = !d[cat]._collapsed;
-  render(d, window._catList, window._m3uSize, window._epgCount);
-}
-
-/* ── 全部展开/收起 ── */
-function expandAll() {
-  const d = window._cats;
-  if (!d) return;
-  for (const c of window._catList) d[c]._collapsed = false;
-  render(d, window._catList, window._m3uSize, window._epgCount);
-}
-function collapseAll() {
-  const d = window._cats;
-  if (!d) return;
-  for (const c of window._catList) d[c]._collapsed = true;
-  render(d, window._catList, window._m3uSize, window._epgCount);
+  // 总运行时间
+  document.getElementById('runtime').textContent = d.runtime ? `⏱ 总运行时长: ${d.runtime}` : '';
 }
 
 /* ── 主流程 ── */
 async function main() {
-  const pillsContainer = document.getElementById('pills');
-
-  // 全部按钮
-  const allPill = document.createElement('span');
-  allPill.className = 'pill active';
-  allPill.textContent = '📋 全部';
-  allPill._filter = '__all__';
-  pillsContainer.appendChild(allPill);
-
-  // 展开/收起
-  const expPill = document.createElement('span');
-  expPill.className = 'pill';
-  expPill.textContent = '📂 展开';
-  expPill.onclick = expandAll;
-  pillsContainer.appendChild(expPill);
-
-  const colPill = document.createElement('span');
-  colPill.className = 'pill';
-  colPill.textContent = '📁 收起';
-  colPill.onclick = collapseAll;
-  pillsContainer.appendChild(colPill);
-
-  // 解析 live.txt
   try {
-    const resp = await fetch(TXT_URL);
-    const data = await resp.text();
-    const lines = data.split('\n');
-
-    const cats = {};
-    let currentCat = '__未分类__';
-
-    for (const line of lines) {
-      const t = line.trim();
-      if (!t) continue;
-      if (t.includes('#genre#')) {
-        currentCat = t.split(',')[0].trim();
-        if (!cats[currentCat]) { cats[currentCat] = { chs: [], _collapsed: false }; }
-      } else if (t.indexOf(',') === -1) {
-        currentCat = t;
-        if (!cats[currentCat]) { cats[currentCat] = { chs: [], _collapsed: false }; }
-      } else {
-        const ci = t.indexOf(',');
-        const name = t.slice(0, ci).trim();
-        const url  = t.slice(ci+1).trim();
-        if (!name || !url) continue;
-        if (!cats[currentCat]) { cats[currentCat] = { chs: [], _collapsed: false }; }
-        cats[currentCat].chs.push({ name, url });
-      }
-    }
-
-    const catNames = Object.keys(cats);
-
-    // 分类 pill
-    for (const cat of catNames) {
-      const pill = document.createElement('span');
-      pill.className = 'pill';
-      pill.textContent = `${cat} (${cats[cat].chs.length})`;
-      pill._filter = cat;
-      pill.onclick = function() {
-        document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
-        this.classList.add('active');
-        allPill.classList.remove('active');
-        window._curFilter = this._filter;
-        render(cats, catNames, window._m3uSize, window._epgCount);
-      };
-      pillsContainer.appendChild(pill);
-    }
-
-    allPill.onclick = function() {
-      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
-      this.classList.add('active');
-      window._curFilter = '__all__';
-      render(cats, catNames, window._m3uSize, window._epgCount);
-    };
-
-    window._cats = cats;
-    window._catList = catNames;
-
-    // 并行获取 EPG 和 M3U 统计
-    const [stats, epgCount] = await Promise.all([
-      fetchExtraStats(),
-      fetchEpgCount()
+    const [logResp, epgCount, m3uStats] = await Promise.all([
+      fetch(LOG_URL),
+      fetchEpgCount(),
+      fetchM3uStats()
     ]);
-    window._m3uSize = stats.m3uSize;
-    window._epgCount = epgCount;
-    if (stats.updateTime) document.getElementById('update-time').textContent = '🕐 ' + stats.updateTime;
 
-    render(cats, catNames, stats.m3uSize, epgCount);
+    const logText = await logResp.text();
+    const d = parseLog(logText);
+
+    // 更新统计卡片
+    document.getElementById('s-ch').textContent  = m3uStats.chCount;
+    document.getElementById('s-cat').textContent = d.categories.length;
+    document.getElementById('s-m3u').textContent = m3uStats.m3uSize;
+    document.getElementById('s-epg').textContent = epgCount !== null ? epgCount : '-';
+    document.getElementById('s-src').textContent = d.sources.length;
+
+    // 更新时间
+    if (d.updateTime) document.getElementById('update-time').textContent = '🕐 ' + d.updateTime;
+
+    // 隐藏加载，显示仪表盘
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+    renderDashboard(d);
 
   } catch(err) {
     document.getElementById('loading').innerHTML = `
@@ -641,12 +496,6 @@ async function main() {
   }
 }
 
-/* ── 搜索 ── */
-document.getElementById('search').addEventListener('input', function() {
-  render(window._cats, window._catList, window._m3uSize, window._epgCount);
-});
-
-/* ── 启动 ── */
 main();
 </script>
 </body>
