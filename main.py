@@ -1530,6 +1530,26 @@ if __name__ == "__main__":
     adult_sources = load_adult_sources()
     adult_results = {}
     if adult_sources:
+        live_print(f"  🔞 [调试] valid_results 中共 {len(valid_results)} 个频道")
+        # 收集所有来源URL并检查是否存在成人源匹配
+        src_urls_found = set()
+        for name in list(valid_results.keys()):
+            for url, _ in valid_results.get(name, []):
+                src = url_to_source.get(url, '')
+                if src:
+                    src_urls_found.add(src)
+        # 检查是否有任何来源URL匹配成人源
+        matched_srcs = {src for src in src_urls_found if any(a in src for a in adult_sources)}
+        live_print(f"  🔞 [调试] valid_results 中的来源URL: {len(src_urls_found)} 个唯一来源")
+        for s in sorted(list(src_urls_found)[:10]):
+            snip = s[-60:] if len(s) > 60 else s
+            tag = " ← 匹配成人源!" if any(a in s for a in adult_sources) else ""
+            live_print(f"      📡 ...{snip}{tag}")
+        if len(src_urls_found) > 10:
+            live_print(f"      ... 还有 {len(src_urls_found) - 10} 个来源未列出")
+        live_print(f"  🔞 [调试] 成人来源列表: {adult_sources}")
+        live_print(f"  🔞 [调试] 匹配到的来源: {matched_srcs}")
+        
         for name in list(valid_results.keys()):
             for url, _ in valid_results.get(name, []):
                 src = url_to_source.get(url, '')
