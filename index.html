@@ -466,31 +466,40 @@ async function main() {
     const lines = data.split('\n');
 
     let currentCat = '__未分类__';
+    let lastWasCat = false;
 
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
+      // 分类行：含 #genre# 或空行后独立的纯文本行
       if (trimmed.includes('#genre#')) {
         currentCat = trimmed.split(',')[0].trim();
+        lastWasCat = true;
+      } else if (trimmed.indexOf(',') === -1) {
+        // 无逗号 → 分类行 (live.txt 格式：分类名单独一行)
+        currentCat = trimmed;
+        lastWasCat = true;
+      } else {
+        // 有逗号 → 频道行 name,url
+        const commaIdx = trimmed.indexOf(',');
+        const name = trimmed.slice(0, commaIdx).trim();
+        const url = trimmed.slice(commaIdx + 1).trim();
+        if (!name || !url) continue;
+        lastWasCat = false;
+
         if (!categories[currentCat]) {
           categories[currentCat] = { chs: [], collapsed: false };
           catList.push(currentCat);
         }
-        continue;
+        categories[currentCat].chs.push({ name, url });
       }
 
-      const commaIdx = trimmed.indexOf(',');
-      if (commaIdx === -1) continue;
-      const name = trimmed.slice(0, commaIdx).trim();
-      const url = trimmed.slice(commaIdx + 1).trim();
-      if (!name || !url) continue;
-
-      if (!categories[currentCat]) {
+      // 分类行（#genre# 或纯文本分类）需确保存在
+      if (lastWasCat && !categories[currentCat]) {
         categories[currentCat] = { chs: [], collapsed: false };
         catList.push(currentCat);
       }
-      categories[currentCat].chs.push({ name, url });
     }
 
     // 建分类 pill
