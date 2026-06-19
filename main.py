@@ -134,7 +134,8 @@ def get_session():
     return _http_session
 
 def live_print(content):
-    print(content, flush=True)
+    """输出到 stderr（GitHub Actions 实时流式）+ 自动刷新"""
+    print(content, flush=True, file=sys.stderr)
 
 # ===============================
 # 1.5 网络工具：重试装饰器 (P1-6)
@@ -966,6 +967,23 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
 
     live_print(f"ℹ️ 状态: 发现了 {len(tv_channels)} 个全新的存活电视台频道！准备自动归类并追加写入...")
 
+    # 别名归一化：将 tv_channels 中的频道名先走 alias.txt 映射
+    try:
+        a_exact, a_regex, a_known = load_aliases()
+        normalized = []
+        alias_mappings = []
+        for name in tv_channels:
+            main = get_main_name(name, a_exact, a_regex, a_known)
+            if main != name:
+                alias_mappings.append(f"    📝 [别名归一] {name} → {main}")
+            normalized.append(main)
+        tv_channels = normalized
+        if alias_mappings:
+            for m in alias_mappings:
+                live_print(m)
+    except Exception as e:
+        live_print(f"  ⚠️ 别名归一化失败 (跳过): {e}")
+
     # 从 demo.txt 现有结构学习分类规则
     demo_rules = _build_demo_rules(chans_in_cat)
 
@@ -1501,7 +1519,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             start_time = s["start_time"]
             live_print("  🔄 已从阶段1状态恢复")
         else:
-            live_print("::group::🔍 阶段1 — 抓取直播源 & 黑白名单过滤")
+            print("::group::🔍 阶段1 — 抓取直播源 & 黑白名单过滤", flush=True)
             # ----- 阶段1：从头执行 -----
             aliases_exact, aliases_regex, known_main_names = load_aliases()
 
@@ -1553,24 +1571,39 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             adult_sources = load_adult_sources()
             adult_results = {}
             if adult_sources:
+                live_print(f"  🔞 成人源模式: {adult_sources}")
                 still_to_test = []
+                adult_debug = []
                 for name, url in to_test:
                     src = url_to_source.get(url, '')
-                    if any(a in src for a in adult_sources):
+                    matched = [a for a in adult_sources if a in src]
+                    if matched:
                         if name not in adult_results:
                             adult_results[name] = [(url, -1)]
                         else:
                             existing = {u for u, _ in adult_results[name]}
                             if url not in existing:
                                 adult_results[name].append((url, -1))
+                        adult_debug.append(f"    ✅ 匹配: {name:<20} url={url[:60]}...  source={src[:80]}... 模式={matched[0]}")
                     else:
                         still_to_test.append((name, url))
                 to_test = still_to_test
+                if adult_debug:
+                    for line in adult_debug:
+                        live_print(line)
+                if not adult_results:
+                    # DEBUG: 列出所有来源 URL 的片段，看为什么没有匹配
+                    all_sources = set()
+                    for _, url in to_test:
+                        s = url_to_source.get(url, '')
+                        if s:
+                            all_sources.add(s.split('/')[-1] if '/' in s else s[:60])
+                    live_print(f"  🔍 DEBUG — 当前 {len(to_test)} 个待测频道的来源文件名: {sorted(all_sources)[:20]}")
                 live_print(f"  🔞 成人来源免测: {len(adult_results)} 个频道 → 跳过测速直接收录")
 
             channel_model, channel_to_station = load_channel_model()
 
-        live_print("::endgroup::")
+        print("::endgroup::", flush=True)
         if ci_phase == 1:
             _save_state(1, {
                 "url_to_source": url_to_source,
@@ -1614,7 +1647,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             start_time = s["start_time"]
             live_print("  🔄 已从阶段2状态恢复")
         else:
-            live_print("::group::🚀 阶段2 — 并发测速 & 流校验")
+            print("::group::🚀 阶段2 — 并发测速 & 流校验", flush=True)
             live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
 
             source_meta = fetch_source_meta()
@@ -1633,7 +1666,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                             valid_results[name].append((url, elapsed))
                             existing_urls.add(url)
 
-        live_print("::endgroup::")
+        print("::endgroup::", flush=True)
         if ci_phase == 2:
             _save_state(2, {
                 "valid_results": valid_results,
@@ -1657,7 +1690,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
     # 阶段3：分类模板进化 & 成品输出
     # ════════════════════════════════════════════
     if ci_phase is None or ci_phase >= 3:
-        live_print("::group::🧠 阶段3 — 模板进化 & 成品输出")
+        print("::group::🧠 阶段3 — 模板进化 & 成品输出", flush=True)
         # 模板自进化
         source_cat_map = load_source_cat()
         cat_order, chan_to_cat, chans_in_cat = auto_update_demo(
@@ -1688,7 +1721,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                        logs_whitelist, logs_blacklist, extra_stats,
                        adult_results=adult_results, channel_to_station=channel_to_station)
 
-        live_print("::endgroup::")
+        print("::endgroup::", flush=True)
         # CI最后阶段：清理临时状态
         if ci_phase == 3 and os.path.exists(ci_state_dir):
             import shutil
