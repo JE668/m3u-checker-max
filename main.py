@@ -178,7 +178,7 @@ def load_aliases():
     aliases_exact, aliases_regex = {}, []
     known_main_names = set()
 
-    live_print("::group::⚙️ 加载系统配置文件")
+    live_print("\n━━━ ⚙️ 加载系统配置文件 ━━━━━━━━━━━━━━━━━━━")
     if not os.path.exists(ALIAS_FILE):
         live_print(f"⚠️ 未找到别名配置文件: {ALIAS_FILE}")
         return aliases_exact, aliases_regex, known_main_names
@@ -259,7 +259,6 @@ def load_demo_template(aliases_exact, aliases_regex, known_main_names):
 
     if not os.path.exists(DEMO_FILE):
         live_print(f"⚠️ 未找到分类模板文件: {DEMO_FILE}")
-        live_print("::endgroup::")
         return category_order, channel_to_category, channels_in_category
 
     current_category = None
@@ -288,7 +287,6 @@ def load_demo_template(aliases_exact, aliases_regex, known_main_names):
 
     total_channels = sum(len(v) for v in channels_in_category.values())
     live_print(f"✅ {DEMO_FILE} (读写): 成功载入 {len(category_order)} 个大类，包含 {total_channels} 个已知频道。")
-    live_print("::endgroup::")
     return category_order, channel_to_category, channels_in_category
 
 # ===============================
@@ -392,7 +390,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
 
     if not epg_urls: return epg_report
 
-    live_print("::group::📅 开始下载并整合 EPG 节目单")
+    live_print("\n━━━ 📅 下载并整合 EPG ━━━━━━━━━━━━━━━━━━━━━━━")
 
     # P1-8: EPG 并发下载
     merged_channels = []
@@ -446,8 +444,6 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
             epg_report.append("\n" + final_msg)
         except Exception as e:
             live_print(f"❌ EPG写入失败: {e}")
-
-    live_print("::endgroup::")
     return epg_report
 
 # ===============================
@@ -466,7 +462,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
     seen_urls = set()
-    live_print("::group::📥 开始抓取直播源")
+    live_print("\n━━━ 📥 抓取直播源 ━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     for source_url in sources:
         skip_this_source = False
         try:
@@ -531,8 +527,6 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
         live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
     else:
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
-
-    live_print("::endgroup::")
     return channels
 
 def fetch_source_meta():
@@ -919,7 +913,7 @@ def is_non_tv_channel(name):
     return any(p in name for p in NON_TV_PATTERNS)
 
 def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_results=None, url_to_source=None, source_cat_map=None, channel_model=None):
-    live_print("\n::group::🧠 自适应进化 config/demo.txt (无损追加模式)")
+    live_print("\n━━━ 🧠 自适应进化 demo.txt ━━━━━━━━━━━━━━━━━━━━")
 
     if valid_results is None:
         valid_results = {}
@@ -929,7 +923,6 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
     if not new_channels:
         live_print("ℹ️ 状态: 测速存活的频道均已存在于 config/demo.txt 当前分组中。")
         live_print("✅ 动作: 模板保持原样，无需写入更新。")
-        live_print("::endgroup::")
         return cat_order, chan_to_cat, chans_in_cat
 
     # ——————————————————————————————————————
@@ -969,7 +962,6 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
     if not tv_channels:
         live_print("ℹ️ 状态: 测速存活的频道均已存在于 config/demo.txt 当前分组中（或全部被过滤）。")
         live_print("✅ 动作: 模板保持原样，无需写入更新。")
-        live_print("::endgroup::")
         return cat_order, chan_to_cat, chans_in_cat
 
     live_print(f"ℹ️ 状态: 发现了 {len(tv_channels)} 个全新的存活电视台频道！准备自动归类并追加写入...")
@@ -1035,8 +1027,6 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
         live_print(f"✅ 动作: config/demo.txt 已无损更新！原结构完美保留，底部已成功追加上述新频道。")
     except Exception as e:
         live_print(f"❌ 动作: config/demo.txt 更新失败: {e}")
-
-    live_print("::endgroup::")
     return cat_order, chan_to_cat, chans_in_cat
 
 # ===============================
@@ -1352,7 +1342,7 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
     """写入 M3U/TXT 成品 + 日志文件"""
     if extra_stats is None:
         extra_stats = {}
-    live_print("::group::💾 写入结果文件")
+    live_print("\n━━━ 💾 写入结果文件 ━━━━━━━━━━━━━━━━━━━━━━━━━")
 
     # 外部 fallback logo 基础 URL
     fallback_logo_base = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon"
@@ -1457,116 +1447,244 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
                 f.write(f"总运行时长: {elapsed:.0f} 秒 ({elapsed/60:.1f} 分钟)\n")
 
     live_print(f"✅ 所有结果文件已生成至 output/ 目录")
-    live_print("::endgroup::")
+
+
+def main(ci_phase=None, ci_state_dir="tmp"):
+    """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
+    import json
+
+    def _ser(obj):
+        "递归序列化为JSON兼容格式"
+        if isinstance(obj, (set, tuple)):
+            return list(obj)
+        if isinstance(obj, dict):
+            return {k: _ser(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_ser(v) for v in obj]
+        return obj
+
+    def _save_state(phase, data):
+        os.makedirs(ci_state_dir, exist_ok=True)
+        path = os.path.join(ci_state_dir, f"state{phase}.json")
+        with open(path, "w") as f:
+            json.dump(_ser(data), f, ensure_ascii=False, default=str)
+        live_print(f"  📦 状态已保存 → {path}")
+
+    def _load_state(phase):
+        path = os.path.join(ci_state_dir, f"state{phase}.json")
+        if not os.path.exists(path):
+            return None
+        with open(path) as f:
+            return json.load(f)
+
+    # ════════════════════════════════════════════
+    # 阶段1：加载配置、抓取源、黑白名单过滤
+    # ════════════════════════════════════════════
+    if ci_phase is None or ci_phase >= 1:
+        if ci_phase is not None and ci_phase >= 2:
+            s = _load_state(1)
+            if not s:
+                live_print(f"  ❌ 未找到阶段1状态文件，无法继续阶段{ci_phase}")
+                return
+            url_to_source = s["url_to_source"]
+            valid_results = s["valid_results"]
+            to_test = s["to_test"]
+            adult_results = s["adult_results"]
+            logs_blacklist = s["logs_blacklist"]
+            logs_whitelist = s["logs_whitelist"]
+            cat_order = s["cat_order"]
+            chan_to_cat = s["chan_to_cat"]
+            chans_in_cat = s["chans_in_cat"]
+            channel_to_station = s["channel_to_station"]
+            epg_report = s["epg_report"]
+            start_time = s["start_time"]
+            live_print("  🔄 已从阶段1状态恢复")
+        else:
+            # ----- 阶段1：从头执行 -----
+            aliases_exact, aliases_regex, known_main_names = load_aliases()
+
+            # 加载黑白名单
+            blacklist_names, blacklist_urls = load_filter_lists(BLACKLIST_FILE)
+            whitelist_names, whitelist_urls = load_filter_lists(WHITELIST_FILE)
+
+            epg_report = download_and_merge_epg(aliases_exact, aliases_regex, known_main_names)
+
+            try:
+                cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex, known_main_names)
+            except Exception as e:
+                live_print(f"❌ config/demo.txt 加载严重错误: {e}")
+                return
+
+            start_time = time.time()
+            channels = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names)
+
+            if not channels:
+                live_print("⚠️ 未获取到任何有效直播源，退出。")
+                return
+
+            # 建立 URL → 来源 映射
+            url_to_source = {}
+            for _, url, source_url in channels:
+                url_to_source[url] = source_url
+
+            source_channel_counts = {}
+            for _, _, src in channels:
+                source_channel_counts[src] = source_channel_counts.get(src, 0) + 1
+            for src, cnt in source_channel_counts.items():
+                live_print(f"  📡 {src.split('/')[-1]}: {cnt} 条")
+
+            # 黑白名单过滤分流
+            to_test, valid_results, logs_blacklist, logs_whitelist = apply_filter_lists(
+                channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
+            )
+
+            # 过滤 IPv6 地址
+            enable_ipv6 = os.environ.get("ENABLE_IPV6", "").lower() == "true"
+            ipv6_count = sum(1 for _, url in to_test if '[' in url)
+            if ipv6_count and not enable_ipv6:
+                to_test = [(n, u) for n, u in to_test if '[' not in u]
+                live_print(f"🔇 过滤 {ipv6_count} 条 IPv6 链接 (GitHub Actions 无 IPv6 路由)")
+            elif ipv6_count:
+                live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
+
+            # 成人来源免测
+            adult_sources = load_adult_sources()
+            adult_results = {}
+            if adult_sources:
+                still_to_test = []
+                for name, url in to_test:
+                    src = url_to_source.get(url, '')
+                    if any(a in src for a in adult_sources):
+                        if name not in adult_results:
+                            adult_results[name] = [(url, -1)]
+                        else:
+                            existing = {u for u, _ in adult_results[name]}
+                            if url not in existing:
+                                adult_results[name].append((url, -1))
+                    else:
+                        still_to_test.append((name, url))
+                to_test = still_to_test
+                live_print(f"  🔞 成人来源免测: {len(adult_results)} 个频道 → 跳过测速直接收录")
+
+            channel_model, channel_to_station = load_channel_model()
+
+        if ci_phase == 1:
+            _save_state(1, {
+                "url_to_source": url_to_source,
+                "valid_results": valid_results,
+                "to_test": to_test,
+                "logs_blacklist": logs_blacklist,
+                "logs_whitelist": logs_whitelist,
+                "adult_results": adult_results,
+                "cat_order": cat_order,
+                "chan_to_cat": chan_to_cat,
+                "chans_in_cat": chans_in_cat,
+                "channel_to_station": channel_to_station,
+                "epg_report": epg_report,
+                "start_time": start_time,
+            })
+            live_print("✅ 阶段1完成 (抓取源+过滤)")
+            return
+
+    # ════════════════════════════════════════════
+    # 阶段2：并发测速
+    # ════════════════════════════════════════════
+    if ci_phase is None or ci_phase >= 2:
+        if ci_phase is not None and ci_phase >= 3:
+            s = _load_state(2)
+            if not s:
+                live_print(f"  ❌ 未找到阶段2状态文件")
+                return
+            valid_results = s["valid_results"]
+            adult_results = s["adult_results"]
+            cat_order = s["cat_order"]
+            chan_to_cat = s["chan_to_cat"]
+            chans_in_cat = s["chans_in_cat"]
+            channel_to_station = s["channel_to_station"]
+            epg_report = s["epg_report"]
+            logs_success = s["logs_success"]
+            logs_fail = s["logs_fail"]
+            fail_counts = s["fail_counts"]
+            source_stats = s["source_stats"]
+            start_time = s["start_time"]
+            live_print("  🔄 已从阶段2状态恢复")
+        else:
+            live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
+
+            source_meta = fetch_source_meta()
+            test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
+                to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
+            )
+
+            # 合并测速结果到 valid_results
+            for name, url_list in test_results.items():
+                if name not in valid_results:
+                    valid_results[name] = url_list
+                else:
+                    existing_urls = {u for u, _ in valid_results[name]}
+                    for url, elapsed in url_list:
+                        if url not in existing_urls:
+                            valid_results[name].append((url, elapsed))
+                            existing_urls.add(url)
+
+        if ci_phase == 2:
+            _save_state(2, {
+                "valid_results": valid_results,
+                "adult_results": adult_results,
+                "cat_order": cat_order,
+                "chan_to_cat": chan_to_cat,
+                "chans_in_cat": chans_in_cat,
+                "channel_to_station": channel_to_station,
+                "epg_report": epg_report,
+                "logs_success": logs_success,
+                "logs_fail": logs_fail,
+                "fail_counts": fail_counts,
+                "source_stats": source_stats,
+                "start_time": start_time,
+            })
+            live_print("✅ 阶段2完成 (测速)")
+            return
+
+    # ════════════════════════════════════════════
+    # 阶段3：分类模板进化 & 成品输出
+    # ════════════════════════════════════════════
+    if ci_phase is None or ci_phase >= 3:
+        # 模板自进化
+        source_cat_map = load_source_cat()
+        cat_order, chan_to_cat, chans_in_cat = auto_update_demo(
+            valid_results, cat_order, chan_to_cat, chans_in_cat,
+            url_to_source=url_to_source, source_cat_map=source_cat_map, channel_model=channel_model
+        )
+
+        # 过滤空分类
+        non_empty_cats = [cat for cat in cat_order if any(name in valid_results for name in chans_in_cat.get(cat, []))]
+        if len(non_empty_cats) < len(cat_order):
+            empty = len(cat_order) - len(non_empty_cats)
+            live_print(f"🧹 过滤 {empty} 个空分类（无存活频道）")
+            cat_order = non_empty_cats
+
+        # 写入成品
+        cat_live_counts = {}
+        for cat in cat_order:
+            cat_live_counts[cat] = sum(1 for name in chans_in_cat.get(cat, []) if name in valid_results)
+
+        extra_stats = {
+            "source_ok": source_stats["ok"],
+            "source_total": source_stats["total"],
+            "fail_counts": fail_counts,
+            "cat_live_counts": cat_live_counts,
+            "elapsed_seconds": time.time() - start_time,
+        }
+        write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail,
+                       logs_whitelist, logs_blacklist, extra_stats,
+                       adult_results=adult_results, channel_to_station=channel_to_station)
+
+        # CI最后阶段：清理临时状态
+        if ci_phase == 3 and os.path.exists(ci_state_dir):
+            import shutil
+            shutil.rmtree(ci_state_dir)
+            live_print(f"  🧹 已清理临时状态目录: {ci_state_dir}")
 
 
 if __name__ == "__main__":
-    aliases_exact, aliases_regex, known_main_names = load_aliases()
-
-    # 加载黑白名单
-    blacklist_names, blacklist_urls = load_filter_lists(BLACKLIST_FILE)
-    whitelist_names, whitelist_urls = load_filter_lists(WHITELIST_FILE)
-
-    epg_report = download_and_merge_epg(aliases_exact, aliases_regex, known_main_names)
-
-    try:
-        cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex, known_main_names)
-    except Exception as e:
-        live_print(f"❌ config/demo.txt 加载严重错误: {e}")
-        exit(1)
-
-    channels = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names)
-
-    if not channels:
-        live_print("⚠️ 未获取到任何有效直播源，退出。")
-        exit(0)
-
-    # 建立 URL → 来源 映射
-    start_time = time.time()
-    url_to_source = {}
-    for _, url, source_url in channels:
-        url_to_source[url] = source_url
-
-    source_channel_counts = {}
-    for _, _, src in channels:
-        source_channel_counts[src] = source_channel_counts.get(src, 0) + 1
-    for src, cnt in source_channel_counts.items():
-        live_print(f"  📡 {src.split('/')[-1]}: {cnt} 条")
-
-    # 黑白名单过滤分流
-    to_test, valid_results, logs_blacklist, logs_whitelist = apply_filter_lists(
-        channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
-    )
-
-    # 过滤 IPv6 地址（默认过滤：GitHub Actions 无 IPv6 路由到国内运营商）
-    # 设置环境变量 ENABLE_IPV6=true 可放行（需配合 Cloudflare WARP）
-    enable_ipv6 = os.environ.get("ENABLE_IPV6", "").lower() == "true"
-    ipv6_count = sum(1 for _, url in to_test if '[' in url)
-    if ipv6_count and not enable_ipv6:
-        to_test = [(n, u) for n, u in to_test if '[' not in u]
-        live_print(f"🔇 过滤 {ipv6_count} 条 IPv6 链接 (GitHub Actions 无 IPv6 路由)")
-    elif ipv6_count:
-        live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
-    # 成人来源免测：跳过测速，防止HLS小文件误判带宽不足
-    adult_sources = load_adult_sources()
-    adult_results = {}
-    if adult_sources:
-        still_to_test = []
-        for name, url in to_test:
-            src = url_to_source.get(url, '')
-            if any(a in src for a in adult_sources):
-                if name not in adult_results:
-                    adult_results[name] = [(url, -1)]
-                else:
-                    existing = {u for u, _ in adult_results[name]}
-                    if url not in existing:
-                        adult_results[name].append((url, -1))
-            else:
-                still_to_test.append((name, url))
-        to_test = still_to_test
-        live_print(f"  🔞 成人来源免测: {len(adult_results)} 个频道 → 跳过测速直接收录")
-
-    live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
-
-    # 加载电视台归属信息（需在测速前加载完毕）
-    channel_model, channel_to_station = load_channel_model()
-    source_meta = fetch_source_meta()
-    test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
-        to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
-    )
-    # 合并免测与测速结果（同名频道 URL 合并去重）
-    for name, url_list in test_results.items():
-        if name not in valid_results:
-            valid_results[name] = url_list
-        else:
-            existing_urls = {u for u, _ in valid_results[name]}
-            for url, elapsed in url_list:
-                if url not in existing_urls:
-                    valid_results[name].append((url, elapsed))
-                    existing_urls.add(url)
-
-    # 模板自进化（channel_model 已在测速前加载）
-    source_cat_map = load_source_cat()
-    cat_order, chan_to_cat, chans_in_cat = auto_update_demo(valid_results, cat_order, chan_to_cat, chans_in_cat,
-                                                            url_to_source=url_to_source, source_cat_map=source_cat_map, channel_model=channel_model)
-
-    # 过滤空分类（测速后无任何存活频道的分类不写入输出）
-    non_empty_cats = [cat for cat in cat_order if any(name in valid_results for name in chans_in_cat.get(cat, []))]
-    if len(non_empty_cats) < len(cat_order):
-        empty = len(cat_order) - len(non_empty_cats)
-        live_print(f"🧹 过滤 {empty} 个空分类（无存活频道）")
-        cat_order = non_empty_cats
-
-    # 写入成品
-    cat_live_counts = {}
-    for cat in cat_order:
-        cat_live_counts[cat] = sum(1 for name in chans_in_cat.get(cat, []) if name in valid_results)
-
-    extra_stats = {
-        "source_ok": source_stats["ok"],
-        "source_total": source_stats["total"],
-        "fail_counts": fail_counts,
-        "cat_live_counts": cat_live_counts,
-        "elapsed_seconds": time.time() - start_time,
-    }
-    write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats, adult_results=adult_results, channel_to_station=channel_to_station)
+    main()

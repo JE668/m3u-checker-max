@@ -1,8 +1,6 @@
-name: Update IPTV Links
+name: 📺 直播源检测
 
 on:
-  # 定时调度已由 get-m3u 联动触发，不再独立 cron
-  # 如需手动运行，使用 workflow_dispatch
   workflow_dispatch:
 
 concurrency:
@@ -10,21 +8,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  update:
-    name: 🔄 Update IPTV Sources
+  check:
+    name: 🔄 检测与更新直播源
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
       contents: write
 
     steps:
-      - name: 🛒 检出代码
+      - name: 📥 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: false
 
-      - name: 🐍 设置 Python 环境
+      - name: 🐍 配置 Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -32,11 +30,11 @@ jobs:
 
       - name: 📦 安装依赖
         run: |
-          echo "::group::pip install 详情"
+          echo "::group::依赖安装详情"
           pip install -r requirements.txt
           echo "::endgroup::"
 
-      - name: 🌐 启用 IPv6（通过 Cloudflare WARP）
+      - name: 🌐 启用 IPv6 (Cloudflare WARP)
         if: vars.ENABLE_IPV6 == 'true'
         run: |
           echo "::group::安装 Cloudflare WARP"
@@ -71,13 +69,26 @@ jobs:
           fi
           echo "::endgroup::"
 
-      - name: 🚀 运行核心检测与模板进化脚本
+      # ── 三阶段流水线 ──
+      - name: 🔍 阶段1 — 抓取直播源 & 黑白名单过滤
         env:
           PYTHONUNBUFFERED: 1
           ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
-        run: python main.py
+        run: python run_ci.py 1
 
-      - name: 📊 生成运行统计
+      - name: 🚀 阶段2 — 并发测速 & 流校验
+        env:
+          PYTHONUNBUFFERED: 1
+          ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
+        run: python run_ci.py 2
+
+      - name: 🧠 阶段3 — 模板进化 & 成品输出
+        env:
+          PYTHONUNBUFFERED: 1
+          ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
+        run: python run_ci.py 3
+
+      - name: 📊 运行统计
         if: always()
         run: |
           echo "## 📋 运行统计报告" >> $GITHUB_STEP_SUMMARY
@@ -138,9 +149,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "_⏱ 运行时间: $(date +'%Y-%m-%d %H:%M:%S')_" >> $GITHUB_STEP_SUMMARY
 
-      - name: 💾 提交并推送到仓库
+      - name: 💾 提交并推送
         run: |
-          echo "::group::变更检测详情"
+          echo "::group::变更检测"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A config/ output/ || git add -f config/ output/
@@ -150,7 +161,7 @@ jobs:
             echo "变更文件数: ${CHANGED_COUNT}"
             echo "变更文件列表: ${CHANGED_FILES}"
             echo "::endgroup::"
-            git commit -m "🔄 Auto Update IPTV Sources: $(date +'%Y-%m-%d %H:%M')"
+            git commit -m "🔄 Auto Update: $(date +'%Y-%m-%d %H:%M')"
             git stash --include-untracked || true
             git pull --rebase origin main
             git stash pop || true
@@ -162,12 +173,12 @@ jobs:
             echo "> ✅ 本次运行无变更，无需提交" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: 🚨 失败告警
+      - name: 🚨 运行异常
         if: failure()
         run: |
           echo "## 🚨 运行失败告警" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> ❌ **本次工作流运行失败，请及时检查！**" >> $GITHUB_STEP_SUMMARY
+          echo "> ❌ **本次工作流运行失败，请检查上方日志定位原因**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 项目 | 详情 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|------|" >> $GITHUB_STEP_SUMMARY
@@ -176,4 +187,4 @@ jobs:
           echo "| ⏰ 失败时间 | $(date +'%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*⚠️ 请检查上方步骤日志以定位问题原因*" >> $GITHUB_STEP_SUMMARY
+          echo "*⚠️ 具体失败原因请查看对应阶段的日志*" >> $GITHUB_STEP_SUMMARY
