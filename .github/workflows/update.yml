@@ -39,6 +39,14 @@ jobs:
           pip install -r requirements.txt
           echo "::endgroup::"
 
+      - name: 🎥 安装 ffmpeg（分辨率检测用）
+        run: |
+          echo "::group::ffmpeg 安装"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffprobe -version | head -1
+          echo "::endgroup::"
+
       - name: 🌐 启用 IPv6 (Cloudflare WARP)
         if: vars.ENABLE_IPV6 == 'true'
         run: |

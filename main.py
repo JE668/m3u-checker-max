@@ -2,6 +2,7 @@ import os, time, concurrent.futures, requests, gzip, io, re, random, json, sys
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from urllib.parse import urlparse, quote
+import subprocess
 
 # ===============================
 # 1. 核心配置区
@@ -123,6 +124,38 @@ EPG_MAX_WORKERS = int(os.environ.get("EPG_MAX_WORKERS", "4"))
 # 重试配置
 RETRY_MAX_ATTEMPTS = int(os.environ.get("RETRY_MAX_ATTEMPTS", "2"))
 RETRY_BACKOFF = float(os.environ.get("RETRY_BACKOFF", "1.0"))
+
+# 分辨率检测配置
+PROBE_RESOLUTION = os.environ.get("PROBE_RESOLUTION", "true").lower() in ("1", "true", "yes")
+PROBE_TIMEOUT = int(os.environ.get("PROBE_TIMEOUT", "4"))  # ffprobe 超时（秒）
+
+# 最小分辨率过滤（空字符串=不过滤）
+# 格式: "1920x1080" 或 "1280x720" 等
+MIN_RESOLUTION = os.environ.get("MIN_RESOLUTION", "0x0")
+def _parse_resolution(s):
+    try:
+        w, h = s.lower().split("x")
+        return int(w.strip()), int(h.strip())
+    except (ValueError, AttributeError):
+        return 0, 0
+MIN_RESOLUTION_WH = _parse_resolution(MIN_RESOLUTION)
+MIN_RESOLUTION_PIXELS = MIN_RESOLUTION_WH[0] * MIN_RESOLUTION_WH[1]
+
+def fmt_resolution(w, h):
+    """格式化分辨率显示"""
+    if w >= 3840 and h >= 2160:
+        return "4K"
+    elif w >= 1920 and h >= 1080:
+        return "1080p"
+    elif w >= 1280 and h >= 720:
+        return "720p"
+    elif w >= 720 and h >= 576:
+        return "576p"
+    elif w >= 640 and h >= 480:
+        return "480p"
+    elif w > 0:
+        return f"{w}x{h}"
+    return "未知"
 
 os.makedirs("output", exist_ok=True)
 os.makedirs("config", exist_ok=True)
@@ -558,6 +591,44 @@ def fetch_source_meta():
     except (ValueError, json.JSONDecodeError) as e:
         live_print(f"⚠️ 探针元数据解析失败: {e}")
     return None
+
+# ===============================
+# 5a. 分辨率检测
+# ===============================
+def probe_resolution(url, timeout=None):
+    """使用 ffprobe 探测直播流的视频分辨率
+    
+    返回: (width, height) 或 (0, 0)
+    """
+    if timeout is None:
+        timeout = PROBE_TIMEOUT
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json",
+             "-show_streams", "-select_streams", "v:0",
+             "-rw_timeout", str(int(timeout * 1000000)),
+             "-analyzeduration", "1500000",
+             "-probesize", "5000000",
+             url],
+            capture_output=True, text=True, timeout=timeout + 2
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout)
+            for stream in data.get("streams", []):
+                w = stream.get("width", 0)
+                h = stream.get("height", 0)
+                if w > 0 and h > 0:
+                    return w, h
+    except subprocess.TimeoutExpired:
+        pass
+    except json.JSONDecodeError:
+        pass
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+    return 0, 0
+
 
 # ===============================
 # 5. 并发测速
@@ -1369,14 +1440,20 @@ def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_stati
     return valid_results, logs_success, logs_fail, fail_counts, {"ok": source_ok, "total": source_total}
 
 
-def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats=None, adult_results=None, channel_to_station=None):
+def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats=None, adult_results=None, channel_to_station=None, resolution_map=None):
     """写入 M3U/TXT 成品 + 日志文件"""
     if extra_stats is None:
         extra_stats = {}
+    if resolution_map is None:
+        resolution_map = {}
     live_print("\n━━━ 💾 写入结果文件 ━━━━━━━━━━━━━━━━━━━━━━━━━")
 
     # 外部 fallback logo 基础 URL
     fallback_logo_base = "https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon"
+
+    # 分辨率过滤统计
+    reso_filtered = 0
+    reso_ok = 0
 
     with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
         fm3u.write(M3U_HEADER)
@@ -1384,22 +1461,36 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
             cat_written_in_txt = False
             for name in chans_in_cat.get(cat, []):
                 if name in valid_results:
-                    if not cat_written_in_txt:
-                        ftxt.write(f"\n{cat}\n")
-                        cat_written_in_txt = True
-
                     # elapsed 排最前（白名单免测），其余按速度升序
                     valid_urls = sorted(valid_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
                     for url, elapsed in valid_urls:
+                        # 分辨率过滤
+                        res = resolution_map.get(url, (0, 0))
+                        w, h = res
+                        if MIN_RESOLUTION_PIXELS > 0 and w * h > 0 and w * h < MIN_RESOLUTION_PIXELS:
+                            reso_filtered += 1
+                            continue
+                        
+                        if not cat_written_in_txt:
+                            ftxt.write(f"\n{cat}\n")
+                            cat_written_in_txt = True
+
                         logo = get_local_logo_url(name)
                         if not logo:
                             logo = f"{fallback_logo_base}/{name}.png"
 
                         cat_clean = cat.split(',')[0]
                         elapsed_display = "免测" if elapsed < 0 else f"{elapsed}s"
-                        fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
+                        reso_tag = fmt_resolution(w, h)
+                        
+                        # EXTINF 含分辨率属性
+                        if w > 0 and h > 0:
+                            fm3u.write(f'#EXTINF:-1 RESOLUTION={w}x{h} tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
+                        else:
+                            fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
                         fm3u.write(f"{url}\n")
                         ftxt.write(f"{name},{url}\n")
+                        reso_ok += 1
 
     # 写入成人内容（如果有）
     adult_written = 0
@@ -1661,6 +1752,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 live_print(f"  ❌ 未找到阶段2状态文件")
                 return
             valid_results = s["valid_results"]
+            resolution_map = s.get("resolution_map", {})
             adult_results = s["adult_results"]
             cat_order = s["cat_order"]
             chan_to_cat = s["chan_to_cat"]
@@ -1694,10 +1786,60 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                             valid_results[name].append((url, elapsed))
                             existing_urls.add(url)
 
+            # ═══ 分辨率检测 ═══
+            resolution_map = {}
+            if PROBE_RESOLUTION and valid_results:
+                # 收集所有有效 URL
+                probe_targets = []
+                for name, urls in valid_results.items():
+                    for url, elapsed in urls:
+                        if MIN_RESOLUTION_PIXELS > 0 or url not in resolution_map:
+                            probe_targets.append((name, url, elapsed))
+                
+                n_total = len(probe_targets)
+                if n_total > 0:
+                    live_print(f"\n🔍 分辨率检测: {n_total} 个频道 (并发 {MAX_WORKERS}, 超时 {PROBE_TIMEOUT}s)")
+                    reso_probed = 0
+                    reso_found = 0
+                    
+                    def _probe_one(name, url, elapsed):
+                        w, h = probe_resolution(url)
+                        return url, w, h
+                    
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+                        futures = {ex.submit(_probe_one, n, u, e): (n, u)
+                                   for n, u, e in probe_targets}
+                        for future in concurrent.futures.as_completed(futures):
+                            url, w, h = future.result()
+                            resolution_map[url] = (w, h)
+                            reso_probed += 1
+                            if w > 0 and h > 0:
+                                reso_found += 1
+                            if reso_probed % 50 == 0 or reso_probed == n_total:
+                                live_print(f"  🔍 分辨率检测: {reso_probed}/{n_total} | 已识别: {reso_found}")
+                    
+                    live_print(f"✅ 分辨率检测完成: {reso_found}/{reso_probed} 识别成功")
+                    
+                    # 分辨率分类统计
+                    reso_stats = {}
+                    for url, (w, h) in resolution_map.items():
+                        if w > 0 and h > 0:
+                            label = fmt_resolution(w, h)
+                            reso_stats[label] = reso_stats.get(label, 0) + 1
+                    if reso_stats:
+                        live_print("📊 分辨率分布:")
+                        for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
+                            cnt = reso_stats[lbl]
+                            bar = '█' * min(cnt // 2 + 1, 15)
+                            live_print(f"  {lbl:<10} {cnt:>4}  {bar}")
+            else:
+                resolution_map = {}
+
         print("::endgroup::", flush=True)
         if ci_phase == 2:
             _save_state(2, {
                 "valid_results": valid_results,
+                "resolution_map": resolution_map,
                 "adult_results": adult_results,
                 "cat_order": cat_order,
                 "chan_to_cat": chan_to_cat,
@@ -1747,7 +1889,8 @@ def main(ci_phase=None, ci_state_dir="tmp"):
         }
         write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail,
                        logs_whitelist, logs_blacklist, extra_stats,
-                       adult_results=adult_results, channel_to_station=channel_to_station)
+                       adult_results=adult_results, channel_to_station=channel_to_station,
+                       resolution_map=resolution_map)
 
         print("::endgroup::", flush=True)
         # CI最后阶段：清理临时状态
