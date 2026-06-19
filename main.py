@@ -1555,13 +1555,19 @@ if __name__ == "__main__":
     adult_results = {}
     if adult_sources:
         adult_names = set()
+        live_print(f"  🔞 [调试] 成人来源列表: {adult_sources}")
+        checked = 0
         for name in list(valid_results.keys()):
             for url, _ in valid_results.get(name, []):
                 src = url_to_source.get(url, '')
+                checked += 1
+                if checked <= 10:  # 只打印前10个用于调试
+                    live_print(f"  🔞 [调试] 检查: {name} | src={src[:80] if src else '(空)'}")
                 if any(adult_url in src for adult_url in adult_sources):
                     adult_names.add(name)
+                    live_print(f"  🔞 [匹配] {name} ← {src[:60]}")
                     break
-        live_print(f"  🔞 识别到 {len(adult_names)} 个成人频道")
+        live_print(f"  🔞 识别到 {len(adult_names)} 个成人频道 (检查了 {checked} 个URL配对)")
         for name in adult_names:
             adult_results[name] = valid_results.pop(name)
             # 从 chans_in_cat 中移除
