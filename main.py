@@ -1240,11 +1240,15 @@ if __name__ == "__main__":
         channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
     )
 
-    # 过滤 IPv6 地址（GitHub Actions 无 IPv6 路由到国内运营商）
+    # 过滤 IPv6 地址（默认过滤：GitHub Actions 无 IPv6 路由到国内运营商）
+    # 设置环境变量 ENABLE_IPV6=true 可放行（需配合 Cloudflare WARP）
+    enable_ipv6 = os.environ.get("ENABLE_IPV6", "").lower() == "true"
     ipv6_count = sum(1 for _, url in to_test if '[' in url)
-    if ipv6_count:
+    if ipv6_count and not enable_ipv6:
         to_test = [(n, u) for n, u in to_test if '[' not in u]
         live_print(f"🔇 过滤 {ipv6_count} 条 IPv6 链接 (GitHub Actions 无 IPv6 路由)")
+    elif ipv6_count:
+        live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
     live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
 
     # 并发测速（传入 source_meta 做优先级排序 + source_urls 做来源统计）

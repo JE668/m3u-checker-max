@@ -36,9 +36,45 @@ jobs:
           pip install -r requirements.txt
           echo "::endgroup::"
 
+      - name: 🌐 启用 IPv6（通过 Cloudflare WARP）
+        if: vars.ENABLE_IPV6 == 'true'
+        run: |
+          echo "::group::安装 Cloudflare WARP"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl gpg lsb-release
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq cloudflare-warp
+          echo "::endgroup::"
+
+          echo "::group::注册并连接 WARP"
+          sudo warp-cli --accept-tos registration new
+          sudo warp-cli --accept-tos connect
+
+          MAX_ATTEMPTS=12
+          ATTEMPT=1
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            if curl -6 -sL -o /dev/null --max-time 5 https://ipv6.test-ipv6.com/; then
+              echo "✅ IPv6 连接成功!"
+              break
+            fi
+            echo "⏳ 等待 IPv6 ($ATTEMPT/$MAX_ATTEMPTS)..."
+            sleep 10
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          if [ $ATTEMPT -gt $MAX_ATTEMPTS ]; then
+            echo "⚠️ IPv6 连接失败，继续使用 IPv4 模式"
+          else
+            IPV6_ADDR=$(curl -6 -s --max-time 5 https://ifconfig.co 2>/dev/null || echo "unknown")
+            echo "🌐 IPv6 地址: $IPV6_ADDR"
+          fi
+          echo "::endgroup::"
+
       - name: 🚀 运行核心检测与模板进化脚本
         env:
           PYTHONUNBUFFERED: 1
+          ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
         run: python main.py
 
       - name: 📊 生成运行统计
