@@ -1538,7 +1538,6 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             start_time = s["start_time"]
             live_print("  🔄 已从阶段1状态恢复")
         else:
-            print("::group::🔍 阶段1 — 抓取直播源 & 黑白名单过滤", flush=True)
             # ----- 阶段1：从头执行 -----
             aliases_exact, aliases_regex, known_main_names = load_aliases()
 
@@ -1637,7 +1636,6 @@ def main(ci_phase=None, ci_state_dir="tmp"):
 
             channel_model, channel_to_station = load_channel_model()
 
-        print("::endgroup::", flush=True)
         if ci_phase == 1:
             _save_state(1, {
                 "url_to_source": url_to_source,
@@ -1682,7 +1680,6 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             start_time = s["start_time"]
             live_print("  🔄 已从阶段2状态恢复")
         else:
-            print("::group::🚀 阶段2 — 并发测速 & 流校验", flush=True)
             live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
 
             source_meta = fetch_source_meta()
@@ -1750,7 +1747,6 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             else:
                 resolution_map = {}
 
-        print("::endgroup::", flush=True)
         if ci_phase == 2:
             _save_state(2, {
                 "valid_results": valid_results,
@@ -1775,7 +1771,6 @@ def main(ci_phase=None, ci_state_dir="tmp"):
     # 阶段3：分类模板进化 & 成品输出
     # ════════════════════════════════════════════
     if ci_phase is None or ci_phase >= 3:
-        print("::group::🧠 阶段3 — 模板进化 & 成品输出", flush=True)
         # 模板自进化
         source_cat_map = load_source_cat()
         cat_order, chan_to_cat, chans_in_cat = auto_update_demo(
@@ -1807,7 +1802,6 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                        adult_results=adult_results, channel_to_station=channel_to_station,
                        resolution_map=resolution_map)
 
-        print("::endgroup::", flush=True)
         # CI最后阶段：清理临时状态
         if ci_phase == 3 and os.path.exists(ci_state_dir):
             import shutil
