@@ -2,10 +2,6 @@ name: 📺 直播源检测
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["📡 源发现与探测"]
-    types:
-      - completed
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +10,7 @@ concurrency:
 jobs:
   check:
     name: 🔄 检测与更新直播源
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
