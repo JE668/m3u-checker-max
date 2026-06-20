@@ -1494,6 +1494,14 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
             if elapsed:
                 f.write(f"总运行时长: {elapsed:.0f} 秒 ({elapsed/60:.1f} 分钟)\n")
 
+    # ── 分辨率过滤结果日志 ──
+    if reso_filtered or reso_ok:
+        live_print(f"\n🖥️ 分辨率筛选结果:")
+        live_print(f"  ├ 通过 (≥{MIN_RESOLUTION}) .... {reso_ok}")
+        live_print(f"  └ 过滤 (<{MIN_RESOLUTION}) .... {reso_filtered}")
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"\n分辨率筛选: 通过={reso_ok}, 过滤={reso_filtered} (阈值={MIN_RESOLUTION})\n")
+
     live_print(f"✅ 所有结果文件已生成至 output/ 目录")
 
 
