@@ -71,6 +71,18 @@ def fmt_resolution(w, h):
         return f"{w}x{h}"
     return "未知"
 
+# ── GitHub Actions Job Summary ──
+SUMMARY_FILE = os.environ.get("GITHUB_STEP_SUMMARY", "")
+
+def write_summary(content):
+    """写入 GITHUB_STEP_SUMMARY（仅 GitHub Actions 环境生效）"""
+    if SUMMARY_FILE:
+        try:
+            with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+                f.write(content + "\n")
+        except OSError:
+            pass
+
 os.makedirs("output", exist_ok=True)
 os.makedirs("config", exist_ok=True)
 os.makedirs(ICON_DIR, exist_ok=True)
@@ -1585,30 +1597,16 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             elif ipv6_count:
                 live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
 
-            # 成人来源免测（来源URL匹配 + 频道名关键词兜底）
+            # 成人来源免测（仅URL模式匹配，禁关键词免测避免误杀）
             adult_sources = load_adult_sources()
             adult_results = {}
-            if adult_sources or ADULT_KEYWORDS:
-                if adult_sources:
-                    live_print(f"  🔞 成人源URL模式: {adult_sources}")
-                live_print(f"  🔞 成人名关键词: {ADULT_KEYWORDS}")
+            if adult_sources:
+                live_print(f"  🔞 成人源URL模式: {adult_sources}")
                 still_to_test = []
                 adult_debug = []
-                adult_name_matches = 0
                 for name, url in to_test:
                     src = url_to_source.get(url, '')
-                    grp = url_to_group.get(url, '')
-                    matched = [a for a in adult_sources if a in src] if adult_sources else []
-                    # 未匹配URL时，检查 group-title（捕获从 IPTV-all.m3u 等混合源里过来的成人频道）
-                    if not matched and ADULT_KEYWORDS:
-                        grp_matched = [kw for kw in ADULT_KEYWORDS if kw in grp]
-                        matched = grp_matched
-                    # 仍无匹配时，再检查频道名关键词兜底
-                    if not matched and ADULT_KEYWORDS:
-                        kw_matched = [kw for kw in ADULT_KEYWORDS if kw in name]
-                        if kw_matched:
-                            matched = kw_matched
-                            adult_name_matches += 1
+                    matched = [a for a in adult_sources if a in src]
                     if matched:
                         if name not in adult_results:
                             adult_results[name] = [(url, -1)]
@@ -1616,22 +1614,13 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                             existing = {u for u, _ in adult_results[name]}
                             if url not in existing:
                                 adult_results[name].append((url, -1))
-                        adult_debug.append(f"    ✅ 匹配: {name:<30} 来源={'URL' if any(a in src for a in adult_sources) else '名称'} | 模式={matched[0]}")
+                        adult_debug.append(f"    ✅ 来源匹配: {name:<30} | 模式={matched[0]}")
                     else:
                         still_to_test.append((name, url))
                 to_test = still_to_test
                 if adult_debug:
                     for line in adult_debug:
                         live_print(line)
-                if not adult_results:
-                    all_sources = set()
-                    for _, url in to_test:
-                        s = url_to_source.get(url, '')
-                        if s:
-                            all_sources.add(s.split('/')[-1] if '/' in s else s[:60])
-                    live_print(f"  🔍 DEBUG — 当前 {len(to_test)} 个待测频道的来源文件名: {sorted(all_sources)[:20]}")
-                if adult_name_matches:
-                    live_print(f"  🔞 其中 {adult_name_matches} 个频道靠名称关键词匹配")
                 live_print(f"  🔞 成人来源免测: {len(adult_results)} 个频道 → 跳过测速直接收录")
 
             channel_model, channel_to_station = load_channel_model()
@@ -1815,13 +1804,22 @@ def main(ci_phase=None, ci_state_dir="tmp"):
         adult_count = len(adult_results) if adult_results else 0
 
         # 来源统计
-        source_ok = source_stats.get("ok", 0) if 'source_stats' in dir() else extra_stats.get("source_ok", 0)
-        source_total = source_stats.get("total", 0) if 'source_stats' in dir() else extra_stats.get("source_total", 0)
+        src_ok_dict = source_stats.get("ok", {})
+        src_total_dict = source_stats.get("total", {})
+        source_ok = sum(src_ok_dict.values())
+        source_total = sum(src_total_dict.values())
 
         # 失败分布
         top_fails = sorted(fail_counts.items(), key=lambda x: -x[1])[:5] if fail_counts else []
 
-        # 非TV过滤（如有）
+        # 分辨率分布
+        reso_stats = {}
+        for url, (w, h) in resolution_map.items():
+            if w > 0 and h > 0:
+                label = fmt_resolution(w, h)
+                reso_stats[label] = reso_stats.get(label, 0) + 1
+
+        # 非TV过滤
         non_tv_count = 0
         if os.path.exists("output/non-tv-filtered.txt"):
             with open("output/non-tv-filtered.txt", "r", encoding="utf-8") as f:
@@ -1830,10 +1828,11 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                         non_tv_count = sum(1 for _ in f)
                         break
 
-        # 安全的变量获取（兼容 ci_phase=None 完整运行和 ci_phase=3 重入）
+        # 安全的变量获取
         to_test_count = len(to_test) if 'to_test' in locals() or 'to_test' in dir() else 0
-        source_count = len(url_to_source) if 'url_to_source' in locals() or 'url_to_source' in dir() else len(source_stats)
+        source_count = len(url_to_source) if 'url_to_source' in locals() or 'url_to_source' in dir() else len(src_total_dict)
 
+        # ── 控制台管道视图 ──
         live_print(f"")
         live_print("━━━ 📊 直播源检测 — 阶段摘要 ━━━━━━━━━━━━━━━━━")
         live_print(f"  源获取 → 测速校验 → 分类输出")
@@ -1849,7 +1848,10 @@ def main(ci_phase=None, ci_state_dir="tmp"):
         live_print(f"  │  ├ 成功率 ............ {source_ok:>4}/{source_total} ({source_ok*100//source_total if source_total else 0}%)")
         live_print(f"  │  ├ 来源统计 .......... {source_count:>4} 个来源")
         live_print(f"  │  ├ 失败TOP ........... {top_fails[0][0]+': '+str(top_fails[0][1]) if top_fails else 'N/A'}")
-        live_print(f"  │  └ 分辨率分布 ........ (见上方柱状图)")
+        if reso_stats:
+            live_print(f"  │  └ 分辨率分布 ........ {', '.join(f'{lbl}={cnt}' for lbl, cnt in sorted(reso_stats.items(), key=lambda x:-x[1])[:3])}")
+        else:
+            live_print(f"  │  └ 分辨率分布 ........ (无数据)")
         live_print(f"  │")
         live_print(f"  ├─ 阶段3: 模板进化与输出")
         live_print(f"  │  ├ 有效频道 .......... {total_channels:>4} 个 (→ output/live.m3u)")
@@ -1858,6 +1860,119 @@ def main(ci_phase=None, ci_state_dir="tmp"):
         live_print(f"  │  └ EPG .............. {'✅' if epg_report else '❌'}")
         live_print(f"  │")
         live_print(f"  └─ 耗时: {elapsed:.2f}s")
+
+        # ── 详细统计：写入 GITHUB_STEP_SUMMARY ──
+        summary_parts = ["## 📊 直播源检测详细统计", ""]
+
+        # 总体概览表
+        summary_parts.append("### 📈 总体概览")
+        summary_parts.append("| 指标 | 数值 |")
+        summary_parts.append("|------|------|")
+        summary_parts.append(f"| 抓取频道总数 | {source_total} |")
+        summary_parts.append(f"| 待测频道 | {to_test_count} |")
+        summary_parts.append(f"| 测速成功 | {source_ok} ({source_ok*100//source_total if source_total else 0}%) |")
+        summary_parts.append(f"| 有效频道(去重) | {total_channels} |")
+        summary_parts.append(f"| 成人频道 | {adult_count} |")
+        summary_parts.append(f"| 输出分类 | {len(cat_order)} |")
+        summary_parts.append(f"| 白名单免测 | {len(logs_whitelist)} |")
+        summary_parts.append(f"| 黑名单拦截 | {len(logs_blacklist)} |")
+        summary_parts.append(f"| 非TV过滤 | {non_tv_count} |")
+        if epg_report:
+            summary_parts.append("| EPG | ✅ |")
+        else:
+            summary_parts.append("| EPG | ❌ |")
+        summary_parts.append(f"| 运行耗时 | {elapsed:.0f}s ({elapsed/60:.1f}min) |")
+        summary_parts.append("")
+
+        # 各来源测速结果
+        if src_total_dict:
+            summary_parts.append("### 🔗 各来源测速结果")
+            summary_parts.append("| 来源 | 成功 | 总计 | 成功率 |")
+            summary_parts.append("|------|------|------|--------|")
+            for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
+                ok = src_ok_dict.get(src, 0)
+                total = src_total_dict[src]
+                total_display = src.split("/")[-1][:50]
+                rate = f"{ok/total*100:.1f}%" if total > 0 else "-"
+                bar = "🟢" if ok/total >= 0.8 else "🟡" if ok/total >= 0.5 else "🔴"
+                summary_parts.append(f"| {bar} {total_display} | {ok} | {total} | {rate} |")
+            summary_parts.append("")
+
+        # 失败原因分布
+        if fail_counts:
+            total_fails = sum(fail_counts.values())
+            summary_parts.append("### ❌ 失败原因分布")
+            summary_parts.append("| 原因 | 数量 | 占比 |")
+            summary_parts.append("|------|------|------|")
+            for cat in sorted(fail_counts, key=fail_counts.get, reverse=True):
+                cnt = fail_counts[cat]
+                pct = f"{cnt/total_fails*100:.1f}%"
+                bar = '█' * min(cnt // 2 + 1, 20)
+                summary_parts.append(f"| {cat} | {cnt} | {pct} |")
+            summary_parts.append("")
+
+        # 分类频道存活情况
+        cat_live_counts = extra_stats.get("cat_live_counts", {})
+        if cat_live_counts:
+            summary_parts.append("### 📺 分类频道存活情况")
+            summary_parts.append("| 分类 | 存活频道数 |")
+            summary_parts.append("|------|------------|")
+            for cat in sorted(cat_live_counts, key=cat_live_counts.get, reverse=True):
+                cnt = cat_live_counts[cat]
+                if cnt > 0:
+                    bar = '█' * min(cnt // 2 + 1, 20)
+                    summary_parts.append(f"| {cat} | {cnt} {bar} |")
+            summary_parts.append("")
+
+        # 分辨率分布
+        if reso_stats:
+            summary_parts.append("### 🖥️ 分辨率分布")
+            summary_parts.append("| 分辨率 | 数量 |")
+            summary_parts.append("|--------|------|")
+            for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
+                cnt = reso_stats[lbl]
+                bar = '█' * min(cnt // 2 + 1, 15)
+                summary_parts.append(f"| {lbl} | {cnt} {bar} |")
+            summary_parts.append("")
+
+        # 写 summary
+        for line in summary_parts:
+            write_summary(line)
+
+        # 控制台也输出详细统计
+        live_print(f"")
+        live_print("━━━ 📋 详细统计 ━━━━━━━━━━━━━━━━━━━━━━━━━")
+        # 来源统计表
+        if src_total_dict:
+            live_print(f"\n🔗 各来源测速结果:")
+            live_print(f"  {'来源':<50} {'成功':>6} {'总计':>6} {'成功率':>8}")
+            live_print(f"  {'─'*74}")
+            for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
+                ok = src_ok_dict.get(src, 0)
+                total = src_total_dict[src]
+                rate = f"{ok/total*100:.1f}%" if total > 0 else "-"
+                label = src.split("/")[-1][:48]
+                live_print(f"  {label:<50} {ok:>6} {total:>6} {rate:>8}")
+        # 失败分布
+        if fail_counts:
+            live_print(f"\n❌ 失败原因分布:")
+            for cat in sorted(fail_counts, key=fail_counts.get, reverse=True):
+                cnt = fail_counts[cat]
+                live_print(f"  {cat:<20} {cnt}")
+        # 分类存活
+        if cat_live_counts:
+            live_print(f"\n📺 分类频道存活情况:")
+            for cat in sorted(cat_live_counts, key=cat_live_counts.get, reverse=True):
+                cnt = cat_live_counts[cat]
+                if cnt > 0:
+                    live_print(f"  {cat:<40} {cnt} 个")
+        # 分辨率
+        if reso_stats:
+            live_print(f"\n🖥️ 分辨率分布:")
+            for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
+                cnt = reso_stats[lbl]
+                bar = '█' * min(cnt // 2 + 1, 15)
+                live_print(f"  {lbl:<10} {cnt:>4}  {bar}")
 
 
 if __name__ == "__main__":

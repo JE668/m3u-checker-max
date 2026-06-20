@@ -77,8 +77,8 @@ NON_TV_PATTERNS = (
     "赌场", "赌波",
 )
 
-# ── 成人频道名称兜底关键词 ──
-ADULT_KEYWORDS = ("成人", "激情", "av")
+# ── 成人频道匹配（已弃用关键词免测，仅URL来源匹配，见 config/adult-sources.txt）──
+ADULT_KEYWORDS = ()
 
 # ── 频道名清洗规则 ──
 INVALID_NAME_PATTERNS = [
