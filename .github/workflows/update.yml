@@ -104,39 +104,37 @@ jobs:
       - name: 📊 运行统计
         if: always()
         run: |
-          echo "## 📋 运行统计报告" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 输出文件摘要" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 指标 | 数值 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|------|" >> $GITHUB_STEP_SUMMARY
           if [ -f output/live.txt ]; then
             LIVE_COUNT=$(grep -c '' output/live.txt 2>/dev/null || echo "0")
-            echo "| 📺 存活频道数 | ${LIVE_COUNT} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 📺 存活频道数 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+            echo "| 💾 存活频道 (live.txt) | ${LIVE_COUNT} 个 |" >> $GITHUB_STEP_SUMMARY
           fi
           if [ -f output/live.m3u ]; then
             M3U_COUNT=$(grep -c '^#EXTINF' output/live.m3u 2>/dev/null || echo "0")
-            echo "| 📡 M3U 条目数 | ${M3U_COUNT} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 📡 M3U 条目数 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+            echo "| 💾 M3U 条目 (live.m3u) | ${M3U_COUNT} 条 |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f output/adult.txt ]; then
+            ADULT_COUNT=$(grep -c '' output/adult.txt 2>/dev/null || echo "0")
+            echo "| 🔞 成人频道 (adult.txt) | ${ADULT_COUNT} 个 |" >> $GITHUB_STEP_SUMMARY
           fi
           if [ -f output/epg.xml ]; then
             EPG_SIZE=$(du -h output/epg.xml | cut -f1)
-            echo "| 📖 EPG XML 大小 | ${EPG_SIZE} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 📖 EPG XML 大小 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📖 EPG XML | ${EPG_SIZE} |" >> $GITHUB_STEP_SUMMARY
           fi
           if [ -f output/epg.xml.gz ]; then
             EPG_GZ_SIZE=$(du -h output/epg.xml.gz | cut -f1)
-            echo "| 📦 EPG GZ 大小 | ${EPG_GZ_SIZE} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 📦 EPG GZ 大小 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📦 EPG GZ | ${EPG_GZ_SIZE} |" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ -f output/unmatched.txt ]; then
-            UNMATCHED_COUNT=$(grep -c '' output/unmatched.txt 2>/dev/null || echo "0")
-            echo "| ⚠️ 未匹配频道数 | ${UNMATCHED_COUNT} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ⚠️ 未匹配频道数 | 0 |" >> $GITHUB_STEP_SUMMARY
+          if [ -f output/log.txt ]; then
+            LOG_SIZE=$(du -h output/log.txt | cut -f1)
+            echo "| 📝 运行日志 | ${LOG_SIZE} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> 各阶段详情见上方 main.py 输出的阶段摘要" >> $GITHUB_STEP_SUMMARY
+          echo "> ⏱️ $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
           fi
           if [ -f output/log.txt ]; then
             LOG_SIZE=$(du -h output/log.txt | cut -f1)

@@ -1488,6 +1488,7 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
 def main(ci_phase=None, ci_state_dir="tmp"):
     """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
     import json
+    start_time = time.time()
 
     def _ser(obj):
         "递归序列化为JSON兼容格式"
@@ -1812,6 +1813,57 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             import shutil
             shutil.rmtree(ci_state_dir)
             live_print(f"  🧹 已清理临时状态目录: {ci_state_dir}")
+
+    # ── Phase 3 完成后的统一统计摘要 ──
+    if ci_phase is None or ci_phase == 3:
+        elapsed = round(time.time() - start_time, 2)
+        total_channels = len(valid_results)
+        adult_count = len(adult_results) if adult_results else 0
+
+        # 来源统计
+        source_ok = source_stats.get("ok", 0) if 'source_stats' in dir() else extra_stats.get("source_ok", 0)
+        source_total = source_stats.get("total", 0) if 'source_stats' in dir() else extra_stats.get("source_total", 0)
+
+        # 失败分布
+        top_fails = sorted(fail_counts.items(), key=lambda x: -x[1])[:5] if fail_counts else []
+
+        # 非TV过滤（如有）
+        non_tv_count = 0
+        if os.path.exists("output/non-tv-filtered.txt"):
+            with open("output/non-tv-filtered.txt", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("## 按关键词"):
+                        non_tv_count = sum(1 for _ in f)
+                        break
+
+        # 安全的变量获取（兼容 ci_phase=None 完整运行和 ci_phase=3 重入）
+        to_test_count = len(to_test) if 'to_test' in locals() or 'to_test' in dir() else 0
+        source_count = len(url_to_source) if 'url_to_source' in locals() or 'url_to_source' in dir() else len(source_stats)
+
+        live_print(f"")
+        live_print("━━━ 📊 直播源检测 — 阶段摘要 ━━━━━━━━━━━━━━━━━")
+        live_print(f"  源获取 → 测速校验 → 分类输出")
+        live_print(f"")
+        live_print(f"  ┌─ 阶段1: 抓取与过滤")
+        live_print(f"  │  ├ 总抓取频道 ........ {source_total:>4} 个")
+        live_print(f"  │  ├ 白名单免测 ........ {len(logs_whitelist):>4} 个")
+        live_print(f"  │  ├ 黑名单拦截 ........ {len(logs_blacklist):>4} 个")
+        live_print(f"  │  ├ 非TV过滤 .......... {non_tv_count:>4} 个")
+        live_print(f"  │  └ 待测频道 .......... {to_test_count:>4} 个")
+        live_print(f"  │")
+        live_print(f"  ├─ 阶段2: 测速与校验")
+        live_print(f"  │  ├ 成功率 ............ {source_ok:>4}/{source_total} ({source_ok*100//source_total if source_total else 0}%)")
+        live_print(f"  │  ├ 来源统计 .......... {source_count:>4} 个来源")
+        live_print(f"  │  ├ 失败TOP ........... {top_fails[0][0]+': '+str(top_fails[0][1]) if top_fails else 'N/A'}")
+        live_print(f"  │  └ 分辨率分布 ........ (见上方柱状图)")
+        live_print(f"  │")
+        live_print(f"  ├─ 阶段3: 模板进化与输出")
+        live_print(f"  │  ├ 有效频道 .......... {total_channels:>4} 个 (→ output/live.m3u)")
+        live_print(f"  │  ├ 输出分类数 ........ {len(cat_order):>4} 个")
+        live_print(f"  │  ├ 成人频道 .......... {adult_count:>4} 个 (→ output/adult.m3u)")
+        live_print(f"  │  └ EPG .............. {'✅' if epg_report else '❌'}")
+        live_print(f"  │")
+        live_print(f"  └─ 耗时: {elapsed:.2f}s")
 
 
 if __name__ == "__main__":
