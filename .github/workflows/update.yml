@@ -35,30 +35,23 @@ jobs:
 
       - name: 📦 安装依赖
         run: |
-          echo "::group::依赖安装详情"
           pip install -r requirements.txt
-          echo "::endgroup::"
 
       - name: 🎥 安装 ffmpeg（分辨率检测用）
         run: |
-          echo "::group::ffmpeg 安装"
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           ffprobe -version | head -1
-          echo "::endgroup::"
 
       - name: 🌐 启用 IPv6 (Cloudflare WARP)
         if: vars.ENABLE_IPV6 == 'true'
         run: |
-          echo "::group::安装 Cloudflare WARP"
           sudo apt-get update
           sudo apt-get install -y curl gpg lsb-release
           curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
           sudo apt-get update && sudo apt-get install -y cloudflare-warp
-          echo "::endgroup::"
 
-          echo "::group::注册并连接 WARP"
           sudo warp-cli --accept-tos registration new
           sudo warp-cli --accept-tos connect
 
@@ -80,7 +73,6 @@ jobs:
             IPV6_ADDR=$(curl -6 -s --max-time 5 https://ifconfig.co 2>/dev/null || echo "unknown")
             echo "🌐 IPv6 地址: $IPV6_ADDR"
           fi
-          echo "::endgroup::"
 
       # ── 三阶段流水线 ──
       - name: 🔍 阶段1 — 抓取直播源 & 黑白名单过滤
@@ -101,68 +93,26 @@ jobs:
           ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
         run: stdbuf -oL python run_ci.py 3
 
-      - name: 📊 运行统计
+      - name: 📊 文件列表
         if: always()
         run: |
-          echo "## 📊 输出文件摘要" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 文件列表" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 指标 | 数值 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件 | 大小 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-          if [ -f output/live.txt ]; then
-            LIVE_COUNT=$(grep -c '' output/live.txt 2>/dev/null || echo "0")
-            echo "| 💾 存活频道 (live.txt) | ${LIVE_COUNT} 个 |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f output/live.m3u ]; then
-            M3U_COUNT=$(grep -c '^#EXTINF' output/live.m3u 2>/dev/null || echo "0")
-            echo "| 💾 M3U 条目 (live.m3u) | ${M3U_COUNT} 条 |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f output/adult.txt ]; then
-            ADULT_COUNT=$(grep -c '' output/adult.txt 2>/dev/null || echo "0")
-            echo "| 🔞 成人频道 (adult.txt) | ${ADULT_COUNT} 个 |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f output/epg.xml ]; then
-            EPG_SIZE=$(du -h output/epg.xml | cut -f1)
-            echo "| 📖 EPG XML | ${EPG_SIZE} |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f output/epg.xml.gz ]; then
-            EPG_GZ_SIZE=$(du -h output/epg.xml.gz | cut -f1)
-            echo "| 📦 EPG GZ | ${EPG_GZ_SIZE} |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f output/log.txt ]; then
-            LOG_SIZE=$(du -h output/log.txt | cut -f1)
-            echo "| 📝 运行日志 | ${LOG_SIZE} |" >> $GITHUB_STEP_SUMMARY
-          fi
+          for f in output/live.txt output/live.m3u output/adult.txt output/adult.m3u output/epg.xml output/epg.xml.gz output/log.txt; do
+            if [ -f "$f" ]; then
+              SIZE=$(du -h "$f" | cut -f1)
+              echo "| 💾 \`$f\` | ${SIZE} |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> 各阶段详情见上方 main.py 输出的阶段摘要" >> $GITHUB_STEP_SUMMARY
+          echo "> 详细统计（来源成功率、失败分布、分类存活、分辨率）见上方 main.py 输出" >> $GITHUB_STEP_SUMMARY
           echo "> ⏱️ $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f output/log.txt ]; then
-            LOG_SIZE=$(du -h output/log.txt | cut -f1)
-            echo "| 📝 日志大小 | ${LOG_SIZE} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 📝 日志大小 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f config/demo.txt ]; then
-            DEMO_COUNT=$(grep -c '' config/demo.txt 2>/dev/null || echo "0")
-            echo "| 🎯 模板频道数 | ${DEMO_COUNT} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 🎯 模板频道数 | 文件不存在 |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -f output/log.txt ]; then
-            SPEED_PASS=$(grep -ci '✅\|pass\|ok\|success\|存活\|可用' output/log.txt 2>/dev/null || echo "N/A")
-            SPEED_FAIL=$(grep -ci '❌\|fail\|timeout\|超时\|不可用\|失活' output/log.txt 2>/dev/null || echo "N/A")
-            echo "| ✅ 测速通过数 | ${SPEED_PASS} |" >> $GITHUB_STEP_SUMMARY
-            echo "| ❌ 测速失败数 | ${SPEED_FAIL} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ✅ 测速通过数 | N/A |" >> $GITHUB_STEP_SUMMARY
-            echo "| ❌ 测速失败数 | N/A |" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "_⏱ 运行时间: $(date +'%Y-%m-%d %H:%M:%S')_" >> $GITHUB_STEP_SUMMARY
 
       - name: 💾 提交并推送
         run: |
-          echo "::group::变更检测"
+          echo "📋 变更检测"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A config/ output/ || git add -f config/ output/
@@ -171,7 +121,7 @@ jobs:
             CHANGED_FILES=$(git diff --staged --name-only | tr '\n' ' ')
             echo "变更文件数: ${CHANGED_COUNT}"
             echo "变更文件列表: ${CHANGED_FILES}"
-            echo "::endgroup::"
+            echo ""
             git commit -m "🔄 Auto Update: $(date +'%Y-%m-%d %H:%M')"
             git stash --include-untracked || true
             git pull --rebase origin main
@@ -179,9 +129,8 @@ jobs:
             git push
           else
             echo "没有发现任何变更，跳过提交。"
-            echo "::endgroup::"
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "> ✅ 本次运行无变更，无需提交" >> $GITHUB_STEP_SUMMARY
+            echo ""
+            echo "✅ 本次运行无变更，无需提交" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: 🚨 运行异常
