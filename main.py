@@ -169,6 +169,24 @@ os.makedirs(ICON_DIR, exist_ok=True)
 # P1-12: 全局 Session 复用（同一域名复用 TCP 连接 + SSL 会话）
 _http_session = None
 
+_SHARED_POOL = None
+
+def get_pool() -> concurrent.futures.ThreadPoolExecutor:
+    """全局共享线程池（测速 + 分辨率检测复用），减少线程反复创建销毁"""
+    global _SHARED_POOL
+    if _SHARED_POOL is None:
+        _SHARED_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
+    return _SHARED_POOL
+
+# 程序退出时自动清理全局线程池
+import atexit
+def _cleanup_pool():
+    global _SHARED_POOL
+    if _SHARED_POOL:
+        _SHARED_POOL.shutdown(wait=False)
+        _SHARED_POOL = None
+atexit.register(_cleanup_pool)
+
 def get_session() -> requests.Session:
     global _http_session
     if _http_session is None:
@@ -1455,13 +1473,13 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
 
     if all_samples:
         live_print(f"🎯 预筛阶段: {len(all_samples)} 个样本")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-            futures = {ex.submit(check_channel, name, url): (name, url, host)
-                       for name, url, host in all_samples}
-            for future in concurrent.futures.as_completed(futures):
-                name, url, host = futures[future]
-                is_valid, _, _, elapsed, reason = future.result()
-                _process_result(name, url, host, is_valid, elapsed, reason)
+        pool = get_pool()
+        futures = {pool.submit(check_channel, name, url): (name, url, host)
+                   for name, url, host in all_samples}
+        for future in concurrent.futures.as_completed(futures):
+            name, url, host = futures[future]
+            is_valid, _, _, elapsed, reason = future.result()
+            _process_result(name, url, host, is_valid, elapsed, reason)
 
     # 判断服务器死活
     alive_hosts = set(h for h, rs in sample_results.items() if any(rs))
@@ -1488,30 +1506,30 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
         full_processed = 0
         live_print(f"🚀 全量测速: {total} 个频道 ({len(alive_hosts)} 台服务器, 优先高带宽)")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-            futures = {ex.submit(check_channel, name, url): (name, url)
-                       for name, url in full_test}
-            for future in concurrent.futures.as_completed(futures):
-                full_processed += 1
-                name, url = futures[future]
-                is_valid, _, _, elapsed, reason = future.result()
-                if is_valid:
-                    if source_urls:
-                        src = source_urls.get(url, "未知")
-                        source_ok[src] = source_ok.get(src, 0) + 1
-                        source_total[src] = source_total.get(src, 0) + 1
-                    valid_results.setdefault(name, []).append((url, elapsed))
-                    msg = f"[{full_processed}/{total}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
-                    live_print(msg)
-                    logs_success.append(msg)
-                else:
-                    cat = _classify_failure(reason)
-                    fail_counts[cat] = fail_counts.get(cat, 0) + 1
-                    if source_urls:
-                        src = source_urls.get(url, "未知")
-                        source_total[src] = source_total.get(src, 0) + 1
-                    msg = f"[{full_processed}/{total}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
-                    logs_fail.append(msg)
+        pool = get_pool()
+        futures = {pool.submit(check_channel, name, url): (name, url)
+                   for name, url in full_test}
+        for future in concurrent.futures.as_completed(futures):
+            full_processed += 1
+            name, url = futures[future]
+            is_valid, _, _, elapsed, reason = future.result()
+            if is_valid:
+                if source_urls:
+                    src = source_urls.get(url, "未知")
+                    source_ok[src] = source_ok.get(src, 0) + 1
+                    source_total[src] = source_total.get(src, 0) + 1
+                valid_results.setdefault(name, []).append((url, elapsed))
+                msg = f"[{full_processed}/{total}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
+                live_print(msg)
+                logs_success.append(msg)
+            else:
+                cat = _classify_failure(reason)
+                fail_counts[cat] = fail_counts.get(cat, 0) + 1
+                if source_urls:
+                    src = source_urls.get(url, "未知")
+                    source_total[src] = source_total.get(src, 0) + 1
+                msg = f"[{full_processed}/{total}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
+                logs_fail.append(msg)
 
     live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
 
@@ -1900,17 +1918,17 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                         w, h = probe_resolution(url)
                         return url, w, h
                     
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-                        futures = {ex.submit(_probe_one, n, u, e): (n, u)
-                                   for n, u, e in probe_targets}
-                        for future in concurrent.futures.as_completed(futures):
-                            url, w, h = future.result()
-                            resolution_map[url] = (w, h)
-                            reso_probed += 1
-                            if w > 0 and h > 0:
-                                reso_found += 1
-                            if reso_probed % 50 == 0 or reso_probed == n_total:
-                                live_print(f"  🔍 分辨率检测: {reso_probed}/{n_total} | 已识别: {reso_found}")
+                    pool = get_pool()
+                    futures = {pool.submit(_probe_one, n, u, e): (n, u)
+                               for n, u, e in probe_targets}
+                    for future in concurrent.futures.as_completed(futures):
+                        url, w, h = future.result()
+                        resolution_map[url] = (w, h)
+                        reso_probed += 1
+                        if w > 0 and h > 0:
+                            reso_found += 1
+                        if reso_probed % 50 == 0 or reso_probed == n_total:
+                            live_print(f"  🔍 分辨率检测: {reso_probed}/{n_total} | 已识别: {reso_found}")
                     
                     live_print(f"✅ 分辨率检测完成: {reso_found}/{reso_probed} 识别成功")
                     
