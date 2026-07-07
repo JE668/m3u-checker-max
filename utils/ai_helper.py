@@ -1,36 +1,90 @@
 import requests
 import os
 import re
+import json
+import time
 
-# --- 配置区 ---
-# 使用用户已部署的 Gemini 代理
-API_ENDPOINT = "https://api.170909.xyz/v1beta/openai/chat/completions"
-# 内存中确认工作的模型
-MODEL = "gemma-4-31b-it"
-# 【安全改进】从环境变量读取 API Key，绝对禁止硬编码在代码中
-# 请在 GitHub Secrets 中添加 GEMINI_API_KEY
+# ============================
+# Google Gemini API — 官方端点
+# ============================
+# OpenAI 兼容模式（无需额外 SDK）
+# 官方文档: https://ai.google.dev/gemini-api/docs/openai
+
+API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+MODEL = "gemma-4-26b-a4b-it"
+
+# 请在 GitHub Secrets 以及本地环境变量中设置 GEMINI_API_KEY
 API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# ── AI 标准化缓存（避免重复 API 调用，每次运行有效） ──
+_CACHE = {}  # {raw_name: standardized_name}
+_CACHE_HITS = 0
+_CACHE_MISSES = 0
+
+def clear_cache():
+    """清空运行时缓存（CI 步骤间可调用）"""
+    global _CACHE, _CACHE_HITS, _CACHE_MISSES
+    _CACHE = {}
+    _CACHE_HITS = 0
+    _CACHE_MISSES = 0
+
+def get_cache_stats():
+    return {"hits": _CACHE_HITS, "misses": _CACHE_MISSES, "size": len(_CACHE)}
+
+
+def _simple_standardize(raw_name: str) -> str:
+    """纯规则预处理：去除括号、方括号、连字符后的杂项，减少 AI Token 消耗"""
+    if not raw_name:
+        return raw_name
+
+    name = raw_name.strip()
+    # 去除括号内容
+    name = re.sub(r'\s*\(.*?\)\s*', ' ', name)
+    name = re.sub(r'\s*\[.*?\]\s*', ' ', name)
+    # 去除尾部连字符及之后的内容（如 "CCTV-1 高清-广东" → "CCTV-1 高清"）
+    # 去除尾部连字符后跟质量标记或中文的情况，保留 数字后缀（如 "CCTV-1"）
+    name = re.sub(r'\s*[-—]\s*(?:4K|8K|HD|UHD|高清|超清|标清).*?$', '', name, flags=re.IGNORECASE)
+    # 去除常见的质量标记
+    name = re.sub(r'\s*(超清|高清|标清|HD|4K|8K|UHD)\s*', ' ', name, flags=re.IGNORECASE)
+    # 压缩多余空格
+    name = re.sub(r'\s+', ' ', name).strip()
+
+    return name if name else raw_name
+
 
 def standardize_channel_name(raw_name: str) -> str:
     """
-    调用 AI 将混乱的频道名称标准化。
-    例如: "CCTV-1 超清 广东电信" -> "CCTV-1"
-    "湖南卫视 (HD)" -> "湖南卫视"
-    "CCTV-5 体育" -> "CCTV-5"
-    "广东卫视-4K" -> "广东卫视"
-    " CCTV-13 新闻 " -> "CCTV-13"
+    调用 Google Gemini API（Gemma 4）将混乱的频道名称标准化。
+    两次缓存：运行时字典缓存 + 去重过滤（同名请求只调用一次 API）。
+
+    返回: 标准化后的名称。API 不可用时静默返回原名。
     """
     if not raw_name or not raw_name.strip():
         return raw_name
 
-    # 简单的预处理：去除明显的冗余词，减少 Token 消耗
-    clean_name = re.sub(r'(\s*\(.*?\)\s*|\s*\[.*?\]\s*|\s*[\-—].*$', '', raw_name).strip()
-    
-    # 构造 Prompt
+    global _CACHE, _CACHE_HITS, _CACHE_MISSES
+
+    # ── 检查缓存 ──
+    if raw_name in _CACHE:
+        _CACHE_HITS += 1
+        return _CACHE[raw_name]
+    _CACHE_MISSES += 1
+
+    # ── 如果没 API Key，就直接走规则预处理然后返回 ──
+    if not API_KEY:
+        result = _simple_standardize(raw_name)
+        _CACHE[raw_name] = result
+        return result
+
+    # ── 规则预处理（轻度清洗后传给 AI） ──
+    pre_cleaned = _simple_standardize(raw_name)
+
+    # ── 构造 OpenAI 兼容的 API 请求 ──
     prompt = (
-        f"You are an IPTV channel naming expert. Your task is to standardize the following channel name "
-        f"into its most concise, official version. Remove all quality markers (4K, HD, 超清, 高清), "
-        f"region markers (广东, 电信, 联通), and redundant descriptions.\n\n"
+        f"You are an IPTV channel naming expert. "
+        f"Standardize the following channel name into its most concise, official version. "
+        f"Remove quality markers (4K, HD, 超清, 高清), region markers (广东, 电信, 联通), "
+        f"and redundant descriptions. If already clean or unidentifiable, return as-is.\n\n"
         f"Examples:\n"
         f"- 'CCTV-1 超清 广东电信' -> 'CCTV-1'\n"
         f"- '湖南卫视 (HD)' -> '湖南卫视'\n"
@@ -38,13 +92,13 @@ def standardize_channel_name(raw_name: str) -> str:
         f"- '广东卫视-4K' -> '广东卫视'\n"
         f"- ' CCTV-13 新闻 ' -> 'CCTV-13'\n"
         f"- '浙江卫视 [高清]' -> '浙江卫视'\n\n"
-        f"Input: '{raw_name}'\n"
+        f"Input: '{pre_cleaned}'\n"
         f"Output: (Return ONLY the standardized name, no explanation, no quotes)"
     )
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}" if API_KEY else ""
+        "Authorization": f"Bearer {API_KEY}"
     }
 
     payload = {
@@ -53,21 +107,22 @@ def standardize_channel_name(raw_name: str) -> str:
             {"role": "system", "content": "You are a precise data cleaning tool. Output only the final result."},
             {"role": "user", "content": prompt}
         ],
-        "temperature": 0.0 # 确保输出稳定
+        "temperature": 0.0
     }
 
     try:
-        # 设置较短的超时，防止主程序在测速时被 AI 阻塞
         response = requests.post(API_ENDPOINT, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
             result = response.json()
             standardized = result['choices'][0]['message']['content'].strip()
-            # 去除 AI 可能带的引号
             standardized = standardized.replace('"', '').replace("'", "")
-            return standardized if standardized else raw_name
+            final = standardized if standardized else raw_name
         else:
-            # 如果没有 Key 或 API 报错，静默返回原名，不中断主流程
-            return raw_name
+            # API 报错时降级到规则预处理结果
+            final = pre_cleaned
     except Exception:
-        # 任何异常直接返回原名，保证主流程不崩溃
-        return raw_name
+        # 网络异常时降级到规则预处理结果
+        final = pre_cleaned
+
+    _CACHE[raw_name] = final
+    return final

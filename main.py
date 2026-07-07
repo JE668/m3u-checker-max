@@ -3,6 +3,12 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from urllib.parse import urlparse, quote
 import subprocess
+try:
+    from utils.ai_helper import standardize_channel_name, clear_cache, get_cache_stats
+    _AI_AVAILABLE = True
+except ImportError:
+    standardize_channel_name = lambda x: x
+    _AI_AVAILABLE = False
 
 
 # ===============================
@@ -33,6 +39,47 @@ def _dedup_blacklist():
         with open(bl_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
         live_print(f"  🧹 blacklist.txt 去重完成")
+
+
+# ===============================
+# 1.2 AI 辅助标准化：持久化缓存
+# ===============================
+AI_CACHE_FILE = "output/ai_cache.json"
+
+def _load_ai_cache():
+    """从磁盘加载 AI 标准化缓存"""
+    if not os.path.exists(AI_CACHE_FILE):
+        return {}
+    try:
+        with open(AI_CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+def _save_ai_cache(cache):
+    """保存 AI 标准化缓存到磁盘"""
+    try:
+        os.makedirs(os.path.dirname(AI_CACHE_FILE), exist_ok=True)
+        with open(AI_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
+def _ai_fallback(raw_name, ai_cache):
+    """AI 兜底：当 alias.txt 无法匹配时，尝试 AI 标准化"""
+    if not _AI_AVAILABLE or not raw_name:
+        return raw_name, False
+    # 先查持久化缓存
+    if raw_name in ai_cache:
+        return ai_cache[raw_name], False
+    # 调用 AI
+    result = standardize_channel_name(raw_name)
+    if result and result != raw_name:
+        ai_cache[raw_name] = result
+        return result, True  # True = AI 做了修改
+    ai_cache[raw_name] = raw_name
+    return raw_name, False
+
 
 # ===============================
 # 1. 核心配置区 — 从 config/settings.py 加载
@@ -130,6 +177,73 @@ def get_session():
         _http_session.mount("http://", adapter)
         _http_session.mount("https://", adapter)
     return _http_session
+
+
+def _validate_configs():
+    """启动时验证所有必要配置文件的存在与基本完整性"""
+    issues = []
+    
+    checks = [
+        (SOURCES_FILE, True, "直播源"),
+        (EPG_FILE, True, "EPG"),
+        (ALIAS_FILE, True, "别名"),
+        (DEMO_FILE, True, "分类模板"),
+        (BLACKLIST_FILE, False, "黑名单"),
+        (WHITELIST_FILE, False, "白名单"),
+        (ADULT_SOURCES_FILE, False, "成人来源"),
+        (SOURCE_CAT_FILE, False, "来源分类映射"),
+        (CHANNEL_MODEL_FILE, False, "频道模型"),
+        (ICONS_INDEX_FILE, False, "图标索引"),
+    ]
+    
+    for path, required, label in checks:
+        exists = os.path.exists(path)
+        if not exists and required:
+            issues.append(f"❌ 缺失必要配置 [{label}]: {path}")
+        elif exists:
+            # 对必要配置做基本内容检查
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    first_line = f.readline().strip()
+                if not first_line:
+                    if required:
+                        issues.append(f"⚠️ 配置文件为空 [{label}]: {path}")
+                elif label == "别名":
+                    # 检查别名文件是否至少有一行有效数据
+                    has_data = False
+                    with open(path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            s = line.strip()
+                            if s and not s.startswith('#') and ',' in s:
+                                has_data = True
+                                break
+                    if not has_data:
+                        issues.append(f"⚠️ 别名文件无有效数据: {path}")
+                elif label == "分类模板":
+                    has_genre = False
+                    with open(path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            if '#genre#' in line:
+                                has_genre = True
+                                break
+                    if not has_genre:
+                        issues.append(f"⚠️ 分类模板缺少 #genre# 分类行: {path}")
+            except (OSError, UnicodeDecodeError) as e:
+                issues.append(f"⚠️ 无法读取 [{label}]: {path} — {e}")
+        elif not required and not exists:
+            live_print(f"  ℹ️ 可选配置不存在 [{label}]: {path}（不影响运行）")
+    
+    if issues:
+        live_print("\n━━━ ⚙️ 配置验证结果 ━━━━━━━━━━━━━━━━━━━")
+        for issue in issues:
+            live_print(f"  {issue}")
+        live_print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        if any(i.startswith("❌") for i in issues):
+            live_print("🚨 必要配置文件缺失，请检查后重试")
+            return False
+    else:
+        live_print("  ✅ 配置文件验证通过")
+    return True
 
 def live_print(content):
     """输出到 stderr（GitHub Actions 实时流式）+ 自动刷新"""
@@ -456,7 +570,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
 _RE_EXTINF_ATTRS = re.compile(r'tvg-logo="([^"]*)"')
 _RE_EXTINF_GROUP = re.compile(r'group-title="([^"]*)"')
 
-def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
+def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=None):
     channels = []  # [(main_name, url, source_url), ...]
     url_to_group = {}  # {url: group_title}
     unmatched_names = set()
@@ -523,15 +637,32 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
             live_print(f"❌ 连接失败: {source_url} — {type(e).__name__}: {e}")
 
     if unmatched_names:
-        with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
-            f.write(f"=============== 未匹配频道名单 ===============\n")
-            f.write(f"时间: {datetime.now()}\n")
-            f.write(f"说明: 以下 {len(unmatched_names)} 个频道在抓取时未能在 config/alias.txt 中找到匹配。\n")
-            f.write(f"建议: 将它们复制到 alias.txt 中进行别名映射，以保持列表纯净。\n")
-            f.write(f"==============================================\n\n")
-            for name in sorted(unmatched_names):
-                f.write(f"{name}\n")
-        live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
+        # AI 兜底处理：尝试用 AI 标准化未匹配的频道名
+        ai_renamed = 0
+        if ai_cache is not None and _AI_AVAILABLE:
+            for name in list(unmatched_names):
+                ai_name, ai_changed = _ai_fallback(name, ai_cache)
+                if ai_changed and ai_name in known_main_names:
+                    # AI 成功匹配到已知频道名
+                    unmatched_names.discard(name)
+                    ai_renamed += 1
+                    live_print(f"  🤖 [AI兜底] {name} => {ai_name} (已匹配)")
+            if ai_renamed:
+                live_print(f"  🤖 AI 辅助: {ai_renamed} 个未匹配频道已成功归入已知频道")
+        # 写入剩余未匹配
+        if unmatched_names:
+            with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
+                f.write(f"=============== 未匹配频道名单 ===============\n")
+                f.write(f"时间: {datetime.now()}\n")
+                f.write(f"说明: 以下 {len(unmatched_names)} 个频道在抓取时未能在 config/alias.txt 中找到匹配。\n")
+                f.write(f"建议: 将它们复制到 alias.txt 中进行别名映射，以保持列表纯净。\n")
+                f.write(f"==============================================\n\n")
+                for name in sorted(unmatched_names):
+                    f.write(f"{name}\n")
+            live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
+        else:
+            live_print(f"\n✅ AI 辅助后全部未匹配频道已归入已知频道，无待办清单")
+            if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
     else:
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
     return channels, url_to_group
@@ -1555,6 +1686,11 @@ def main(ci_phase=None, ci_state_dir="tmp"):
     import json
     # 启动时去重 blacklist.txt
     _dedup_blacklist()
+    # 配置验证
+    _validate_configs()
+    # 加载 AI 标准化缓存
+    _AI_CACHE = _load_ai_cache()
+
     start_time = time.time()
 
     def _ser(obj):
@@ -1621,7 +1757,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 return
 
             start_time = time.time()
-            channels, url_to_group = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names)
+            channels, url_to_group = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=_AI_CACHE)
 
             if not channels:
                 live_print("⚠️ 未获取到任何有效直播源，退出。")
@@ -2032,6 +2168,13 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 cnt = reso_stats[lbl]
                 bar = '█' * min(cnt // 2 + 1, 15)
                 live_print(f"  {lbl:<10} {cnt:>4}  {bar}")
+
+    # 保存 AI 标准化缓存
+    if _AI_CACHE:
+        _save_ai_cache(_AI_CACHE)
+        if _AI_AVAILABLE:
+            stats = get_cache_stats()
+            live_print(f"  🤖 AI 缓存已保存: 运行时命中 {stats['hits']} / 未命中 {stats['misses']}")
 
 
 if __name__ == "__main__":
