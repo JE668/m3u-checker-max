@@ -4,6 +4,36 @@ from datetime import datetime
 from urllib.parse import urlparse, quote
 import subprocess
 
+
+# ===============================
+# 1.1 启动时工具：blacklist 自动去重
+# ===============================
+def _dedup_blacklist():
+    """启动时对 blacklist.txt 做一次性去重，防止每次 CI 追加导致的无限膨胀"""
+    bl_path = BLACKLIST_FILE
+    if not os.path.exists(bl_path):
+        return
+    with open(bl_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    seen = set()
+    new_lines = []
+    changed = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            new_lines.append(line)
+        elif stripped not in seen:
+            seen.add(stripped)
+            new_lines.append(line)
+        else:
+            changed = True
+    if changed:
+        while new_lines and new_lines[-1].strip() == '':
+            new_lines.pop()
+        with open(bl_path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+        live_print(f"  🧹 blacklist.txt 去重完成")
+
 # ===============================
 # 1. 核心配置区 — 从 config/settings.py 加载
 # ===============================
@@ -127,6 +157,10 @@ def retry_request(max_attempts=RETRY_MAX_ATTEMPTS, backoff=RETRY_BACKOFF):
             raise last_exc
         return wrapper
     return decorator
+
+def fetch_url(url, timeout=10):
+    """带重试的 URL 获取（封装 retry_request 提升可读性）"""
+    return retry_request()(lambda u: get_session().get(u, timeout=timeout))(url)
 
 # ===============================
 # 2. 核心字典：加载配置、黑白名单、别名与分类
@@ -436,7 +470,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names):
     for source_url in sources:
         skip_this_source = False
         try:
-            r = retry_request()(lambda u: get_session().get(u, timeout=10))(source_url)  # P0-3: 使用 Session + UA
+            r = fetch_url(source_url, timeout=10)  # P0-3: 使用 Session + UA + 重试
             r.encoding = 'utf-8'
             tmp_name = ""
             tmp_logo = ""  # P2-14: 提取 tvg-logo
@@ -1120,13 +1154,24 @@ def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_name
                     to_test.append((name, url))
                     logs_whitelist.append(f"⚪→🔍 [白名单离线] {name:<12} | 降级测速 | {url}")
 
-    # 自动追加无效频道名到黑名单文件
+    # 自动追加无效频道名到黑名单文件（检查去重，防无限膨胀）
     if auto_blacklist:
-        with open(BLACKLIST_FILE, 'a', encoding='utf-8') as f:
-            f.write("\n# 自动追加的无效频道名\n")
-            for name in set(auto_blacklist):
-                f.write(f"{name}\n")
-        live_print(f"  📛 [自动黑名单] 发现 {len(set(auto_blacklist))} 个无效频道名，已追加到 {BLACKLIST_FILE}")
+        existing = set()
+        if os.path.exists(BLACKLIST_FILE):
+            with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    s = line.strip()
+                    if s and not s.startswith('#'):
+                        existing.add(s)
+        new_entries = set(auto_blacklist) - existing
+        if new_entries:
+            with open(BLACKLIST_FILE, 'a', encoding='utf-8') as f:
+                f.write("\n# 自动追加的无效频道名\n")
+                for name in sorted(new_entries):
+                    f.write(f"{name}\n")
+            live_print(f"  📛 [自动黑名单] 发现 {len(new_entries)} 个新无效频道名，已追加到 {BLACKLIST_FILE}")
+        else:
+            live_print(f"  ℹ️ [自动黑名单] 本次无新无效频道名，跳过追加")
     
     return to_test, valid_results, logs_blacklist, logs_whitelist
 
@@ -1508,6 +1553,8 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
 def main(ci_phase=None, ci_state_dir="tmp"):
     """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
     import json
+    # 启动时去重 blacklist.txt
+    _dedup_blacklist()
     start_time = time.time()
 
     def _ser(obj):
@@ -1664,6 +1711,8 @@ def main(ci_phase=None, ci_state_dir="tmp"):
             valid_results = s["valid_results"]
             resolution_map = s.get("resolution_map", {})
             adult_results = s["adult_results"]
+            to_test = s.get("to_test", [])
+            url_to_source = s.get("url_to_source", {})
             cat_order = s["cat_order"]
             chan_to_cat = s["chan_to_cat"]
             chans_in_cat = s["chans_in_cat"]
@@ -1702,7 +1751,7 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 probe_targets = []
                 for name, urls in valid_results.items():
                     for url, elapsed in urls:
-                        if MIN_RESOLUTION_PIXELS > 0 or url not in resolution_map:
+                        if url not in resolution_map:
                             probe_targets.append((name, url, elapsed))
                 
                 n_total = len(probe_targets)
@@ -1749,6 +1798,8 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 "valid_results": valid_results,
                 "resolution_map": resolution_map,
                 "adult_results": adult_results,
+                "to_test": to_test,
+                "url_to_source": url_to_source,
                 "cat_order": cat_order,
                 "chan_to_cat": chan_to_cat,
                 "chans_in_cat": chans_in_cat,
@@ -1827,14 +1878,14 @@ def main(ci_phase=None, ci_state_dir="tmp"):
                 label = fmt_resolution(w, h)
                 reso_stats[label] = reso_stats.get(label, 0) + 1
 
-        # 非TV过滤
+        # 非TV过滤（从 "## 被过滤频道列表" 之后统计实际频道数）
         non_tv_count = 0
         if os.path.exists("output/non-tv-filtered.txt"):
             with open("output/non-tv-filtered.txt", "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("## 按关键词"):
-                        non_tv_count = sum(1 for _ in f)
-                        break
+                content = f.read()
+            if "## 被过滤频道列表" in content:
+                after_list = content.split("## 被过滤频道列表")[1]
+                non_tv_count = sum(1 for line in after_list.strip().split('\n') if line.strip())
 
         # 安全的变量获取
         to_test_count = len(to_test) if 'to_test' in locals() or 'to_test' in dir() else 0
