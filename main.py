@@ -1,4 +1,6 @@
-import os, time, concurrent.futures, requests, gzip, io, re, random, json, sys
+import os, time, concurrent.futures, requests, gzip, io, re, random, json, sys, shutil
+from collections import Counter
+from typing import Optional, Tuple, List, Dict, Set, Any
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from urllib.parse import urlparse, quote
@@ -123,7 +125,7 @@ if 'DOWNLOAD_TARGET_BYTES' not in globals():
     DOWNLOAD_TARGET_BYTES = 1048576
 
 # ── 分辨率辅助函数（纯逻辑，非配置） ──
-def _parse_resolution(s):
+def _parse_resolution(s: str) -> Tuple[int, int]:
     try:
         w, h = s.lower().split("x")
         return int(w.strip()), int(h.strip())
@@ -132,7 +134,7 @@ def _parse_resolution(s):
 MIN_RESOLUTION_WH = _parse_resolution(MIN_RESOLUTION)
 MIN_RESOLUTION_PIXELS = MIN_RESOLUTION_WH[0] * MIN_RESOLUTION_WH[1]
 
-def fmt_resolution(w, h):
+def fmt_resolution(w: int, h: int) -> str:
     """格式化分辨率显示"""
     if w >= 3840 and h >= 2160:
         return "4K"
@@ -167,7 +169,7 @@ os.makedirs(ICON_DIR, exist_ok=True)
 # P1-12: 全局 Session 复用（同一域名复用 TCP 连接 + SSL 会话）
 _http_session = None
 
-def get_session():
+def get_session() -> requests.Session:
     global _http_session
     if _http_session is None:
         _http_session = requests.Session()
@@ -252,7 +254,7 @@ def live_print(content):
 # ===============================
 # 1.5 网络工具：重试装饰器 (P1-6)
 # ===============================
-def retry_request(max_attempts=RETRY_MAX_ATTEMPTS, backoff=RETRY_BACKOFF):
+def retry_request(max_attempts: int = RETRY_MAX_ATTEMPTS, backoff: float = RETRY_BACKOFF):
     """对 requests 调用添加指数退避重试"""
     def decorator(func):
         def wrapper(*args, **kwargs):
@@ -272,14 +274,14 @@ def retry_request(max_attempts=RETRY_MAX_ATTEMPTS, backoff=RETRY_BACKOFF):
         return wrapper
     return decorator
 
-def fetch_url(url, timeout=10):
+def fetch_url(url: str, timeout: int = 10) -> requests.Response:
     """带重试的 URL 获取（封装 retry_request 提升可读性）"""
     return retry_request()(lambda u: get_session().get(u, timeout=timeout))(url)
 
 # ===============================
 # 2. 核心字典：加载配置、黑白名单、别名与分类
 # ===============================
-def load_filter_lists(filepath):
+def load_filter_lists(filepath: str) -> Tuple[Set[str], Set[str]]:
     """通用黑/白名单加载器，自动区分频道名与具体链接"""
     names, urls = set(), set()
     if os.path.exists(filepath):
@@ -291,7 +293,7 @@ def load_filter_lists(filepath):
                 else: names.add(line)
     return names, urls
 
-def load_aliases():
+def load_aliases() -> Tuple[Dict[str, str], List[Tuple[re.Pattern, str]], Set[str]]:
     aliases_exact, aliases_regex = {}, []
     known_main_names = set()
 
@@ -321,7 +323,7 @@ def load_aliases():
     live_print(f"✅ {ALIAS_FILE} (只读): 成功载入精确映射 {len(aliases_exact)} 个，正则映射 {len(aliases_regex)} 个。")
     return aliases_exact, aliases_regex, known_main_names
 
-def get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_set=None):
+def get_main_name(raw_name: str, aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str], unmatched_set: Optional[Set[str]] = None) -> str:
     raw_name = raw_name.strip()
     if raw_name in known_main_names: return raw_name
     if raw_name in aliases_exact: return aliases_exact[raw_name]
@@ -363,13 +365,13 @@ LOGO_INDEX = _build_logo_index()
 # logo URL 指向 CDN 加速的 GitHub Raw（LFS 文件通过 Raw URL 正常返回图片内容）
 _ICONS_BASE_URL = f"{REPO_RAW}/icons"
 
-def get_local_logo_url(name):
+def get_local_logo_url(name: str) -> str:
     target = re.sub(r'[\s\-_]', '', name).lower()
     if target in LOGO_INDEX:
         return f"{_ICONS_BASE_URL}/{LOGO_INDEX[target]}"
     return ""
 
-def load_demo_template(aliases_exact, aliases_regex, known_main_names):
+def load_demo_template(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str]) -> Tuple[List[str], Dict[str, str], Dict[str, List[str]]]:
     category_order = []
     channel_to_category = {}
     channels_in_category = {}
@@ -409,7 +411,7 @@ def load_demo_template(aliases_exact, aliases_regex, known_main_names):
 # ===============================
 # 3. 抓取、清理与整合 EPG
 # ===============================
-def _download_single_epg(url, aliases_exact, aliases_regex, known_main_names):
+def _download_single_epg(url: str, aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str]) -> Tuple[list, list, list]:
     """下载并解析单个 EPG 源（供并发调用）"""
     if "gitee.com" in url and "/blob/" in url:
         url = url.replace("/blob/", "/raw/")
@@ -498,7 +500,7 @@ def _download_single_epg(url, aliases_exact, aliases_regex, known_main_names):
         return report_lines, [], []
 
 
-def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
+def download_and_merge_epg(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str]) -> list:
     epg_urls = []
     epg_report = []
     if os.path.exists(EPG_FILE):
@@ -570,7 +572,7 @@ def download_and_merge_epg(aliases_exact, aliases_regex, known_main_names):
 _RE_EXTINF_ATTRS = re.compile(r'tvg-logo="([^"]*)"')
 _RE_EXTINF_GROUP = re.compile(r'group-title="([^"]*)"')
 
-def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=None):
+def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str], ai_cache: Optional[Dict[str, str]] = None) -> Tuple[list, Dict[str, str]]:
     channels = []  # [(main_name, url, source_url), ...]
     url_to_group = {}  # {url: group_title}
     unmatched_names = set()
@@ -667,7 +669,7 @@ def fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
     return channels, url_to_group
 
-def fetch_source_meta():
+def fetch_source_meta() -> Optional[dict]:
     """获取 get-m3u 探针元数据，返回 {host_port: {bandwidth_mbps: float}}"""
     try:
         r = get_session().get(SOURCE_META_URL, timeout=10)
@@ -686,7 +688,7 @@ def fetch_source_meta():
 # ===============================
 # 5a. 分辨率检测
 # ===============================
-def probe_resolution(url, timeout=None):
+def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, int]:
     """使用 ffprobe 探测直播流的视频分辨率
     
     返回: (width, height) 或 (0, 0)
@@ -724,7 +726,7 @@ def probe_resolution(url, timeout=None):
 # ===============================
 # 5. 并发测速
 # ===============================
-def check_channel(main_name, url):
+def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]:
     """并发测速：下载 1MB 验证 + 带宽测量 + TS格式校验"""
     start_time = time.time()
     try:
@@ -946,7 +948,7 @@ def _build_demo_rules(chans_in_cat):
     return demo_rules
 
 
-def _match_category(name, demo_rules=None, channel_model=None):
+def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None) -> Tuple[str, int]:
     """根据频道名匹配分类
     
     匹配优先级：
@@ -978,7 +980,7 @@ def _match_category(name, demo_rules=None, channel_model=None):
     return f"{DEFAULT_CATEGORY[0]},#genre#", DEFAULT_CATEGORY[1]
 
 
-def load_adult_sources(filename=ADULT_SOURCES_FILE):
+def load_adult_sources(filename: str = ADULT_SOURCES_FILE) -> list:
     """加载成人内容来源列表"""
     sources = []
     if not os.path.exists(filename):
@@ -993,7 +995,7 @@ def load_adult_sources(filename=ADULT_SOURCES_FILE):
     return sources
 
 
-def load_source_cat(filename=SOURCE_CAT_FILE):
+def load_source_cat(filename: str = SOURCE_CAT_FILE) -> list:
     """加载来源→分类映射
 
     格式 (config/source-cat.txt):
@@ -1022,7 +1024,7 @@ def load_source_cat(filename=SOURCE_CAT_FILE):
     return patterns
 
 
-def load_channel_model(filename=CHANNEL_MODEL_FILE):
+def load_channel_model(filename: str = CHANNEL_MODEL_FILE) -> Tuple[Dict[str, str], Dict[str, str]]:
     """加载频道分类数据库
 
     格式 (config/Channel_model.txt):
@@ -1078,17 +1080,17 @@ def _match_source_category(name, valid_results, url_to_source, source_cat_map):
     return None
 
 
-def channel_sort_key(name, demo_rules=None, channel_model=None):
+def channel_sort_key(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None) -> Tuple[int, int, str]:
     nums = _NUM_RE.findall(name)
     val = int(nums[0]) if nums else 999
     _, priority = _match_category(name, demo_rules, channel_model)
     return (priority if priority >= 0 else 0, val, name)
 
-def is_non_tv_channel(name):
+def is_non_tv_channel(name: str) -> bool:
     """检测是否为非电视台频道（直播平台/影视点播/广播等）"""
     return any(p in name for p in NON_TV_PATTERNS)
 
-def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_results=None, url_to_source=None, source_cat_map=None, channel_model=None):
+def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chans_in_cat: dict, valid_results: Optional[dict] = None, url_to_source: Optional[dict] = None, source_cat_map: Optional[list] = None, channel_model: Optional[dict] = None) -> Tuple[list, dict, dict]:
     live_print("\n━━━ 🧠 自适应进化 demo.txt ━━━━━━━━━━━━━━━━━━━━")
 
     if valid_results is None:
@@ -1119,7 +1121,6 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
             f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"# 总计: {len(non_tv_channels)} 个频道被过滤\n\n")
             # 按关键词分组统计
-            from collections import Counter
             kw_counts = Counter()
             for name in non_tv_channels:
                 for p in NON_TV_PATTERNS:
@@ -1226,7 +1227,7 @@ def auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, valid_re
 # 7. 主程序
 # ===============================
 
-def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls):
+def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls: Set[str], whitelist_names: Set[str], whitelist_urls: Set[str]) -> Tuple[list, Dict[str, list], list, list]:
     """黑白名单过滤分流
     
     channels: [(name, url, source_url), ...]
@@ -1307,7 +1308,7 @@ def apply_filter_lists(channels, blacklist_names, blacklist_urls, whitelist_name
     return to_test, valid_results, logs_blacklist, logs_whitelist
 
 
-def _classify_failure(reason):
+def _classify_failure(reason: str) -> str:
     """对失败原因分类"""
     if reason.startswith("HTTP "):
         code = reason.split()[1]
@@ -1336,7 +1337,7 @@ def _classify_failure(reason):
     return "其他"
 
 
-def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_station=None):
+def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_urls: Optional[Dict[str, str]] = None, channel_to_station: Optional[Dict[str, str]] = None) -> Tuple[Dict[str, list], list, list, Dict[str, int], Dict[str, dict]]:
     """并发测速：服务器级预筛 + 全量测速
     
     source_urls: {url: source_url} — 来源统计用
@@ -1424,14 +1425,14 @@ def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_stati
 
     total_samples = len(sample_tasks) + len(small_host_tasks)
     sample_results = {}  # host -> [True/False, ...]
-    processed = 0
+    sample_processed = 0
 
     # 合并样本任务一起并发测
     all_samples = sample_tasks + small_host_tasks
 
     def _process_result(name, url, host, is_valid, elapsed, reason):
-        nonlocal processed
-        processed += 1
+        nonlocal sample_processed
+        sample_processed += 1
         sample_results.setdefault(host, []).append(is_valid)
         if not is_valid:
             cat = _classify_failure(reason)
@@ -1445,11 +1446,11 @@ def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_stati
                 source_ok[src] = source_ok.get(src, 0) + 1
                 source_total[src] = source_total.get(src, 0) + 1
             valid_results.setdefault(name, []).append((url, elapsed))
-            msg = f"🎯 [{processed}/{total_samples}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
+            msg = f"🎯 [{sample_processed}/{total_samples}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
             live_print(msg)
             logs_success.append(msg)
         else:
-            msg = f"🎯 [{processed}/{total_samples}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
+            msg = f"🎯 [{sample_processed}/{total_samples}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
             logs_fail.append(msg)
 
     if all_samples:
@@ -1484,14 +1485,14 @@ def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_stati
 
     if full_test:
         total = len(full_test)
-        processed = 0
+        full_processed = 0
         live_print(f"🚀 全量测速: {total} 个频道 ({len(alive_hosts)} 台服务器, 优先高带宽)")
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
             futures = {ex.submit(check_channel, name, url): (name, url)
                        for name, url in full_test}
             for future in concurrent.futures.as_completed(futures):
-                processed += 1
+                full_processed += 1
                 name, url = futures[future]
                 is_valid, _, _, elapsed, reason = future.result()
                 if is_valid:
@@ -1500,7 +1501,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_stati
                         source_ok[src] = source_ok.get(src, 0) + 1
                         source_total[src] = source_total.get(src, 0) + 1
                     valid_results.setdefault(name, []).append((url, elapsed))
-                    msg = f"[{processed}/{total}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
+                    msg = f"[{full_processed}/{total}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
                     live_print(msg)
                     logs_success.append(msg)
                 else:
@@ -1509,7 +1510,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_stati
                     if source_urls:
                         src = source_urls.get(url, "未知")
                         source_total[src] = source_total.get(src, 0) + 1
-                    msg = f"[{processed}/{total}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
+                    msg = f"[{full_processed}/{total}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
                     logs_fail.append(msg)
 
     live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
@@ -1542,7 +1543,7 @@ def run_speed_test(to_test, source_meta=None, source_urls=None, channel_to_stati
     return valid_results, logs_success, logs_fail, fail_counts, {"ok": source_ok, "total": source_total}
 
 
-def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail, logs_whitelist, logs_blacklist, extra_stats=None, adult_results=None, channel_to_station=None, resolution_map=None):
+def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: List[str], chans_in_cat: Dict[str, List[str]], epg_report: list, logs_success: list, logs_fail: list, logs_whitelist: list, logs_blacklist: list, extra_stats: Optional[Dict[str, Any]] = None, adult_results: Optional[Dict[str, List[Tuple[str, float]]]] = None, channel_to_station: Optional[Dict[str, str]] = None, resolution_map: Optional[Dict[str, Tuple[int, int]]] = None) -> None:
     """写入 M3U/TXT 成品 + 日志文件"""
     if extra_stats is None:
         extra_stats = {}
@@ -1681,9 +1682,8 @@ def write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_succe
     live_print(f"✅ 所有结果文件已生成至 output/ 目录")
 
 
-def main(ci_phase=None, ci_state_dir="tmp"):
+def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
-    import json
     # 启动时去重 blacklist.txt
     _dedup_blacklist()
     # 配置验证
@@ -1988,7 +1988,6 @@ def main(ci_phase=None, ci_state_dir="tmp"):
 
         # CI最后阶段：清理临时状态
         if ci_phase == 3 and os.path.exists(ci_state_dir):
-            import shutil
             shutil.rmtree(ci_state_dir)
             live_print(f"  🧹 已清理临时状态目录: {ci_state_dir}")
 

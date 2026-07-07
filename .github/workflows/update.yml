@@ -2,6 +2,9 @@ name: 📺 直播源检测
 
 on:
   workflow_dispatch:
+  schedule:
+    # 全球自动运行：北京时间 06:00 / 12:00 / 18:00 / 00:00（UTC 22:00 / 04:00 / 10:00 / 16:00）
+    - cron: '0 22,4,10,16 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

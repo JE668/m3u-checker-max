@@ -6,3 +6,20 @@ __pycache__/
 iptv-api/
 config/Channel_model.txt.backup*
 tmp/
+
+# 环境 & 构建产物
+.env
+.env.*
+*.bak
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
