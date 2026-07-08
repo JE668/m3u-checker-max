@@ -1,5 +1,5 @@
 import os, time, concurrent.futures, requests, gzip, io, re, random, json, sys, shutil
-from collections import Counter
+from collections import Counter, defaultdict
 from typing import Optional, Tuple, List, Dict, Set, Any
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -595,7 +595,7 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
     channels = []  # [(main_name, url, source_url), ...]
     url_to_group = {}  # {url: group_title}
     unmatched_names = set()
-    ai_pending_aliases = {}  # {标准名: set(别名)} 批量收集，一次性写入
+    ai_pending_aliases = collections.defaultdict(set)  # {标准名: set(别名)} 批量收集，一次性写入
 
     if not os.path.exists(SOURCES_FILE): return channels, url_to_group
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
@@ -708,6 +708,46 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
             if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
     else:
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
+
+    # ── 批量写入 AI 发现的别名到 alias.txt ──
+    if ai_pending_aliases:
+        alias_write_count = 0
+        try:
+            if os.path.exists(ALIAS_FILE):
+                with open(ALIAS_FILE, 'r', encoding='utf-8') as f:
+                    alias_lines = f.readlines()
+            else:
+                alias_lines = []
+            # 读取现有主名集合，避免重复追加
+            existing_entries = set()
+            for line in alias_lines:
+                s = line.strip()
+                if s and not s.startswith('#'):
+                    existing_entries.add(s.split(',')[0].strip())
+
+            new_lines = []
+            for main_name, aliases in sorted(ai_pending_aliases.items()):
+                if main_name in existing_entries:
+                    continue  # 主名已存在，跳过
+                alias_str = ','.join(sorted(aliases, key=lambda x: -len(x)))
+                new_lines.append(f"{main_name},{alias_str}\n")
+                existing_entries.add(main_name)
+                alias_write_count += 1
+
+            if new_lines:
+                # 在文件末尾追加
+                if alias_lines and alias_lines[-1].strip() != '':
+                    alias_lines.append('\n')
+                alias_lines.append(f"# AI 自动添加 ({datetime.now().strftime('%Y-%m-%d %H:%M')})\n")
+                alias_lines.extend(new_lines)
+                with open(ALIAS_FILE, 'w', encoding='utf-8', newline='\n') as f:
+                    f.writelines(alias_lines)
+                live_print(f"  🤖 [AI→alias.txt] 写入 {alias_write_count} 条新别名映射")
+            else:
+                live_print(f"  🤖 [AI→alias.txt] 别名均已存在，无需写入")
+        except Exception as e:
+            live_print(f"  ⚠️ [AI→alias.txt] 写入失败: {e}")
+
     return channels, url_to_group
 
 def fetch_source_meta() -> Optional[dict]:
@@ -908,15 +948,15 @@ CATEGORY_RULES = [
       "环球", "全纪实", "梨园", "国学", "游戏风云", "茶频道"], "📺专业频道", 7),
 
     # === 没有独立频道分类的省份/城市（暂归其他，以防关键词过于宽泛） ===
-    (["上海", "SHANGHAI"], "📺其他频道", 7),
-    (["北京", "BEIJING"], "📺其他频道", 7),
-    (["山东", "SHANDONG", "济南", "青岛", "潍坊"], "📺其他频道", 7),
-    (["四川", "SICHUAN", "成都", "绵阳"], "📺其他频道", 7),
-    (["山西", "SHANXI", "太原"], "📺其他频道", 7),
-    (["西藏", "拉萨"], "📺其他频道", 7),
-    (["宁夏", "银川"], "📺其他频道", 7),
-    (["青海", "西宁"], "📺其他频道", 7),
-    (["新疆", "乌鲁木齐"], "📺其他频道", 7),
+    (["上海", "SHANGHAI"], "☘️上海频道", 5),
+    (["北京", "BEIJING"], "☘️北京频道", 5),
+    (["山东", "SHANDONG", "济南", "青岛", "潍坊"], "☘️山东频道", 5),
+    (["四川", "SICHUAN", "成都", "绵阳"], "☘️四川频道", 5),
+    (["山西", "SHANXI", "太原"], "☘️山西频道", 5),
+    (["西藏", "拉萨"], "☘️西藏频道", 5),
+    (["宁夏", "银川"], "☘️宁夏频道", 5),
+    (["青海", "西宁"], "☘️青海频道", 5),
+    (["新疆", "乌鲁木齐"], "☘️新疆频道", 5),
 ]
 
 DEFAULT_CATEGORY = ("📺其他频道", 8)
@@ -1335,18 +1375,40 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
     # 自动追加无效频道名到黑名单文件（检查去重，防无限膨胀）
     if auto_blacklist:
         existing = set()
+        appended_already = False
+        auto_section_line = -1
         if os.path.exists(BLACKLIST_FILE):
             with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
-                for line in f:
-                    s = line.strip()
-                    if s and not s.startswith('#'):
-                        existing.add(s)
+                bl_lines = f.readlines()
+            for i, line in enumerate(bl_lines):
+                s = line.strip()
+                if s and not s.startswith('#'):
+                    existing.add(s)
+                if '# 自动追加的无效频道名' in line:
+                    appended_already = True
+                    if auto_section_line < 0:
+                        auto_section_line = i
         new_entries = set(auto_blacklist) - existing
         if new_entries:
-            with open(BLACKLIST_FILE, 'a', encoding='utf-8') as f:
-                f.write("\n# 自动追加的无效频道名\n")
+            if appended_already and auto_section_line >= 0:
+                # 插入到已有 auto 区块之后（跳过连续注释行和空行）
+                insert_pos = auto_section_line + 1
+                while insert_pos < len(bl_lines):
+                    s = bl_lines[insert_pos].strip()
+                    if s and not s.startswith('#'):
+                        break
+                    insert_pos += 1
+                # 在首个非注释/非空行之前插入新条目
                 for name in sorted(new_entries):
-                    f.write(f"{name}\n")
+                    bl_lines.insert(insert_pos, f"{name}\n")
+                    insert_pos += 1
+                with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
+                    f.writelines(bl_lines)
+            else:
+                with open(BLACKLIST_FILE, 'a', encoding='utf-8') as f:
+                    f.write("\n# 自动追加的无效频道名\n")
+                    for name in sorted(new_entries):
+                        f.write(f"{name}\n")
             live_print(f"  📛 [自动黑名单] 发现 {len(new_entries)} 个新无效频道名，已追加到 {BLACKLIST_FILE}")
         else:
             live_print(f"  ℹ️ [自动黑名单] 本次无新无效频道名，跳过追加")
