@@ -164,6 +164,59 @@ python run_ci.py 2   # 并发测速
 python run_ci.py 3   # 分类输出
 ```
 
+
+
+---
+
+## 🙏 致谢
+
+本项目能够顺利运行，离不开以下开源项目与作者的贡献：
+
+### 📡 上游直播源
+
+| 项目 | 作者 | 说明 |
+|------|------|------|
+| [get-m3u](https://github.com/JE668/get-m3u) | [@JE668](https://github.com/JE668) | 直播源探针元数据 |
+| [iptv-org/iptv](https://github.com/iptv-org/iptv) | [@iptv-org](https://github.com/iptv-org) | 全球 IPTV 频道集合 |
+| [YanG-1989/m3u](https://github.com/YanG-1989/m3u) | [@YanG-1989](https://github.com/YanG-1989) | 国内直播源聚合 |
+| [vicjl/myIPTV](https://github.com/vicjl/myIPTV) | [@vicjl](https://github.com/vicjl) | IPTV 综合源 |
+| [MercuryZz/IPTVN](https://github.com/MercuryZz/IPTVN) | [@MercuryZz](https://github.com/MercuryZz) | 多分类直播源 |
+| [gnodgl/IPTV](https://github.com/gnodgl/IPTV) | [@gnodgl](https://github.com/gnodgl) | CCTV 及综合直播源 |
+| [cuikaipeng/IPTV](https://github.com/cuikaipeng/IPTV) | [@cuikaipeng](https://github.com/cuikaipeng) | 央视/卫视直播源 |
+| [zbefine/iptv](https://github.com/zbefine/iptv) | [@zbefine](https://github.com/zbefine) | IPTV 直播源 |
+| [Kimentanm/aptv](https://github.com/Kimentanm/aptv) | [@Kimentanm](https://github.com/Kimentanm) | APTV 直播源 |
+| [skddyj/iptv](https://github.com/skddyj/iptv) | [@skddyj](https://github.com/skddyj) | IPTV 综合源 |
+| [vamoschuck/TV](https://github.com/vamoschuck/TV) | [@vamoschuck](https://github.com/vamoschuck) | M3U 直播源 |
+| [BurningC4/Chinese-IPTV](https://github.com/BurningC4/Chinese-IPTV) | [@BurningC4](https://github.com/BurningC4) | 中国 IPTV 源 |
+| [mzky/checklist](https://github.com/mzky/checklist) | [@mzky](https://github.com/mzky) | itvlist 直播源 |
+| [hujingguang/ChinaIPTV](https://github.com/hujingguang/ChinaIPTV) | [@hujingguang](https://github.com/hujingguang) | 中国 IPTV 自动更新 |
+| [TianmuTNT/iptv](https://github.com/TianmuTNT/iptv) | [@TianmuTNT](https://github.com/TianmuTNT) | IPTV 直播源 |
+| [fanmingming/live](https://github.com/fanmingming/live) | [@fanmingming](https://github.com/fanmingming) | IPv6 直播源 |
+| [YueChan/Live](https://github.com/YueChan/Live) | [@YueChan](https://github.com/YueChan) | 多源聚合 |
+| [best-fan/iptv-sources](https://github.com/best-fan/iptv-sources) | [@best-fan](https://github.com/best-fan) | 央视/卫视分类源 |
+
+### 📅 EPG 节目单
+
+| 项目 | 作者 | 说明 |
+|------|------|------|
+| [ChinaTelecom-GuangdongIPTV-RTP-List](https://github.com/Tzwcard/ChinaTelecom-GuangdongIPTV-RTP-List) | [@Tzwcard](https://github.com/Tzwcard) | 广东电信 IPTV EPG |
+| [51zmt EPG](http://epg.51zmt.top:8000/) | — | 公共 EPG 接口 |
+| [taksssss/tv](https://gitee.com/taksssss/tv) | [@taksssss](https://gitee.com/taksssss) | 多源 EPG 聚合（亦用于频道图标回退） |
+
+### 🔧 工具与服务
+
+| 名称 | 说明 |
+|------|------|
+| [gh.felicity.ac.cn](https://gh.felicity.ac.cn) | GitHub Raw 加速 CDN（由 [@felicity](https://github.com/felicity) 提供） |
+| [Google Gemini API](https://ai.google.dev/gemini-api) | AI 频道名称标准化与分类（Gemma 4 模型） |
+| [iptv-org](https://github.com/iptv-org) | 全球 IPTV 社区标准与频道数据库 |
+
+### 🧠 频道模型与分类参考
+
+- [taksssss/tv](https://gitee.com/taksssss/tv) — 频道图标库与 EPG 数据参考
+- [YueChan/Live](https://github.com/YueChan/Live) — 频道分类思路参考
+
+
 ---
 
 *免责声明：本项目及脚本仅供学习与技术交流使用，不提供、不存储任何音视频流。*
