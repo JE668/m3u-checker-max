@@ -125,6 +125,18 @@ CCTV-央视文化精品
 陕西卫视
 青海卫视
 黑龙江卫视
+<thought>*   Input: 重庆卫视
+    *   Task: Standardize the channel name.
+    *   Rules: Remove quality markers, region markers (unless part of the official name), and redundant descriptions. Return only the concise, official version.
+
+    *   重庆卫视 (Chongqing Satellite TV)
+    *   Is it a quality marker? No.
+    *   Is it a region marker? 重庆 is a region, but 重庆卫视 is the official name of the channel.
+    *   Is it redundant? No.
+
+    *   The name is already clean and official.
+
+    *   重庆卫视</thought>重庆卫视
 
 ☘️广东频道,#genre#
 中山公共
@@ -236,6 +248,7 @@ CCTV-央视文化精品
 阳江综合
 韶关新闻综合
 韶关绿色生活
+南国都市
 
 🌊港·澳·台,#genre#
 翡翠台
