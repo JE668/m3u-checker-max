@@ -24,6 +24,23 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
+    def _resolve_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names, ai_cache, ai_pending_aliases, seen_source_renames):
+        """名称解析+AI兜底+日志，返回 (main_name, is_new_alias)"""
+        main_name = get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
+        if main_name == raw_name and ai_cache is not None and _AI_AVAILABLE:
+            ai_name, ai_changed = _ai_fallback(raw_name, ai_cache)
+            if ai_changed and ai_name != raw_name:
+                ai_pending_aliases[ai_name].add(raw_name)
+                aliases_exact[raw_name] = ai_name
+                known_main_names.add(ai_name)
+                main_name = ai_name
+                unmatched_names.discard(raw_name)
+                live_print(f"  🤖 [AI兜底→alias] {raw_name} => {ai_name}")
+        if raw_name != main_name and (raw_name, main_name) not in seen_source_renames:
+            live_print(f"  📝 [名称修正] {raw_name} => {main_name}")
+            seen_source_renames.add((raw_name, main_name))
+        return main_name
+
     seen_urls = set()
     live_print("\n━━━ 📥 抓取直播源 ━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     for source_url in sources:
@@ -51,22 +68,7 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                     tmp_group = group_match.group(1) if group_match else ""
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
-                    main_name = get_main_name(name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
-
-                    # 别名未匹配时尝试 AI 兜底（别名批量收集，结束后一次性写入）
-                    if main_name == name and ai_cache is not None and _AI_AVAILABLE:
-                        ai_name, ai_changed = _ai_fallback(name, ai_cache)
-                        if ai_changed and ai_name != name:
-                            ai_pending_aliases[ai_name].add(name)
-                            aliases_exact[name] = ai_name
-                            known_main_names.add(ai_name)
-                            main_name = ai_name
-                            unmatched_names.discard(name)
-                            live_print(f"  🤖 [AI兜底→alias] {name} => {ai_name}")
-
-                    if name != main_name and (name, main_name) not in seen_source_renames:
-                        live_print(f"  📝 [名称修正] {name} => {main_name}")
-                        seen_source_renames.add((name, main_name))
+                    main_name = _resolve_name(name, aliases_exact, aliases_regex, known_main_names, unmatched_names, ai_cache, ai_pending_aliases, seen_source_renames)
 
                     if line not in seen_urls:
                         channels.append((main_name, line, source_url))
@@ -78,22 +80,7 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
                     raw_name = parts[0].strip()
-                    main_name = get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
-
-                    # 别名未匹配时尝试 AI 兜底（别名批量收集，结束后一次性写入）
-                    if main_name == raw_name and ai_cache is not None and _AI_AVAILABLE:
-                        ai_name, ai_changed = _ai_fallback(raw_name, ai_cache)
-                        if ai_changed and ai_name != raw_name:
-                            ai_pending_aliases[ai_name].add(raw_name)
-                            aliases_exact[raw_name] = ai_name
-                            known_main_names.add(ai_name)
-                            main_name = ai_name
-                            unmatched_names.discard(raw_name)
-                            live_print(f"  🤖 [AI兜底→alias] {raw_name} => {ai_name}")
-
-                    if raw_name != main_name and (raw_name, main_name) not in seen_source_renames:
-                        live_print(f"  📝 [名称修正] {raw_name} => {main_name}")
-                        seen_source_renames.add((raw_name, main_name))
+                    main_name = _resolve_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names, ai_cache, ai_pending_aliases, seen_source_renames)
 
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip(), source_url))

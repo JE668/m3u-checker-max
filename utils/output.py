@@ -68,17 +68,20 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
     # 写入成人内容（如果有）
     adult_written = 0
     if adult_results:
-        with open(ADULT_M3U, "w", encoding="utf-8") as fam3u, open(ADULT_TXT, "w", encoding="utf-8") as fatxt:
-            fam3u.write(M3U_HEADER)
-            fatxt.write("📛成人内容,#genre#\n")
-            for name in sorted(adult_results.keys()):
-                valid_urls = sorted(adult_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
-                for url, elapsed in valid_urls:
-                    logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
-                    fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name}\n')
-                    fam3u.write(f"{url}\n")
-                    fatxt.write(f"{name},{url}\n")
-                    adult_written += 1
+        try:
+            with open(ADULT_M3U, "w", encoding="utf-8") as fam3u, open(ADULT_TXT, "w", encoding="utf-8") as fatxt:
+                fam3u.write(M3U_HEADER)
+                fatxt.write("📛成人内容,#genre#\n")
+                for name in sorted(adult_results.keys()):
+                    valid_urls = sorted(adult_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
+                    for url, elapsed in valid_urls:
+                        logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
+                        fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name}\n')
+                        fam3u.write(f"{url}\n")
+                        fatxt.write(f"{name},{url}\n")
+                        adult_written += 1
+        except OSError as e:
+            live_print(f"❌ 写入成人内容失败: {e}")
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"任务时间: {datetime.now()}\n")

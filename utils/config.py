@@ -2,6 +2,10 @@ import os, time, concurrent.futures, requests, re, json, sys, shutil, atexit
 from collections import Counter, defaultdict
 from typing import Optional, Tuple, List, Dict, Set, Any
 from datetime import datetime
+
+# 预编译正则：频道名排序用数字提取（categorizer.py 和 speedtest.py 共享）
+_NUM_RE = re.compile(r'\d+')
+
 try:
     from utils.ai_helper import standardize_channel_name, clear_cache, get_cache_stats, classify_channel
     _AI_AVAILABLE = True
@@ -269,6 +273,7 @@ def get_session() -> requests.Session:
     global _http_session
     if _http_session is None:
         _http_session = requests.Session()
+        _http_session.trust_env = False  # CI 环境 dotenv 代理干扰
         _http_session.headers.update(DEFAULT_HEADERS)
         # 连接池大小匹配并发度
         adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=MAX_WORKERS)
@@ -351,7 +356,9 @@ def live_print(content):
 # ===============================
 def retry_request(max_attempts: int = RETRY_MAX_ATTEMPTS, backoff: float = RETRY_BACKOFF):
     """对 requests 调用添加指数退避重试"""
+    import functools
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             last_exc = None
             for attempt in range(1, max_attempts + 1):

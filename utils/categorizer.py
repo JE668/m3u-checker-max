@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from utils.config import (
     CATEGORY_RULES, DEFAULT_CATEGORY,
     NON_TV_PATTERNS, NON_TV_LOG, ADULT_SOURCES_FILE, SOURCE_CAT_FILE, CHANNEL_MODEL_FILE,
-    DEMO_FILE, live_print, _AI_AVAILABLE, get_session
+    DEMO_FILE, live_print, _AI_AVAILABLE, get_session, _NUM_RE
 )
 from utils.loaders import get_main_name, load_aliases, get_local_logo_url
 from utils.ai_helper import classify_channel
@@ -15,6 +15,9 @@ from utils.ai_helper import classify_channel
 # 模块级缓存：避免同一 CI 周期内重复学习
 _demo_rules_cache = None
 _demo_rules_signature = None
+
+# 预排序 CATEGORY_RULES（按优先级升序），避免每次 _match_category 重复排序
+_CATEGORY_RULES_SORTED = sorted(CATEGORY_RULES, key=lambda x: x[2])
 
 def _build_demo_rules(chans_in_cat):
     """
@@ -108,17 +111,13 @@ def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, chan
             if name.upper().startswith(kw) or name.startswith(kw):
                 return f"{cat},#genre#", -1  # demo 规则优先级最高
 
-    # 第二步：CATEGORY_RULES 硬编码规则（遍历全部，取优先级最小的匹配）
+    # 第二步：CATEGORY_RULES 硬编码规则（按优先级排序后遍历，找到即返回）
     name_upper = name.upper()
-    best_match = None
-    best_pri = 999
-    for keywords, cat_name, priority in CATEGORY_RULES:
+    # 快路径：先尝试精确匹配（对 CCTV-1, CCTV-5 等高频短名避免遍历全部规则）
+    # 这里用 startswith 检查第一个匹配的规则即可，因为已按优先级排序
+    for keywords, cat_name, priority in _CATEGORY_RULES_SORTED:
         if any(kw in name_upper for kw in keywords):
-            if priority < best_pri:
-                best_pri = priority
-                best_match = cat_name
-    if best_match is not None:
-        return f"{best_match},#genre#", best_pri
+            return f"{cat_name},#genre#", priority
 
     # 第三步：AI 分类兜底（仅当其他规则都不匹配时）
     if _AI_AVAILABLE and name:
@@ -228,9 +227,6 @@ def _match_source_category(name, valid_results, url_to_source, source_cat_map):
                 return cat
     return None
 
-
-# P1-9: 预编译排序用正则
-_NUM_RE = re.compile(r'\d+')
 
 def channel_sort_key(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None) -> Tuple[int, int, str]:
     nums = _NUM_RE.findall(name)

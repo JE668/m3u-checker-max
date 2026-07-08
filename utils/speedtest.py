@@ -7,7 +7,7 @@ from utils.config import (
     CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT, CHECK_TOTAL_TIMEOUT,
     DOWNLOAD_TARGET_BYTES, MIN_BANDWIDTH_MBPS, SAMPLE_PER_HOST,
     MAX_WORKERS, DEFAULT_HEADERS, INVALID_NAME_PATTERNS, BLACKLIST_FILE,
-    get_session, get_pool, live_print, _AI_AVAILABLE
+    get_session, get_pool, live_print, _AI_AVAILABLE, _NUM_RE
 )
 
 # ffprobe 可用性检查（首次调用时检测，结果缓存）
@@ -73,7 +73,8 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
 
             downloaded = 0
             last_chunk_time = time.time()
-            ts_check_data = bytearray()  # 收集用于TS同步字节校验
+            ts_check_data = bytearray(3760)  # 只需前 20 个 TS 包 (20×188=3760)
+            ts_offset = 0
 
             for chunk in r.iter_content(chunk_size=1024 * 64):
                 now = time.time()
@@ -86,9 +87,12 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
                     bw = downloaded * 8 / (now - start_time) / 1_000_000 if now > start_time else 0
                     return False, main_name, url, round(now - start_time, 2), f"读取超时({bw:.1f}Mbps)"
 
-                # 收集前 512KB 用于格式校验
-                if len(ts_check_data) < 512 * 1024:
-                    ts_check_data.extend(chunk)
+                # 收集前 3760 字节用于 TS 格式校验
+                if ts_offset < 3760:
+                    remaining = 3760 - ts_offset
+                    chunk_to_copy = chunk[:remaining]
+                    ts_check_data[ts_offset:ts_offset+len(chunk_to_copy)] = chunk_to_copy
+                    ts_offset += len(chunk_to_copy)
 
                 downloaded += len(chunk)
                 last_chunk_time = now
@@ -102,12 +106,12 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
                         return False, main_name, url, round(elapsed, 2), f"带宽不足({bandwidth:.1f}Mbps < {MIN_BANDWIDTH_MBPS})"
 
                     # MPEG-TS 同步字节(0x47)校验 — 只检查前20个TS包即可判断
-                    ts_sample = memoryview(ts_check_data)[:512 * 1024]
-                    ts_score = 0.0
-                    if len(ts_sample) >= 188:
-                        check_count = min(len(ts_sample) // 188, 20)
-                        syncs = sum(1 for i in range(0, check_count * 188, 188) if ts_sample[i] == 0x47)
-                        ts_score = syncs / check_count if check_count > 0 else 0
+                    check_count = min(ts_offset // 188, 20)
+                    if check_count > 0:
+                        syncs = sum(1 for i in range(0, check_count * 188, 188) if ts_check_data[i] == 0x47)
+                        ts_score = syncs / check_count
+                    else:
+                        ts_score = 0.0
 
                     if ts_score >= 0.8:
                         return True, main_name, url, round(elapsed, 2), f"TS流({bandwidth:.1f}Mbps)"
@@ -136,9 +140,6 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
 # 频道分类规则：(匹配关键词列表, 分类显示名, 排序优先级)
 # 优先级编号越小越优先匹配
 
-
-# P1-9: 预编译排序用正则
-_NUM_RE = re.compile(r'\d+')
 
 
 def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls: Set[str], whitelist_names: Set[str], whitelist_urls: Set[str]) -> Tuple[list, Dict[str, list], list, list]:

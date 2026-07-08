@@ -17,7 +17,7 @@ def _download_single_epg(url: str, aliases_exact: Dict[str, str], aliases_regex:
     report_lines = [f"▶ 来源: {url}"]
     try:
         live_print(f"📥 正在获取: {url}")
-        r = get_session().get(url, timeout=20)
+        r = fetch_url(url, timeout=20)
         content = r.content
         if not content:
             report_lines.append(" -> ⚠️ 响应为空，跳过")
