@@ -1,4 +1,4 @@
-import concurrent.futures, random, time, subprocess, json, re, os, requests
+import concurrent.futures, random, time, subprocess, json, re, os, requests, shutil
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
@@ -10,11 +10,26 @@ from utils.config import (
     get_session, get_pool, live_print, _AI_AVAILABLE
 )
 
+# ffprobe 可用性检查（首次调用时检测，结果缓存）
+_ffprobe_checked = False
+_ffprobe_available = False
+
+def _check_ffprobe():
+    global _ffprobe_checked, _ffprobe_available
+    if not _ffprobe_checked:
+        _ffprobe_available = shutil.which("ffprobe") is not None
+        _ffprobe_checked = True
+        if not _ffprobe_available:
+            live_print("⚠️ ffprobe 未安装，分辨率检测将跳过（所有频道返回 0x0）")
+    return _ffprobe_available
+
 def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, int]:
     """使用 ffprobe 探测直播流的视频分辨率
     
     返回: (width, height) 或 (0, 0)
     """
+    if not _check_ffprobe():
+        return 0, 0
     if timeout is None:
         timeout = PROBE_TIMEOUT
     try:
@@ -86,13 +101,13 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
                     if bandwidth < MIN_BANDWIDTH_MBPS:
                         return False, main_name, url, round(elapsed, 2), f"带宽不足({bandwidth:.1f}Mbps < {MIN_BANDWIDTH_MBPS})"
 
-                    # MPEG-TS 同步字节(0x47)校验
+                    # MPEG-TS 同步字节(0x47)校验 — 只检查前20个TS包即可判断
                     ts_sample = memoryview(ts_check_data)[:512 * 1024]
                     ts_score = 0.0
                     if len(ts_sample) >= 188:
-                        expected = len(ts_sample) // 188
-                        syncs = sum(1 for i in range(0, expected * 188, 188) if ts_sample[i] == 0x47)
-                        ts_score = syncs / expected if expected > 0 else 0
+                        check_count = min(len(ts_sample) // 188, 20)
+                        syncs = sum(1 for i in range(0, check_count * 188, 188) if ts_sample[i] == 0x47)
+                        ts_score = syncs / check_count if check_count > 0 else 0
 
                     if ts_score >= 0.8:
                         return True, main_name, url, round(elapsed, 2), f"TS流({bandwidth:.1f}Mbps)"

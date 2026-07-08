@@ -12,6 +12,10 @@ from utils.config import (
 from utils.loaders import get_main_name, load_aliases, get_local_logo_url
 from utils.ai_helper import classify_channel
 
+# 模块级缓存：避免同一 CI 周期内重复学习
+_demo_rules_cache = None
+_demo_rules_signature = None
+
 def _build_demo_rules(chans_in_cat):
     """
     从 demo.txt 已有分类结构中自动学习关键词匹配规则。
@@ -22,6 +26,12 @@ def _build_demo_rules(chans_in_cat):
     
     返回 {关键词(大写): 分类名不含,#genre#} 字典
     """
+    global _demo_rules_cache, _demo_rules_signature
+    # 基于内容签名判断是否可复用缓存
+    sig = tuple((cat, tuple(names)) for cat, names in sorted(chans_in_cat.items()))
+    if _demo_rules_cache is not None and _demo_rules_signature == sig:
+        return _demo_rules_cache
+    _demo_rules_signature = sig
     demo_rules = {}
     for cat, names in chans_in_cat.items():
         if not names or "其他频道" in cat:
@@ -72,6 +82,7 @@ def _build_demo_rules(chans_in_cat):
     if demo_rules:
         live_print(f"  ✅ demo.txt 自学习: 成功提取 {len(demo_rules)} 条分类规则")
 
+    _demo_rules_cache = demo_rules
     return demo_rules
 
 
@@ -97,11 +108,17 @@ def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, chan
             if name.upper().startswith(kw) or name.startswith(kw):
                 return f"{cat},#genre#", -1  # demo 规则优先级最高
 
-    # 第二步：CATEGORY_RULES 硬编码规则
+    # 第二步：CATEGORY_RULES 硬编码规则（遍历全部，取优先级最小的匹配）
     name_upper = name.upper()
+    best_match = None
+    best_pri = 999
     for keywords, cat_name, priority in CATEGORY_RULES:
         if any(kw in name_upper for kw in keywords):
-            return f"{cat_name},#genre#", priority
+            if priority < best_pri:
+                best_pri = priority
+                best_match = cat_name
+    if best_match is not None:
+        return f"{best_match},#genre#", best_pri
 
     # 第三步：AI 分类兜底（仅当其他规则都不匹配时）
     if _AI_AVAILABLE and name:

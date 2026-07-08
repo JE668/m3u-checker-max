@@ -24,42 +24,46 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
     reso_filtered = 0
     reso_ok = 0
 
-    with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
-        fm3u.write(M3U_HEADER)
-        for cat in cat_order:
-            cat_written_in_txt = False
-            for name in chans_in_cat.get(cat, []):
-                if name in valid_results:
-                    # elapsed 排最前（白名单免测），其余按速度升序
-                    valid_urls = sorted(valid_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
-                    for url, elapsed in valid_urls:
-                        # 分辨率过滤
-                        res = resolution_map.get(url, (0, 0))
-                        w, h = res
-                        if MIN_RESOLUTION_PIXELS > 0 and w * h > 0 and w * h < MIN_RESOLUTION_PIXELS:
-                            reso_filtered += 1
-                            continue
-                        
-                        if not cat_written_in_txt:
-                            ftxt.write(f"\n{cat}\n")
-                            cat_written_in_txt = True
+    try:
+        with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
+            fm3u.write(M3U_HEADER)
+            for cat in cat_order:
+                cat_written_in_txt = False
+                for name in chans_in_cat.get(cat, []):
+                    if name in valid_results:
+                        # elapsed 排最前（白名单免测），其余按速度升序
+                        valid_urls = sorted(valid_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
+                        for url, elapsed in valid_urls:
+                            # 分辨率过滤
+                            res = resolution_map.get(url, (0, 0))
+                            w, h = res
+                            if MIN_RESOLUTION_PIXELS > 0 and w * h > 0 and w * h < MIN_RESOLUTION_PIXELS:
+                                reso_filtered += 1
+                                continue
+                            
+                            if not cat_written_in_txt:
+                                ftxt.write(f"\n{cat}\n")
+                                cat_written_in_txt = True
 
-                        logo = get_local_logo_url(name)
-                        if not logo:
-                            logo = f"{fallback_logo_base}/{name}.png"
+                            logo = get_local_logo_url(name)
+                            if not logo:
+                                logo = f"{fallback_logo_base}/{name}.png"
 
-                        cat_clean = cat.split(',')[0]
-                        elapsed_display = "免测" if elapsed < 0 else f"{elapsed}s"
-                        reso_tag = fmt_resolution(w, h)
-                        
-                        # EXTINF 含分辨率属性
-                        if w > 0 and h > 0:
-                            fm3u.write(f'#EXTINF:-1 RESOLUTION={w}x{h} tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
-                        else:
-                            fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
-                        fm3u.write(f"{url}\n")
-                        ftxt.write(f"{name},{url}\n")
-                        reso_ok += 1
+                            cat_clean = cat.split(',')[0]
+                            elapsed_display = "免测" if elapsed < 0 else f"{elapsed}s"
+                            reso_tag = fmt_resolution(w, h)
+                            
+                            # EXTINF 含分辨率属性
+                            if w > 0 and h > 0:
+                                fm3u.write(f'#EXTINF:-1 RESOLUTION={w}x{h} tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
+                            else:
+                                fm3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
+                            fm3u.write(f"{url}\n")
+                            ftxt.write(f"{name},{url}\n")
+                            reso_ok += 1
+    except OSError as e:
+        live_print(f"❌ 写入 M3U/TXT 失败: {e}")
+        return
 
     # 写入成人内容（如果有）
     adult_written = 0

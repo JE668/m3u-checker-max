@@ -160,7 +160,3 @@ def download_and_merge_epg(aliases_exact: Dict[str, str], aliases_regex: List[Tu
         except Exception as e:
             live_print(f"❌ EPG写入失败: {e}")
     return epg_report
-
-# ===============================
-# 4. 抓取直播源
-# ===============================

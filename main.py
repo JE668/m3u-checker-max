@@ -58,6 +58,7 @@ _AI_CACHE = {}
 
 def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
+    global _AI_CACHE
     # 启动时去重 blacklist.txt
     _dedup_blacklist()
     # 配置验证
@@ -80,8 +81,9 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     def _save_state(phase, data):
         os.makedirs(ci_state_dir, exist_ok=True)
         path = os.path.join(ci_state_dir, f"state{phase}.json")
+        data_with_version = {"_version": 1, **data}
         with open(path, "w") as f:
-            json.dump(_ser(data), f, ensure_ascii=False, default=str)
+            json.dump(_ser(data_with_version), f, ensure_ascii=False, default=str)
         live_print(f"  📦 状态已保存 → {path}")
 
     def _load_state(phase):

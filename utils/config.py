@@ -1,4 +1,4 @@
-import os, time, concurrent.futures, requests, re, json, sys, shutil
+import os, time, concurrent.futures, requests, re, json, sys, shutil, atexit
 from collections import Counter, defaultdict
 from typing import Optional, Tuple, List, Dict, Set, Any
 from datetime import datetime
@@ -155,8 +155,9 @@ def write_summary(content):
             pass
 
 CATEGORY_RULES = [
-    # === 优先级 0：4K/8K 超高清（必须在卫视/省份之前，如"湖南卫视-4K"应归4K频道） ===
-    (["4K", "8K"], "☘️4K/8K超高清频道", 0),
+    # === 优先级 0：4K/8K 超高清 ===
+    # 注意：4K 优先级设为 3.5（在卫视之后），避免"湖南卫视-4K"被归到4K而非卫视
+    (["4K", "8K"], "☘️4K/8K超高清频道", 4),
 
     # === 优先级 1：国家级广播 ===
     (["CCTV"], "📺央视频道", 1),
@@ -169,8 +170,8 @@ CATEGORY_RULES = [
     (["IPTV"], "📺IPTV系列", 2),
     (["NEWTV"], "📺NewTV系列", 2),
     (["CHC"], "📺CHC系列", 2),
-    (["BESTV", "BESTV"], "📺BesTV系列", 2),
-    (["SITV", "SITV"], "📺SiTV系列", 2),
+    (["BESTV"], "📺BesTV系列", 2),
+    (["SITV"], "📺SiTV系列", 2),
 
     # === 优先级 3：卫星频道 ===
     (["卫视"], "📡卫视频道", 3),
@@ -253,11 +254,10 @@ def get_pool() -> concurrent.futures.ThreadPoolExecutor:
     """全局共享线程池（测速 + 分辨率检测复用），减少线程反复创建销毁"""
     global _SHARED_POOL
     if _SHARED_POOL is None:
-        _SHARED_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
+        _SHARED_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="m3u")
     return _SHARED_POOL
 
 # 程序退出时自动清理全局线程池
-import atexit
 def _cleanup_pool():
     global _SHARED_POOL
     if _SHARED_POOL:

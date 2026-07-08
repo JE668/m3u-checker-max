@@ -37,7 +37,8 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
             count = 0
             seen_source_renames = set()
 
-            for line in r.text.splitlines():
+            for line in r.iter_lines(decode_unicode=True):
+                if not line: continue
                 line = line.strip()
                 if not line: continue
                 if line.startswith("#EXTINF"):
