@@ -12,11 +12,22 @@
 import sys
 import main
 
+PHASE_TITLES = {
+    1: "🔍 阶段1 — 抓取直播源 & 黑白名单过滤",
+    2: "🚀 阶段2 — 并发测速 & 流校验",
+    3: "🧠 阶段3 — 模板进化 & 成品输出",
+}
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("用法: python run_ci.py <1|2|3>")
         sys.exit(1)
 
     phase = int(sys.argv[1])
+    title = PHASE_TITLES.get(phase, f"阶段{phase}")
+
+    # GitHub Actions 日志分组
+    print(f"::group::{title}", flush=True)
     main.main(ci_phase=phase, ci_state_dir="tmp")
-    print(f"\n━━━ ✅ 阶段{phase}执行完毕 ━━━━━━━━━━━━━━━━━━━")
+    print("::endgroup::", flush=True)
+    print(f"\n━━━ ✅ {title} 执行完毕 ━━━━━━━━━━━━━━━━━━━")

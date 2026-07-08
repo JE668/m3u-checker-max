@@ -158,6 +158,22 @@ def write_summary(content):
         except OSError:
             pass
 
+def write_summary_table(headers, rows):
+    """写入 Markdown 表格到 Step Summary"""
+    if not SUMMARY_FILE:
+        return
+    lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"] * len(headers)) + " |"]
+    for row in rows:
+        lines.append("| " + " | ".join(str(c) for c in row) + " |")
+    write_summary("\n".join(lines))
+
+def ci_group(title, fn, *args, **kwargs):
+    """GitHub Actions 日志分组：在 ::group::/::endgroup:: 之间执行函数"""
+    print(f"::group::{title}", flush=True, file=sys.stderr)
+    result = fn(*args, **kwargs)
+    print("::endgroup::", flush=True, file=sys.stderr)
+    return result
+
 CATEGORY_RULES = [
     # === 优先级 0：4K/8K 超高清 ===
     # 注意：4K 优先级设为 3.5（在卫视之后），避免"湖南卫视-4K"被归到4K而非卫视

@@ -24,7 +24,7 @@ from utils.config import (
     SOURCE_CAT_FILE, MAX_WORKERS, PROBE_RESOLUTION, PROBE_TIMEOUT,
     AI_CACHE_FILE,
     _dedup_blacklist, _validate_configs, _load_ai_cache, _save_ai_cache,
-    live_print, write_summary, get_pool, fmt_resolution,
+    live_print, write_summary, write_summary_table, ci_group, get_pool, fmt_resolution,
     get_cache_stats, _AI_AVAILABLE,
 )
 
@@ -202,6 +202,28 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 "epg_report": epg_report,
                 "start_time": start_time,
             })
+            # 阶段1 Summary
+            write_summary("## 🔍 阶段1 — 抓取与过滤\n")
+            write_summary_table(
+                ["指标", "数值"],
+                [
+                    ["📡 抓取频道", f"{sum(source_channel_counts.values())} 个"],
+                    ["✅ 白名单免测", f"{len(logs_whitelist)} 个"],
+                    ["🚫 黑名单拦截", f"{len(logs_blacklist)} 个"],
+                    ["🔞 成人来源", f"{len(adult_source_urls)} 个"],
+                    ["🎯 待测频道", f"{len(to_test)} 个"],
+                    ["📂 分类模板", f"{len(cat_order)} 个大类"],
+                ]
+            )
+            write_summary("")
+            # 来源明细折叠
+            if source_channel_counts:
+                write_summary("<details><summary>📋 各来源抓取明细</summary>\n")
+                write_summary_table(
+                    ["来源", "抓取数"],
+                    [[src.split('/')[-1][:50], cnt] for src, cnt in sorted(source_channel_counts.items(), key=lambda x: -x[1])]
+                )
+                write_summary("\n</details>\n")
             live_print("✅ 阶段1完成 (抓取源+过滤)")
             return
 
@@ -340,6 +362,57 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 "source_stats": source_stats,
                 "start_time": start_time,
             })
+            # 阶段2 Summary
+            src_ok_dict = source_stats.get("ok", {})
+            src_total_dict = source_stats.get("total", {})
+            total_ok = sum(src_ok_dict.values())
+            total_test = sum(src_total_dict.values())
+            success_rate = f"{total_ok*100//total_test}%" if total_test else "N/A"
+            write_summary("## 🚀 阶段2 — 测速与校验\n")
+            write_summary_table(
+                ["指标", "数值"],
+                [
+                    ["🎯 测速频道", f"{total_test} 个"],
+                    ["✅ 成功", f"{total_ok} ({success_rate})"],
+                    ["❌ 失败", f"{total_test - total_ok} 个"],
+                    ["🔞 成人频道", f"{len(adult_results)} 个"],
+                ]
+            )
+            write_summary("")
+            # 失败原因折叠
+            if fail_counts:
+                total_fails = sum(fail_counts.values())
+                write_summary("<details><summary>❌ 失败原因分布</summary>\n")
+                rows = []
+                for cat in sorted(fail_counts, key=fail_counts.get, reverse=True):
+                    cnt = fail_counts[cat]
+                    pct = f"{cnt/total_fails*100:.1f}%"
+                    bar = '🟥' * min(cnt // 5 + 1, 10)
+                    rows.append([cat, cnt, pct, bar])
+                write_summary_table(["原因", "数量", "占比", ""], rows)
+                write_summary("\n</details>\n")
+            # 来源测速折叠
+            if src_total_dict:
+                write_summary("<details><summary>🔗 各来源测速结果</summary>\n")
+                rows = []
+                for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
+                    ok = src_ok_dict.get(src, 0)
+                    total = src_total_dict[src]
+                    rate = f"{ok/total*100:.1f}%" if total > 0 else "-"
+                    icon = "🟢" if ok/total >= 0.8 else "🟡" if ok/total >= 0.5 else "🔴"
+                    rows.append([f"{icon} {src.split('/')[-1][:40]}", ok, total, rate])
+                write_summary_table(["来源", "成功", "总计", "成功率"], rows)
+                write_summary("\n</details>\n")
+            # 分辨率折叠
+            if reso_stats:
+                write_summary("<details><summary>🖥️ 分辨率分布</summary>\n")
+                rows = []
+                for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
+                    cnt = reso_stats[lbl]
+                    bar = '🟦' * min(cnt // 5 + 1, 15)
+                    rows.append([lbl, cnt, bar])
+                write_summary_table(["分辨率", "数量", ""], rows)
+                write_summary("\n</details>\n")
             live_print("✅ 阶段2完成 (测速)")
             return
 
@@ -448,82 +521,101 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         live_print(f"  └─ 耗时: {elapsed:.2f}s")
 
         # ── 详细统计：写入 GITHUB_STEP_SUMMARY ──
-        summary_parts = ["## 📊 直播源检测详细统计", ""]
+        write_summary("## 🧠 阶段3 — 模板进化与输出\n")
+        write_summary_table(
+            ["指标", "数值"],
+            [
+                ["📺 有效频道", f"{total_channels} 个"],
+                ["📂 输出分类", f"{len(cat_order)} 个"],
+                ["🔞 成人频道", f"{adult_count} 个"],
+                ["📅 EPG", "✅" if epg_report else "❌"],
+                ["⏱️ 总耗时", f"{elapsed:.0f}s ({elapsed/60:.1f}min)"],
+            ]
+        )
+        write_summary("")
 
-        # 总体概览表
-        summary_parts.append("### 📈 总体概览")
-        summary_parts.append("| 指标 | 数值 |")
-        summary_parts.append("|------|------|")
-        summary_parts.append(f"| 抓取频道总数 | {source_total} |")
-        summary_parts.append(f"| 待测频道 | {to_test_count} |")
-        summary_parts.append(f"| 测速成功 | {source_ok} ({source_ok*100//source_total if source_total else 0}%) |")
-        summary_parts.append(f"| 有效频道(去重) | {total_channels} |")
-        summary_parts.append(f"| 成人频道 | {adult_count} |")
-        summary_parts.append(f"| 输出分类 | {len(cat_order)} |")
-        summary_parts.append(f"| 白名单免测 | {len(logs_whitelist)} |")
-        summary_parts.append(f"| 黑名单拦截 | {len(logs_blacklist)} |")
-        summary_parts.append(f"| 非TV过滤 | {non_tv_count} |")
-        if epg_report:
-            summary_parts.append("| EPG | ✅ |")
-        else:
-            summary_parts.append("| EPG | ❌ |")
-        summary_parts.append(f"| 运行耗时 | {elapsed:.0f}s ({elapsed/60:.1f}min) |")
-        summary_parts.append("")
+        # 总体概览折叠
+        write_summary("<details><summary>📈 总体概览</summary>\n")
+        write_summary_table(
+            ["指标", "数值"],
+            [
+                ["抓取频道总数", source_total],
+                ["待测频道", to_test_count],
+                ["测速成功", f"{source_ok} ({source_ok*100//source_total if source_total else 0}%)"],
+                ["有效频道(去重)", total_channels],
+                ["成人频道", adult_count],
+                ["输出分类", len(cat_order)],
+                ["白名单免测", len(logs_whitelist)],
+                ["黑名单拦截", len(logs_blacklist)],
+                ["非TV过滤", non_tv_count],
+                ["EPG", "✅" if epg_report else "❌"],
+                ["运行耗时", f"{elapsed:.0f}s ({elapsed/60:.1f}min)"],
+            ]
+        )
+        write_summary("\n</details>\n")
 
-        # 各来源测速结果
+        # 各来源测速结果折叠
         if src_total_dict:
-            summary_parts.append("### 🔗 各来源测速结果")
-            summary_parts.append("| 来源 | 成功 | 总计 | 成功率 |")
-            summary_parts.append("|------|------|------|--------|")
+            write_summary("<details><summary>🔗 各来源测速结果</summary>\n")
+            rows = []
             for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
                 ok = src_ok_dict.get(src, 0)
                 total = src_total_dict[src]
                 total_display = src.split("/")[-1][:50]
                 rate = f"{ok/total*100:.1f}%" if total > 0 else "-"
                 bar = "🟢" if ok/total >= 0.8 else "🟡" if ok/total >= 0.5 else "🔴"
-                summary_parts.append(f"| {bar} {total_display} | {ok} | {total} | {rate} |")
-            summary_parts.append("")
+                rows.append([f"{bar} {total_display}", ok, total, rate])
+            write_summary_table(["来源", "成功", "总计", "成功率"], rows)
+            write_summary("\n</details>\n")
 
-        # 失败原因分布
+        # 失败原因折叠
         if fail_counts:
             total_fails = sum(fail_counts.values())
-            summary_parts.append("### ❌ 失败原因分布")
-            summary_parts.append("| 原因 | 数量 | 占比 |")
-            summary_parts.append("|------|------|------|")
+            write_summary("<details><summary>❌ 失败原因分布</summary>\n")
+            rows = []
             for cat in sorted(fail_counts, key=fail_counts.get, reverse=True):
                 cnt = fail_counts[cat]
                 pct = f"{cnt/total_fails*100:.1f}%"
-                bar = '█' * min(cnt // 2 + 1, 20)
-                summary_parts.append(f"| {cat} | {cnt} | {pct} |")
-            summary_parts.append("")
+                rows.append([cat, cnt, pct])
+            write_summary_table(["原因", "数量", "占比"], rows)
+            write_summary("\n</details>\n")
 
-        # 分类频道存活情况
-        cat_live_counts = extra_stats.get("cat_live_counts", {})
+        # 分类频道存活折叠
         if cat_live_counts:
-            summary_parts.append("### 📺 分类频道存活情况")
-            summary_parts.append("| 分类 | 存活频道数 |")
-            summary_parts.append("|------|------------|")
+            write_summary("<details><summary>📺 分类频道存活情况</summary>\n")
+            rows = []
             for cat in sorted(cat_live_counts, key=cat_live_counts.get, reverse=True):
                 cnt = cat_live_counts[cat]
                 if cnt > 0:
-                    bar = '█' * min(cnt // 2 + 1, 20)
-                    summary_parts.append(f"| {cat} | {cnt} {bar} |")
-            summary_parts.append("")
+                    bar = '🟩' * min(cnt // 5 + 1, 15)
+                    rows.append([cat, cnt, bar])
+            write_summary_table(["分类", "存活数", ""], rows)
+            write_summary("\n</details>\n")
 
-        # 分辨率分布
+        # 分辨率折叠
         if reso_stats:
-            summary_parts.append("### 🖥️ 分辨率分布")
-            summary_parts.append("| 分辨率 | 数量 |")
-            summary_parts.append("|--------|------|")
+            write_summary("<details><summary>🖥️ 分辨率分布</summary>\n")
+            rows = []
             for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
                 cnt = reso_stats[lbl]
-                bar = '█' * min(cnt // 2 + 1, 15)
-                summary_parts.append(f"| {lbl} | {cnt} {bar} |")
-            summary_parts.append("")
+                bar = '🟦' * min(cnt // 5 + 1, 15)
+                rows.append([lbl, cnt, bar])
+            write_summary_table(["分辨率", "数量", ""], rows)
+            write_summary("\n</details>\n")
 
-        # 写 summary
-        for line in summary_parts:
-            write_summary(line)
+        # 文件列表
+        write_summary("<details><summary>💾 输出文件</summary>\n")
+        file_rows = []
+        import os as _os
+        for f_path in ["output/live.txt", "output/live.m3u", "output/adult.txt", "output/adult.m3u",
+                       "output/epg.xml", "output/epg.xml.gz", "output/log.txt"]:
+            if _os.path.exists(f_path):
+                size = _os.path.getsize(f_path)
+                size_str = f"{size/1024:.1f}KB" if size < 1024*1024 else f"{size/1024/1024:.1f}MB"
+                file_rows.append([f"`{f_path}`", size_str])
+        if file_rows:
+            write_summary_table(["文件", "大小"], file_rows)
+        write_summary("\n</details>\n")
 
         # 控制台也输出详细统计
         live_print(f"")

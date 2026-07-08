@@ -95,23 +95,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: stdbuf -oL python run_ci.py 3
 
-      - name: 📊 文件列表
-        if: always()
-        run: |
-          echo "## 📊 文件列表" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 文件 | 大小 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-          for f in output/live.txt output/live.m3u output/adult.txt output/adult.m3u output/epg.xml output/epg.xml.gz output/log.txt; do
-            if [ -f "$f" ]; then
-              SIZE=$(du -h "$f" | cut -f1)
-              echo "| 💾 \`$f\` | ${SIZE} |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> 详细统计（来源成功率、失败分布、分类存活、分辨率）见上方 main.py 输出" >> $GITHUB_STEP_SUMMARY
-          echo "> ⏱️ $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
-
       - name: 💾 提交并推送
         run: |
           echo "📋 变更检测"
