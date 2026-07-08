@@ -1748,6 +1748,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             valid_results = s["valid_results"]
             to_test = s["to_test"]
             adult_results = s["adult_results"]
+            adult_source_urls = set(s.get("adult_source_urls", []))
             logs_blacklist = s["logs_blacklist"]
             logs_whitelist = s["logs_whitelist"]
             cat_order = s["cat_order"]
@@ -1806,31 +1807,20 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             elif ipv6_count:
                 live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
 
-            # 成人来源免测（仅URL模式匹配，禁关键词免测避免误杀）
+            # 成人来源标记（仅URL模式匹配，后续阶段2会参加测速再归类）
             adult_sources = load_adult_sources()
             adult_results = {}
             if adult_sources:
                 live_print(f"  🔞 成人源URL模式: {adult_sources}")
-                still_to_test = []
-                adult_debug = []
+                adult_source_urls = set()
                 for name, url in to_test:
                     src = url_to_source.get(url, '')
-                    matched = [a for a in adult_sources if a in src]
-                    if matched:
-                        if name not in adult_results:
-                            adult_results[name] = [(url, -1)]
-                        else:
-                            existing = {u for u, _ in adult_results[name]}
-                            if url not in existing:
-                                adult_results[name].append((url, -1))
-                        adult_debug.append(f"    ✅ 来源匹配: {name:<30} | 模式={matched[0]}")
-                    else:
-                        still_to_test.append((name, url))
-                to_test = still_to_test
-                if adult_debug:
-                    for line in adult_debug:
-                        live_print(line)
-                live_print(f"  🔞 成人来源免测: {len(adult_results)} 个频道 → 跳过测速直接收录")
+                    for a in adult_sources:
+                        if a in src:
+                            adult_source_urls.add(url)
+                            break
+                if adult_source_urls:
+                    live_print(f"  🔞 标记 {len(adult_source_urls)} 个成人来源URL，将在阶段2参与测速后归类")
 
             channel_model, channel_to_station = load_channel_model()
 
@@ -1842,6 +1832,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 "logs_blacklist": logs_blacklist,
                 "logs_whitelist": logs_whitelist,
                 "adult_results": adult_results,
+                "adult_source_urls": list(adult_source_urls),
                 "cat_order": cat_order,
                 "chan_to_cat": chan_to_cat,
                 "chans_in_cat": chans_in_cat,
@@ -1898,6 +1889,22 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                             valid_results[name].append((url, elapsed))
                             existing_urls.add(url)
 
+            # ═══ 成人来源分离：测速后将成人来源URL从 valid_results 移到 adult_results ═══
+            if adult_source_urls:
+                adult_results = {}
+                for name in list(valid_results.keys()):
+                    adult_urls = [(u, e) for u, e in valid_results[name] if u in adult_source_urls]
+                    normal_urls = [(u, e) for u, e in valid_results[name] if u not in adult_source_urls]
+                    if adult_urls:
+                        adult_results[name] = adult_urls
+                    if normal_urls:
+                        valid_results[name] = normal_urls
+                    elif name in valid_results:
+                        del valid_results[name]
+                live_print(f"  🔞 成人来源测速后分离: {len(adult_results)} 个频道 → output/adult.m3u")
+            else:
+                adult_results = {}
+
             # ═══ 分辨率检测 ═══
             resolution_map = {}
             if PROBE_RESOLUTION and valid_results:
@@ -1952,6 +1959,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 "valid_results": valid_results,
                 "resolution_map": resolution_map,
                 "adult_results": adult_results,
+                "adult_source_urls": list(adult_source_urls),
                 "to_test": to_test,
                 "url_to_source": url_to_source,
                 "cat_order": cat_order,
