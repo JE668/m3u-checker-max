@@ -5,9 +5,9 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from utils.config import (
-    PROBE_TIMEOUT, PROBE_RESOLUTION, CATEGORY_RULES, DEFAULT_CATEGORY,
-    NON_TV_PATTERNS, ADULT_SOURCES_FILE, SOURCE_CAT_FILE, CHANNEL_MODEL_FILE,
-    DEMO_FILE, fmt_resolution, live_print, _AI_AVAILABLE, get_session
+    CATEGORY_RULES, DEFAULT_CATEGORY,
+    NON_TV_PATTERNS, NON_TV_LOG, ADULT_SOURCES_FILE, SOURCE_CAT_FILE, CHANNEL_MODEL_FILE,
+    DEMO_FILE, live_print, _AI_AVAILABLE, get_session
 )
 from utils.loaders import get_main_name, load_aliases, get_local_logo_url
 from utils.ai_helper import classify_channel
@@ -211,6 +211,9 @@ def _match_source_category(name, valid_results, url_to_source, source_cat_map):
                 return cat
     return None
 
+
+# P1-9: 预编译排序用正则
+_NUM_RE = re.compile(r'\d+')
 
 def channel_sort_key(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None) -> Tuple[int, int, str]:
     nums = _NUM_RE.findall(name)

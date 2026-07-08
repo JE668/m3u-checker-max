@@ -215,6 +215,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             valid_results = s["valid_results"]
             resolution_map = s.get("resolution_map", {})
             adult_results = s["adult_results"]
+            adult_source_urls = set(s.get("adult_source_urls", []))
             to_test = s.get("to_test", [])
             url_to_source = s.get("url_to_source", {})
             cat_order = s["cat_order"]
@@ -225,6 +226,8 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             epg_report = s["epg_report"]
             logs_success = s["logs_success"]
             logs_fail = s["logs_fail"]
+            logs_whitelist = s.get("logs_whitelist", [])
+            logs_blacklist = s.get("logs_blacklist", [])
             fail_counts = s["fail_counts"]
             source_stats = s["source_stats"]
             start_time = s["start_time"]
@@ -329,6 +332,8 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 "epg_report": epg_report,
                 "logs_success": logs_success,
                 "logs_fail": logs_fail,
+                "logs_whitelist": logs_whitelist,
+                "logs_blacklist": logs_blacklist,
                 "fail_counts": fail_counts,
                 "source_stats": source_stats,
                 "start_time": start_time,

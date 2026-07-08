@@ -7,7 +7,6 @@ from utils.config import (
     M3U_HEADER, MIN_RESOLUTION_PIXELS, MIN_RESOLUTION,
     fmt_resolution, live_print
 )
-from utils.categorizer import fmt_resolution
 from utils.loaders import get_local_logo_url
 
 def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: List[str], chans_in_cat: Dict[str, List[str]], epg_report: list, logs_success: list, logs_fail: list, logs_whitelist: list, logs_blacklist: list, extra_stats: Optional[Dict[str, Any]] = None, adult_results: Optional[Dict[str, List[Tuple[str, float]]]] = None, channel_to_station: Optional[Dict[str, str]] = None, resolution_map: Optional[Dict[str, Tuple[int, int]]] = None) -> None:

@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 from utils.config import (
+    PROBE_TIMEOUT,
     CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT, CHECK_TOTAL_TIMEOUT,
     DOWNLOAD_TARGET_BYTES, MIN_BANDWIDTH_MBPS, SAMPLE_PER_HOST,
     MAX_WORKERS, DEFAULT_HEADERS, INVALID_NAME_PATTERNS, BLACKLIST_FILE,
@@ -123,13 +124,6 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
 
 # P1-9: 预编译排序用正则
 _NUM_RE = re.compile(r'\d+')
-
-# --- demo.txt 自学习分类规则 ---
-
-
-# 预编译排序用正则
-_NUM_RE = re.compile(r'\d+')
-
 
 
 def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls: Set[str], whitelist_names: Set[str], whitelist_urls: Set[str]) -> Tuple[list, Dict[str, list], list, list]:
