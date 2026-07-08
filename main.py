@@ -594,6 +594,7 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
     channels = []  # [(main_name, url, source_url), ...]
     url_to_group = {}  # {url: group_title}
     unmatched_names = set()
+    _ai_alias_new = 0  # AI 新增 alias 计数
 
     if not os.path.exists(SOURCES_FILE): return channels, url_to_group
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
@@ -627,6 +628,20 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = get_main_name(name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
 
+                    # 别名未匹配时尝试 AI 兜底
+                    if main_name == name and ai_cache is not None and _AI_AVAILABLE:
+                        ai_name, ai_changed = _ai_fallback(name, ai_cache)
+                        if ai_changed and ai_name != name:
+                            # AI 找到标准化名称 → 立即写入 alias.txt，下次直接命中
+                            with open(ALIAS_FILE, 'a', encoding='utf-8') as _af:
+                                _af.write(f"{ai_name},{name}\n")
+                            aliases_exact[name] = ai_name
+                            known_main_names.add(ai_name)
+                            main_name = ai_name
+                            unmatched_names.discard(name)
+                            _ai_alias_new += 1
+                            live_print(f"  🤖 [AI兜底→alias] {name} => {ai_name}")
+
                     if name != main_name and (name, main_name) not in seen_source_renames:
                         live_print(f"  📝 [名称修正] {name} => {main_name}")
                         seen_source_renames.add((name, main_name))
@@ -643,6 +658,19 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                     raw_name = parts[0].strip()
                     main_name = get_main_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names)
 
+                    # 别名未匹配时尝试 AI 兜底
+                    if main_name == raw_name and ai_cache is not None and _AI_AVAILABLE:
+                        ai_name, ai_changed = _ai_fallback(raw_name, ai_cache)
+                        if ai_changed and ai_name != raw_name:
+                            with open(ALIAS_FILE, 'a', encoding='utf-8') as _af:
+                                _af.write(f"{ai_name},{raw_name}\n")
+                            aliases_exact[raw_name] = ai_name
+                            known_main_names.add(ai_name)
+                            main_name = ai_name
+                            unmatched_names.discard(raw_name)
+                            _ai_alias_new += 1
+                            live_print(f"  🤖 [AI兜底→alias] {raw_name} => {ai_name}")
+
                     if raw_name != main_name and (raw_name, main_name) not in seen_source_renames:
                         live_print(f"  📝 [名称修正] {raw_name} => {main_name}")
                         seen_source_renames.add((raw_name, main_name))
@@ -657,18 +685,26 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
             live_print(f"❌ 连接失败: {source_url} — {type(e).__name__}: {e}")
 
     if unmatched_names:
-        # AI 兜底处理：尝试用 AI 标准化未匹配的频道名
+        # AI 兜底处理：尝试用 AI 标准化未匹配的频道名，匹配后写入 alias.txt
         ai_renamed = 0
         if ai_cache is not None and _AI_AVAILABLE:
             for name in list(unmatched_names):
                 ai_name, ai_changed = _ai_fallback(name, ai_cache)
-                if ai_changed and ai_name in known_main_names:
-                    # AI 成功匹配到已知频道名
+                if ai_changed and ai_name != name:
+                    # AI 找到标准化名称 → 写入 alias.txt 永久生效
+                    with open(ALIAS_FILE, 'a', encoding='utf-8') as _af:
+                        _af.write(f"\n# Auto-added by AI: {datetime.now().strftime('%Y-%m-%d')}\n{ai_name},{name}\n")
+                    aliases_exact[name] = ai_name
+                    known_main_names.add(ai_name)
                     unmatched_names.discard(name)
                     ai_renamed += 1
-                    live_print(f"  🤖 [AI兜底] {name} => {ai_name} (已匹配)")
+                    live_print(f"  🤖 [AI兜底→alias] {name} => {ai_name}")
             if ai_renamed:
-                live_print(f"  🤖 AI 辅助: {ai_renamed} 个未匹配频道已成功归入已知频道")
+                live_print(f"  🤖 AI 辅助: {ai_renamed} 个未匹配频道已写入 alias.txt")
+        # 在 summary 中输出 AI alias 统计
+        if _ai_alias_new > 0:
+            live_print(f"  📝 AI 在频道解析时已追加 {_ai_alias_new} 条别名到 {ALIAS_FILE}")
+
         # 写入剩余未匹配
         if unmatched_names:
             with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
