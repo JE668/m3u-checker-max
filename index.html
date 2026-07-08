@@ -1,44 +1,82 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
- <meta charset="UTF-8">
- <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>IPTV 直播源状态 — m3u-checker-max</title>
- <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
- <style>
-  * { box-sizing: border-box; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IPTV 直播源仪表盘 — m3u-checker-max</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
     --bg: #0a0e17;
     --surface: #111827;
     --surface2: #1a2332;
+    --surface3: rgba(148,163,184,0.06);
     --border: rgba(148,163,184,0.12);
     --text: #e2e8f0;
     --text2: #94a3b8;
     --text3: #64748b;
     --blue: #3b82f6;
-    --blue-dim: rgba(59,130,246,0.1);
+    --blue-dim: rgba(59,130,246,0.12);
     --cyan: #22d3ee;
     --green: #34d399;
     --orange: #fb923c;
     --red: #f87171;
+    --purple: #a78bfa;
+    --pink: #f472b6;
     --radius: 10px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.3);
   }
+
+  .light {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --surface2: #e2e8f0;
+    --surface3: rgba(0,0,0,0.03);
+    --border: rgba(0,0,0,0.08);
+    --text: #0f172a;
+    --text2: #475569;
+    --text3: #94a3b8;
+    --blue-dim: rgba(59,130,246,0.08);
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+
   body {
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", system-ui, sans-serif;
     min-height: 100vh;
-    padding: 2rem 0;
+    padding: 1.5rem 0;
     -webkit-font-smoothing: antialiased;
+    transition: background 0.3s, color 0.3s;
   }
-  .container { max-width: 960px; }
+
+  .container { max-width: 1024px; margin: 0 auto; padding: 0 1rem; }
 
   /* ── 头部 ── */
-  .hero { margin-bottom: 1.5rem; }
-  .hero h1 { font-size: 1.4rem; font-weight: 700; margin: 0; }
-  .hero h1 span { color: var(--cyan); }
-  .hero .sub { color: var(--text3); font-size: 0.85rem; margin-top: 2px; }
-  .hero .update { color: var(--text3); font-size: 0.78rem; text-align: right; }
+  .hero {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    flex-wrap: wrap; gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .hero h1 {
+    font-size: 1.35rem; font-weight: 700;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero .sub { color: var(--text3); font-size: 0.82rem; margin-top: 2px; }
+  .hero .update { color: var(--text3); font-size: 0.78rem; text-align: right; display: flex; align-items: center; gap: 6px; }
+
+  /* ── 主题/刷新按钮 ── */
+  .top-actions { display: flex; align-items: center; gap: 6px; }
+  .icon-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text2);
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1rem; transition: 0.15s;
+  }
+  .icon-btn:hover { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
 
   /* ── 统计卡片 ── */
   .stats {
@@ -51,45 +89,82 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.65rem 0.5rem;
+    padding: 0.7rem 0.5rem;
     text-align: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+    position: relative;
+    overflow: hidden;
   }
-  .stat-num { font-size: 1.3rem; font-weight: 800; color: var(--cyan); line-height: 1.2; }
-  .stat-label { font-size: 0.68rem; color: var(--text3); letter-spacing: 0.3px; }
+  .stat:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+  .stat::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; border-radius: 8px 8px 0 0;
+  }
+  .stat:nth-child(1)::before { background: var(--cyan); }
+  .stat:nth-child(2)::before { background: var(--purple); }
+  .stat:nth-child(3)::before { background: var(--green); }
+  .stat:nth-child(4)::before { background: var(--orange); }
+  .stat:nth-child(5)::before { background: var(--blue); }
+
+  .stat .icon { font-size: 1.1rem; line-height: 1; }
+  .stat-num { font-size: 1.3rem; font-weight: 800; line-height: 1.2; }
+  .stat:nth-child(1) .stat-num { color: var(--cyan); }
+  .stat:nth-child(2) .stat-num { color: var(--purple); }
+  .stat:nth-child(3) .stat-num { color: var(--green); }
+  .stat:nth-child(4) .stat-num { color: var(--orange); }
+  .stat:nth-child(5) .stat-num { color: var(--blue); }
+  .stat-label { font-size: 0.65rem; color: var(--text3); letter-spacing: 0.3px; margin-top: 2px; }
 
   /* ── 操作栏 ── */
   .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 1.25rem;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    margin-bottom: 1rem;
   }
   .toolbar .btn {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text2);
-    padding: 0.4rem 0.9rem;
-    border-radius: 6px;
-    font-size: 0.82rem;
-    cursor: pointer;
-    text-decoration: none;
-    transition: all 0.15s;
-    white-space: nowrap;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text2);
+    padding: 0.38rem 0.85rem; border-radius: 6px;
+    font-size: 0.8rem; cursor: pointer; text-decoration: none;
+    transition: 0.15s; white-space: nowrap;
   }
   .toolbar .btn:hover { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
-  .toolbar .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .toolbar .btn-primary {
+    background: var(--blue); border-color: var(--blue); color: #fff;
+  }
   .toolbar .btn-primary:hover { background: #2563eb; color: #fff; }
-  .guide-toggle { color: var(--text3); font-size: 0.8rem; cursor: pointer; user-select: none; }
+  .guide-toggle {
+    color: var(--text3); font-size: 0.78rem; cursor: pointer; user-select: none; margin-left: auto;
+  }
   .guide-toggle:hover { color: var(--text2); }
 
   /* ── 使用指南 ── */
-  .guide-box { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; font-size: 0.85rem; }
+  .guide-box {
+    display: none; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1rem 1.25rem;
+    margin-bottom: 1rem; font-size: 0.85rem;
+  }
   .guide-box.open { display: block; }
-  .guide-box code { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; color: var(--cyan); word-break: break-all; }
-  .guide-box table { width: 100%; }
-  .guide-box td { padding: 0.4rem 0; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .guide-box code {
+    background: var(--surface3); padding: 2px 8px; border-radius: 4px;
+    font-size: 0.78rem; color: var(--cyan); word-break: break-all;
+  }
+  .guide-box td { padding: 0.35rem 0; border-bottom: 1px solid var(--border); color: var(--text2); }
   .guide-box td:first-child { color: var(--text); font-weight: 500; width: 100px; }
+
+  /* ── 骨架屏 ── */
+  .skeleton { display: none; }
+  .skeleton.show { display: block; }
+  .skeleton .sk-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+  }
+  .skeleton .sk-line {
+    height: 14px; border-radius: 7px;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+    background-size: 200% 100%; animation: shimmer 1.5s infinite;
+    margin-bottom: 10px;
+  }
+  .skeleton .sk-line:last-child { width: 60%; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
   /* ── 区块卡片 ── */
   .section {
@@ -98,138 +173,171 @@
     border-radius: var(--radius);
     margin-bottom: 1rem;
     overflow: hidden;
+    transition: box-shadow 0.2s;
   }
+  .section:hover { box-shadow: var(--shadow); }
+
   .section-title {
-    padding: 0.8rem 1.25rem;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0.75rem 1.25rem;
     border-bottom: 1px solid var(--border);
-    font-weight: 600;
-    font-size: 0.92rem;
+    font-weight: 600; font-size: 0.9rem;
   }
-  .section-body { padding: 0.75rem 1.25rem; }
+  .section-title .badge {
+    margin-left: auto; background: var(--surface2); color: var(--text2);
+    font-size: 0.7rem; padding: 1px 8px; border-radius: 10px; font-weight: 500;
+  }
+  .section-body { padding: 0.6rem 1.25rem; }
+
+  /* ── 分类搜索栏 ── */
+  .cat-search {
+    width: 100%; padding: 0.5rem 0.75rem; margin-bottom: 0.6rem;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 0.82rem; outline: none;
+    transition: border-color 0.15s;
+  }
+  .cat-search:focus { border-color: var(--blue); }
 
   /* ── 分类存活表 ── */
   .cat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
   }
   .cat-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0.45rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    display: flex; align-items: center; gap: 6px;
+    padding: 0.35rem 0.5rem; border-radius: 6px;
+    font-size: 0.84rem; transition: background 0.1s;
   }
-  .cat-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
-  .cat-item .count { font-weight: 600; font-size: 0.88rem; white-space: nowrap; }
+  .cat-item:hover { background: var(--surface3); }
+  .cat-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-item .count { font-weight: 700; font-size: 0.82rem; white-space: nowrap; flex-shrink: 0; }
   .cat-item .count.good { color: var(--green); }
   .cat-item .count.ok   { color: var(--orange); }
+  .cat-item .count.low  { color: var(--text3); }
+  .cat-item.hidden { display: none; }
 
   /* ── 失败分布 ── */
   .fail-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0.35rem 0;
-    font-size: 0.85rem;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0.3rem 0; font-size: 0.84rem;
   }
   .fail-row .label { width: 90px; flex-shrink: 0; color: var(--text2); }
   .fail-row .bar {
-    flex: 1;
-    height: 18px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 4px;
-    overflow: hidden;
-    position: relative;
+    flex: 1; height: 16px;
+    background: var(--surface3); border-radius: 4px; overflow: hidden;
   }
   .fail-row .bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.5s ease;
+    height: 100%; border-radius: 4px; transition: width 0.6s ease;
     min-width: 2px;
   }
-  .fail-row .bar-fill.high  { background: linear-gradient(90deg, var(--red), #ef4444); }
-  .fail-row .bar-fill.med   { background: linear-gradient(90deg, var(--orange), #f97316); }
-  .fail-row .bar-fill.low   { background: linear-gradient(90deg, #6366f1, #818cf8); }
-  .fail-row .bar-fill.misc  { background: linear-gradient(90deg, var(--text3), #9ca3af); }
-  .fail-row .num { width: 40px; text-align: right; font-weight: 600; font-size: 0.82rem; flex-shrink: 0; }
+  .fail-row .bar-fill.c1 { background: linear-gradient(90deg, var(--red), #ef4444); }
+  .fail-row .bar-fill.c2 { background: linear-gradient(90deg, var(--orange), #f97316); }
+  .fail-row .bar-fill.c3 { background: linear-gradient(90deg, var(--purple), #818cf8); }
+  .fail-row .bar-fill.c4 { background: linear-gradient(90deg, var(--text3), #9ca3af); }
+  .fail-row .num { width: 36px; text-align: right; font-weight: 600; font-size: 0.82rem; flex-shrink: 0; }
 
   /* ── 来源表 ── */
-  .src-table { width: 100%; font-size: 0.85rem; }
-  .src-table th { text-align: left; color: var(--text3); font-weight: 500; font-size: 0.78rem; padding: 0.5rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--border); }
-  .src-table td { padding: 0.4rem 0.5rem 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
-  .src-table .src-name { color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
-  .src-table .src-rate { font-weight: 600; }
+  .src-table { width: 100%; font-size: 0.84rem; border-collapse: collapse; }
+  .src-table th {
+    text-align: left; color: var(--text3); font-weight: 500; font-size: 0.76rem;
+    padding: 0.4rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--border);
+  }
+  .src-table td {
+    padding: 0.35rem 0.5rem 0.35rem 0; border-bottom: 1px solid var(--surface3);
+  }
+  .src-table tr:hover td { background: var(--surface3); border-radius: 4px; }
+  .src-table .src-name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src-table .num-col { text-align: right; }
+  .src-rate { font-weight: 700; }
   .src-rate.good { color: var(--green); }
   .src-rate.ok   { color: var(--orange); }
   .src-rate.bad  { color: var(--red); }
 
-  /* ── 运行时间 ── */
+  /* ── 底部 ── */
   .runtime {
-    text-align: center;
-    color: var(--text3);
-    font-size: 0.8rem;
-    padding: 1rem 0;
+    text-align: center; color: var(--text3); font-size: 0.78rem;
+    padding: 0.8rem 0; border-top: 1px solid var(--border); margin-top: 1rem;
   }
+  .footer {
+    text-align: center; color: var(--text3); font-size: 0.75rem;
+    padding: 1rem 0; opacity: 0.7;
+  }
+  .footer a { color: var(--text3); text-decoration: none; }
+  .footer a:hover { color: var(--blue); }
 
   /* ── Toast ── */
   #toast {
     position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
-    background: #1e293b; border: 1px solid var(--border);
+    background: var(--surface); border: 1px solid var(--border);
     color: var(--text); border-radius: 8px;
-    padding: 0.6rem 1.2rem; font-size: 0.85rem;
+    padding: 0.55rem 1.1rem; font-size: 0.84rem;
     box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-    opacity: 0; transition: opacity 0.2s; pointer-events: none;
-    z-index: 999;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 999;
   }
   #toast.show { opacity: 1; }
 
-  @media (max-width: 700px) {
-    body { padding: 1rem 0; }
+  /* ── 颜色标识 ── */
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  @media (max-width: 768px) {
+    body { padding: 0.8rem 0; }
     .stats { grid-template-columns: repeat(3, 1fr); }
-    .cat-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-    .hero .update { text-align: left; margin-top: 4px; }
-    .fail-row .label { width: 70px; }
+    .cat-grid { grid-template-columns: repeat(2, 1fr); }
+    .cat-item { font-size: 0.8rem; }
     .src-table { font-size: 0.78rem; }
+    .fail-row .label { width: 70px; }
+    .guide-toggle { margin-left: 0; }
   }
- </style>
+  @media (max-width: 480px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .cat-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 1.1rem; }
+    .toolbar .btn { font-size: 0.75rem; padding: 0.3rem 0.6rem; }
+  }
+</style>
 </head>
 <body>
 <div class="container">
 
   <!-- ── 头部 ── -->
-  <div class="d-flex justify-content-between align-items-start flex-wrap hero">
+  <div class="hero">
     <div>
-      <h1>📡 <span>IPTV</span> 直播源状态</h1>
-      <div class="sub">m3u-checker-max · 全网高并发验证 · 极速源排序</div>
+      <h1>📡 IPTV 直播源仪表盘</h1>
+      <div class="sub">m3u-checker-max · 全自动验证 · AI 智能分类</div>
     </div>
-    <div class="update" id="update-time">⏳ 加载中...</div>
+    <div class="top-actions">
+      <span class="update" id="update-time">⏳ 加载中...</span>
+      <button class="icon-btn" onclick="toggleTheme()" title="切换主题" id="theme-btn">🌙</button>
+      <button class="icon-btn" onclick="location.reload()" title="刷新数据">↻</button>
+    </div>
   </div>
 
   <!-- ── 统计卡片 ── -->
   <div class="stats">
-    <div class="stat"><div class="stat-num" id="s-ch">-</div><div class="stat-label">直播频道</div></div>
-    <div class="stat"><div class="stat-num" id="s-cat">-</div><div class="stat-label">分类</div></div>
-    <div class="stat"><div class="stat-num" id="s-m3u">-</div><div class="stat-label">M3U 大小</div></div>
-    <div class="stat"><div class="stat-num" id="s-epg">-</div><div class="stat-label">EPG 频道</div></div>
-    <div class="stat"><div class="stat-num" id="s-src">-</div><div class="stat-label">来源</div></div>
+    <div class="stat"><div class="icon">📺</div><div class="stat-num" id="s-ch">-</div><div class="stat-label">直播频道</div></div>
+    <div class="stat"><div class="icon">📂</div><div class="stat-num" id="s-cat">-</div><div class="stat-label">分类</div></div>
+    <div class="stat"><div class="icon">💾</div><div class="stat-num" id="s-m3u">-</div><div class="stat-label">M3U 大小</div></div>
+    <div class="stat"><div class="icon">📅</div><div class="stat-num" id="s-epg">-</div><div class="stat-label">EPG 频道</div></div>
+    <div class="stat"><div class="icon">🔗</div><div class="stat-num" id="s-src">-</div><div class="stat-label">来源</div></div>
   </div>
 
   <!-- ── 操作栏 ── -->
   <div class="toolbar">
-    <button class="btn btn-primary" onclick="copyM3U()">📋 复制 M3U 地址</button>
-    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u" download>⬇ M3U</a>
-    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.txt" download>⬇ TXT</a>
-    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml" target="_blank">📺 EPG</a>
-    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/epg.xml.gz" download>🗜 EPG(GZ)</a>
-    <a class="btn" href="https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/log.txt" target="_blank">📄 日志</a>
-    <span class="guide-toggle" onclick="toggleGuide()">❓ 怎么用</span>
+    <button class="btn btn-primary" onclick="copyM3U()">📋 复制 M3U</button>
+    <a class="btn" href="output/live.m3u" download>⬇ M3U</a>
+    <a class="btn" href="output/live.txt" download>⬇ TXT</a>
+    <a class="btn" href="output/adult.m3u" download>🔞 成人M3U</a>
+    <a class="btn" href="output/epg.xml" target="_blank">📺 EPG</a>
+    <a class="btn" href="output/epg.xml.gz" download>🗜 EPG(GZ)</a>
+    <a class="btn" href="output/log.txt" target="_blank">📄 日志</a>
+    <span class="guide-toggle" onclick="toggleGuide()">❓ 使用方法</span>
   </div>
 
   <!-- ── 使用指南 ── -->
   <div class="guide-box" id="guide-box">
-    <div class="mb-2 fw-bold">📺 在播放器中导入 M3U 地址</div>
-    <table>
+    <div class="mb-2 fw-bold" style="margin-bottom:0.5rem;">📺 在播放器中导入 M3U 地址</div>
+    <table style="width:100%;">
       <tr><td>M3U 地址</td><td><code id="m3u-url-copy">https://gh.felicity.ac.cn/https://raw.githubusercontent.com/JE668/m3u-checker-max/main/output/live.m3u</code></td></tr>
       <tr><td>IPTV Smarters</td><td>设置 → 添加播放列表 → M3U URL → 粘贴</td></tr>
       <tr><td>VLC</td><td>媒体 → 打开网络串流 → 粘贴地址</td></tr>
@@ -239,19 +347,32 @@
     </table>
   </div>
 
-  <!-- ── 加载提示 ── -->
-  <div id="loading" class="text-center py-5" style="color:var(--text3);">
-    <div style="font-size:1.5rem;margin-bottom:0.3rem;">⏳</div>
-    <div>正在加载数据...</div>
+  <!-- ── 骨架屏 ── -->
+  <div class="skeleton show" id="loading">
+    <div class="sk-item">
+      <div class="sk-line" style="width:30%"></div>
+      <div class="sk-line"></div>
+      <div class="sk-line"></div>
+      <div class="sk-line"></div>
+    </div>
+    <div class="sk-item">
+      <div class="sk-line" style="width:20%"></div>
+      <div class="sk-line"></div>
+      <div class="sk-line" style="width:50%"></div>
+    </div>
   </div>
 
-  <!-- ── 仪表盘内容 ── -->
+  <!-- ── 仪表盘 ── -->
   <div id="dashboard" style="display:none;">
 
     <!-- 分类频道存活 -->
     <div class="section">
-      <div class="section-title">📺 分类频道存活</div>
+      <div class="section-title">
+        📺 分类频道存活
+        <span class="badge" id="cat-count-badge">0</span>
+      </div>
       <div class="section-body">
+        <input class="cat-search" id="cat-search" type="text" placeholder="🔍 搜索分类..." oninput="filterCategories()">
         <div class="cat-grid" id="cat-grid"></div>
       </div>
     </div>
@@ -267,30 +388,41 @@
     <!-- 来源可靠性 -->
     <div class="section">
       <div class="section-title">📡 来源可靠性</div>
-      <div class="section-body">
+      <div class="section-body" style="overflow-x:auto;">
         <table class="src-table">
-          <thead><tr><th>来源</th><th style="text-align:right;">成功</th><th style="text-align:right;">总计</th><th style="text-align:right;">成功率</th></tr></thead>
+          <thead><tr><th>来源</th><th class="num-col">成功</th><th class="num-col">总计</th><th class="num-col">成功率</th></tr></thead>
           <tbody id="src-tbody"></tbody>
         </table>
       </div>
     </div>
 
-    <!-- 运行时间 -->
-    <div class="runtime" id="runtime"></div>
-
   </div>
 
+  <div class="runtime" id="runtime"></div>
+  <div class="footer">
+    <a href="https://github.com/JE668/m3u-checker-max" target="_blank">JE668/m3u-checker-max</a>
+    · 数据每 6 小时自动更新
+  </div>
 </div>
 
 <div id="toast"></div>
 
 <script>
-/* ── 工具函数 ── */
+/* ── 主题 ── */
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'light') toggleTheme();
+
+/* ── 工具 ── */
 const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
-function toast(msg) {
+function toast(msg, icon) {
   const el = document.getElementById('toast');
-  el.textContent = '✅ ' + msg;
+  el.textContent = (icon || '✅') + ' ' + msg;
   el.classList.add('show');
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200);
 }
@@ -302,10 +434,6 @@ function copyM3U() {
   navigator.clipboard.writeText(url).then(() => toast('M3U 地址已复制！'));
 }
 
-const EPG_URL = 'output/epg.xml';
-const LOG_URL = 'output/log.txt';
-const TXT_URL = 'output/live.txt';
-
 function fmtSize(bytes) {
   if (!bytes || bytes === 0) return '-';
   if (bytes < 1024) return bytes + 'B';
@@ -313,103 +441,85 @@ function fmtSize(bytes) {
   return (bytes/1024/1024).toFixed(1) + 'MB';
 }
 
+/* ── 分类搜索 ── */
+function filterCategories() {
+  const q = document.getElementById('cat-search').value.toLowerCase();
+  document.querySelectorAll('.cat-item').forEach(el => {
+    el.classList.toggle('hidden', q && !el.textContent.toLowerCase().includes(q));
+  });
+}
+
+/* ── 分类颜色 ── */
+function getCatColor(name) {
+  if (name.includes('央视') || name.includes('CCTV')) return '#ef4444';
+  if (name.includes('卫视')) return '#f97316';
+  if (name.includes('体育')) return '#22c55e';
+  if (name.includes('电影')) return '#a855f7';
+  if (name.includes('动画') || name.includes('少儿')) return '#f472b6';
+  if (name.includes('教育')) return '#6366f1';
+  if (name.includes('4K') || name.includes('8K') || name.includes('超高清')) return '#eab308';
+  if (name.includes('港') || name.includes('澳') || name.includes('台')) return '#06b6d4';
+  if (name.includes('其他')) return '#6b7280';
+  return '#3b82f6';
+}
+
 /* ── 解析 log.txt ── */
 function parseLog(text) {
   const lines = text.split('\n');
-  let updateTime = '', runtime = '';
-  const categories = [];  // [{name, count}]
-  const failures = [];    // [{label, count}]
-  const sources = [];     // [{name, ok, total, rate}]
-
+  const d = { updateTime: '', runtime: '', categories: [], failures: [], sources: [] };
   let section = null;
 
   for (const line of lines) {
     const t = line.trim();
     if (!t) continue;
 
-    // 任务时间
-    if (t.startsWith('任务时间:')) {
-      updateTime = t.replace('任务时间:', '').trim();
-      continue;
-    }
-
-    // 运行时长
-    if (t.startsWith('总运行时长:')) {
-      runtime = t.replace('总运行时长:', '').trim();
-      continue;
-    }
-
-    // 区块标题
+    if (t.startsWith('任务时间:')) { d.updateTime = t.replace('任务时间:', '').trim(); continue; }
+    if (t.startsWith('总运行时长:')) { d.runtime = t.replace('总运行时长:', '').trim(); continue; }
     if (t === '各来源测速结果:') { section = 'sources'; continue; }
     if (t === '失败原因统计:') { section = 'failures'; continue; }
     if (t === '分类频道存活情况:') { section = 'categories'; continue; }
-
-    // 分隔线
     if (t.startsWith('──')) continue;
+    if (t.startsWith('来源') && t.includes('成功') && t.includes('总计')) continue;
 
-    // 来源表头
-    if (t.startsWith('来源') && t.includes('成功') && t.includes('总计') && t.includes('成功率')) continue;
-
-    // 解析分类存活: "  ☘️广东频道                                   47 个频道"
-    if (section === 'categories' && !t.startsWith('来源') && !t.startsWith('──')) {
+    if (section === 'categories') {
       const m = t.match(/(.+?)\s+(\d+)\s+个频道/);
-      if (m) {
-        categories.push({ name: m[1].trim(), count: parseInt(m[2]) });
-      }
+      if (m) d.categories.push({ name: m[1].trim(), count: parseInt(m[2]) });
     }
-
-    // 解析失败原因: "  流数据不足        745"
     if (section === 'failures') {
       const m = t.match(/(.+?)\s+(\d+)$/);
-      if (m) {
-        failures.push({ label: m[1].trim(), count: parseInt(m[2]) });
-      }
+      if (m) d.failures.push({ label: m[1].trim(), count: parseInt(m[2]) });
     }
-
-    // 解析来源: "  source-m3u.txt                                        275   1623    16.9%"
     if (section === 'sources') {
-      // 匹配: 来源名(可含空格/特殊字符) + 数字 + 数字 + 百分比
-      const m = t.match(/^(.+?)\s+(\d+)\s+(\d+)\s+(\d+\.?\d*)%/);
-      if (m) {
-        sources.push({
-          name: m[1].trim(),
-          ok: parseInt(m[2]),
-          total: parseInt(m[3]),
-          rate: parseFloat(m[4])
-        });
-      }
+      const m = t.match(/^(.+?)\s+(\d+)\s+(\d+)\s+([\d.]+)%/);
+      if (m) d.sources.push({ name: m[1].trim(), ok: +m[2], total: +m[3], rate: +m[4] });
     }
   }
-
-  return { updateTime, runtime, categories, failures, sources };
+  return d;
 }
 
 /* ── 获取 EPG 频道数 ── */
 async function fetchEpgCount() {
   try {
-    const r = await fetch(EPG_URL);
+    const r = await fetch('output/epg.xml');
     const reader = r.body.getReader();
-    const chunks = [];
-    let total = 0;
+    let total = 0, text = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value);
+      text += new TextDecoder().decode(value);
       total += value.length;
-      if (total > 30000) break;
+      if (total > 50000) { reader.cancel(); break; }
     }
-    reader.cancel();
-    const text = new TextDecoder().decode(Uint8Array.from(chunks.flatMap(c => Array.from(c))));
-    return (text.match(/<channel\s+id=/g) || []).length || null;
+    return (text.match(/<channel\s+id=/g) || []).length;
   } catch(e) { return null; }
 }
 
-/* ── 获取 M3U 大小、频道数 ── */
+/* ── 获取 M3U 信息 ── */
 async function fetchM3uStats() {
   try {
     const [head, txt] = await Promise.all([
       fetch('output/live.m3u', { method: 'HEAD' }).catch(() => null),
-      fetch(TXT_URL).catch(() => null)
+      fetch('output/live.txt').catch(() => null)
     ]);
     let size = '-';
     if (head) size = fmtSize(parseInt(head.headers.get('content-length') || '0'));
@@ -422,21 +532,26 @@ async function fetchM3uStats() {
   } catch(e) { return { m3uSize: '-', chCount: 0 }; }
 }
 
-/* ── 渲染仪表盘 ── */
+/* ── 渲染 ── */
 function renderDashboard(d) {
   // 分类
   const catGrid = document.getElementById('cat-grid');
   catGrid.innerHTML = d.categories.map(c => {
-    const cls = c.count >= 10 ? 'good' : c.count >= 3 ? 'ok' : '';
-    return `<div class="cat-item"><span class="name">📺 ${esc(c.name)}</span><span class="count ${cls}">${c.count}</span></div>`;
+    const color = getCatColor(c.name);
+    const cls = c.count >= 10 ? 'good' : c.count >= 3 ? 'ok' : 'low';
+    return `<div class="cat-item" data-name="${esc(c.name)}">
+      <span class="dot" style="background:${color}"></span>
+      <span class="name">${esc(c.name)}</span>
+      <span class="count ${cls}">${c.count}</span>
+    </div>`;
   }).join('');
+  document.getElementById('cat-count-badge').textContent = d.categories.length;
 
-  // 失败分布
+  // 失败
   const maxFail = Math.max(...d.failures.map(f => f.count), 1);
-  const failList = document.getElementById('fail-list');
-  failList.innerHTML = d.failures.map(f => {
-    const pct = (f.count / maxFail * 100);
-    const cls = f.count >= 200 ? 'high' : f.count >= 50 ? 'med' : f.count >= 10 ? 'low' : 'misc';
+  document.getElementById('fail-list').innerHTML = d.failures.map((f, i) => {
+    const pct = f.count / maxFail * 100;
+    const cls = ['c1','c2','c3','c4'][Math.min(i, 3)];
     return `<div class="fail-row">
       <span class="label">${esc(f.label)}</span>
       <div class="bar"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
@@ -445,58 +560,58 @@ function renderDashboard(d) {
   }).join('');
 
   // 来源
-  const srcTbody = document.getElementById('src-tbody');
-  srcTbody.innerHTML = d.sources.map(s => {
+  document.getElementById('src-tbody').innerHTML = d.sources.map(s => {
     const cls = s.rate >= 15 ? 'good' : s.rate >= 5 ? 'ok' : 'bad';
     return `<tr>
       <td class="src-name" title="${esc(s.name)}">${esc(s.name)}</td>
-      <td style="text-align:right;">${s.ok}</td>
-      <td style="text-align:right;">${s.total}</td>
-      <td style="text-align:right;"><span class="src-rate ${cls}">${s.rate.toFixed(1)}%</span></td>
+      <td class="num-col">${s.ok}</td>
+      <td class="num-col">${s.total}</td>
+      <td class="num-col"><span class="src-rate ${cls}">${s.rate.toFixed(1)}%</span></td>
     </tr>`;
   }).join('');
-
-  // 总运行时间
-  document.getElementById('runtime').textContent = d.runtime ? `⏱ 总运行时长: ${d.runtime}` : '';
 }
 
 /* ── 主流程 ── */
 async function main() {
   try {
     const [logResp, epgCount, m3uStats] = await Promise.all([
-      fetch(LOG_URL),
+      fetch('output/log.txt'),
       fetchEpgCount(),
       fetchM3uStats()
     ]);
 
-    const logText = await logResp.text();
-    const d = parseLog(logText);
+    const d = parseLog(await logResp.text());
 
-    // 更新统计卡片
     document.getElementById('s-ch').textContent  = m3uStats.chCount;
     document.getElementById('s-cat').textContent = d.categories.length;
     document.getElementById('s-m3u').textContent = m3uStats.m3uSize;
     document.getElementById('s-epg').textContent = epgCount !== null ? epgCount : '-';
     document.getElementById('s-src').textContent = d.sources.length;
 
-    // 更新时间
     if (d.updateTime) document.getElementById('update-time').textContent = '🕐 ' + d.updateTime;
 
-    // 隐藏加载，显示仪表盘
+    document.getElementById('loading').classList.remove('show');
     document.getElementById('loading').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
 
     renderDashboard(d);
 
+    if (d.runtime) document.getElementById('runtime').textContent = '⏱ 总运行时长: ' + d.runtime;
+
   } catch(err) {
-    document.getElementById('loading').innerHTML = `
-      <div style="font-size:2rem;margin-bottom:0.3rem;">⚠️</div>
-      <div>数据加载失败</div>
-      <div style="font-size:0.8rem;margin-top:0.3rem;color:var(--text3);">${esc(err.message)}</div>`;
+    document.getElementById('loading').innerHTML =
+      '<div class="sk-item" style="text-align:center;padding:2rem;">' +
+      '<div style="font-size:2rem;margin-bottom:0.5rem;">⚠️</div>' +
+      '<div style="font-size:0.9rem;">数据加载失败</div>' +
+      '<div style="font-size:0.8rem;margin-top:0.3rem;color:var(--text3);">' + esc(err.message) + '</div>' +
+      '<button class="btn" style="margin-top:0.8rem;" onclick="location.reload()">🔄 重试</button></div>';
   }
 }
 
 main();
+
+// 每 5 分钟自动刷新
+setTimeout(() => location.reload(), 300000);
 </script>
 </body>
 </html>
