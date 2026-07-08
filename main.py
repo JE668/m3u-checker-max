@@ -1255,7 +1255,7 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
         # 如果频道名匹配到兜底分类(📺其他频道)，尝试来源URL推断
         if cat == f"{DEFAULT_CATEGORY[0]},#genre#" and source_cat_map and valid_results and url_to_source:
             source_cat = _match_source_category(name, valid_results, url_to_source, source_cat_map)
-            if source_cat:
+            if source_cat and source_cat.strip():
                 cat = f"{source_cat},#genre#"
                 live_print(f"  🏷️ [来源推断] [{name}] → {source_cat} (基于来源URL)")
         additions.setdefault(cat, []).append(name)
@@ -1359,9 +1359,9 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
             return (name, url, False)
 
         live_print(f"🔍 白名单存活检测: {len(whitelist_candidates)} 条 (并发 HEAD)")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
-            futs = {ex.submit(_check_head, n, u): (n, u) for n, u in whitelist_candidates}
-            for f in concurrent.futures.as_completed(futs):
+        pool = get_pool()
+        futs = {pool.submit(_check_head, n, u): (n, u) for n, u in whitelist_candidates}
+        for f in concurrent.futures.as_completed(futs):
                 name, url, alive = f.result()
                 if alive:
                     whitelist_alive.add((name, url))
@@ -1900,9 +1900,9 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             # 成人来源标记（仅URL模式匹配，后续阶段2会参加测速再归类）
             adult_sources = load_adult_sources()
             adult_results = {}
+            adult_source_urls = set()  # 始终初始化，避免 adult-sources.txt 为空时 NameError
             if adult_sources:
                 live_print(f"  🔞 成人源URL模式: {adult_sources}")
-                adult_source_urls = set()
                 for name, url in to_test:
                     src = url_to_source.get(url, '')
                     for a in adult_sources:
@@ -1914,6 +1914,9 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
 
             channel_model, channel_to_station = load_channel_model()
 
+        # 阶段1结束前保存 AI 缓存，避免跨阶段丢失
+        if _AI_CACHE:
+            _save_ai_cache(_AI_CACHE)
         if ci_phase == 1:
             _save_state(1, {
                 "url_to_source": url_to_source,
