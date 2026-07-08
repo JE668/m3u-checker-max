@@ -1,5 +1,5 @@
 import os, gzip, io, concurrent.futures, xml.etree.ElementTree as ET
-from typing import Tuple, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 from utils.config import (
     EPG_FILE, EPG_BLACKLIST, EPG_MAX_WORKERS, OUTPUT_EPG, OUTPUT_EPG_GZ,

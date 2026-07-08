@@ -1,5 +1,5 @@
 import concurrent.futures, random, time, subprocess, json, re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 from utils.config import (
