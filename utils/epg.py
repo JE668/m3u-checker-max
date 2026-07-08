@@ -1,4 +1,4 @@
-import os, gzip, io, concurrent.futures, xml.etree.ElementTree as ET
+import os, gzip, io, concurrent.futures, xml.etree.ElementTree as ET, re
 from typing import Dict, List, Optional, Set, Tuple
 
 from utils.config import (

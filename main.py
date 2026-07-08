@@ -14,7 +14,7 @@ m3u-checker-max — IPTV 直播源检测与分类系统
   utils/output.py      成品输出 M3U/TXT/日志
 """
 
-import os, time, json, shutil
+import os, time, json, shutil, re
 from typing import Optional
 from datetime import datetime
 

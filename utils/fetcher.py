@@ -1,5 +1,4 @@
-import os, json, concurrent.futures, time
-import re
+import os, json, concurrent.futures, time, re
 from typing import Dict, List, Tuple, Optional, Set
 from datetime import datetime
 
