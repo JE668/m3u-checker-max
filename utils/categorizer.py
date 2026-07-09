@@ -10,7 +10,7 @@ from utils.config import (
     DEMO_FILE, live_print, _AI_AVAILABLE, get_session, _NUM_RE
 )
 from utils.loaders import get_main_name, load_aliases, get_local_logo_url
-from utils.ai_helper import classify_channel
+from utils.ai_helper import classify_channel, classify_channels_batch
 
 # 模块级缓存：避免同一 CI 周期内重复学习
 _demo_rules_cache = None
@@ -89,7 +89,7 @@ def _build_demo_rules(chans_in_cat):
     return demo_rules
 
 
-def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None) -> Tuple[str, int]:
+def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None, use_ai: bool = True) -> Tuple[str, int]:
     """根据频道名匹配分类
     
     匹配优先级：
@@ -119,8 +119,8 @@ def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, chan
         if any(kw in name_upper for kw in keywords):
             return f"{cat_name},#genre#", priority
 
-    # 第三步：AI 分类兜底（仅当其他规则都不匹配时）
-    if _AI_AVAILABLE and name:
+    # 第三步：AI 分类兜底（仅当其他规则都不匹配时；use_ai=False 时跳过，交由批量接口处理）
+    if use_ai and _AI_AVAILABLE and name:
         ai_cat = classify_channel(name)
         if ai_cat and ai_cat != DEFAULT_CATEGORY[0]:
             return f"{ai_cat},#genre#", -1  # 给最高优先级，确保写入 demo.txt
@@ -311,9 +311,23 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
     # 从 demo.txt 现有结构学习分类规则
     demo_rules = _build_demo_rules(chans_in_cat)
 
+    # 第一趟：规则匹配（关闭 AI，避免逐条调用），收集需要 AI 兜底的频道
+    ai_pending = []
+    for name in tv_channels:
+        cat, _ = _match_category(name, demo_rules, channel_model, use_ai=False)
+        if cat.startswith(f"{DEFAULT_CATEGORY[0]},#genre#"):
+            ai_pending.append(name)
+    # 批量 AI 分类（一次或分片请求，结果写入缓存，避免 N 次逐条调用）
+    ai_map = classify_channels_batch(ai_pending)
+    if ai_pending:
+        live_print(f"  🤖 [AI批量分类] 待分类 {len(ai_pending)} 个，成功归类 {len(ai_map)} 个")
+
     additions = {}
     for name in tv_channels:
-        cat, _ = _match_category(name, demo_rules, channel_model)
+        cat, _ = _match_category(name, demo_rules, channel_model, use_ai=False)
+        # AI 批量结果兜底
+        if cat.startswith(f"{DEFAULT_CATEGORY[0]},#genre#") and name in ai_map:
+            cat = f"{ai_map[name]},#genre#"
         # 如果频道名匹配到兜底分类(📺其他频道)，尝试来源URL推断
         if cat == f"{DEFAULT_CATEGORY[0]},#genre#" and source_cat_map and valid_results and url_to_source:
             source_cat = _match_source_category(name, valid_results, url_to_source, source_cat_map)

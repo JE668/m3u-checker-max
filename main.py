@@ -16,6 +16,7 @@ m3u-checker-max — IPTV 直播源检测与分类系统
 
 import os, time, json, shutil, re, concurrent.futures
 from typing import Optional
+from dataclasses import dataclass, field, fields, asdict
 from datetime import datetime
 
 from utils.config import (
@@ -37,7 +38,7 @@ from utils.epg import (
 )
 
 from utils.fetcher import (
-    fetch_and_parse_channels, fetch_source_meta,
+    fetch_and_parse_channels, fetch_source_meta, save_parse_results,
 )
 
 from utils.categorizer import (
@@ -46,7 +47,7 @@ from utils.categorizer import (
 )
 
 from utils.speedtest import (
-    run_speed_test, apply_filter_lists, probe_resolution,
+    run_speed_test, apply_filter_lists, append_auto_blacklist, probe_resolution,
 )
 
 from utils.output import (
@@ -55,6 +56,45 @@ from utils.output import (
 
 # ── _AI_CACHE 持久化缓存（main 函数的局部变量） ──
 _AI_CACHE = {}
+
+@dataclass
+class CIState:
+    """CI 三阶段状态的单一字段来源与序列化载体。
+
+    所有跨阶段传递的变量集中在此；_save_state/_load_state 通过 asdict
+    自动完成序列化，避免手写字典键名带来的拼写/遗漏风险。
+    """
+    # 阶段1 派生状态
+    url_to_source: dict = field(default_factory=dict)
+    valid_results: dict = field(default_factory=dict)
+    to_test: list = field(default_factory=list)
+    logs_blacklist: list = field(default_factory=list)
+    logs_whitelist: list = field(default_factory=list)
+    adult_results: dict = field(default_factory=dict)
+    adult_source_urls: set = field(default_factory=set)
+    cat_order: list = field(default_factory=list)
+    chan_to_cat: dict = field(default_factory=dict)
+    chans_in_cat: dict = field(default_factory=dict)
+    channel_to_station: dict = field(default_factory=dict)
+    channel_model: dict = field(default_factory=dict)
+    epg_report: object = None
+    start_time: float = 0.0
+    # 阶段2 派生状态
+    resolution_map: dict = field(default_factory=dict)
+    logs_success: list = field(default_factory=list)
+    logs_fail: list = field(default_factory=list)
+    fail_counts: dict = field(default_factory=dict)
+    source_stats: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CIState":
+        """从磁盘 JSON 反序列化；自动将 adult_source_urls 还原为 set，
+        忽略未知字段、缺失字段用默认值补齐，保证向前兼容。"""
+        raw = {k: v for k, v in data.items() if k != "_version"}
+        if raw.get("adult_source_urls") is not None:
+            raw["adult_source_urls"] = set(raw["adult_source_urls"])
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in raw.items() if k in known})
 
 def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
@@ -68,54 +108,47 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
 
     start_time = time.time()
 
-    def _ser(obj):
-        "递归序列化为JSON兼容格式"
-        if isinstance(obj, (set, tuple)):
-            return list(obj)
-        if isinstance(obj, dict):
-            return {k: _ser(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [_ser(v) for v in obj]
-        return obj
-
-    def _save_state(phase, data):
+    def _save_state(phase, st: CIState):
+        "将 CIState 序列化为磁盘 JSON（asdict 自动处理 list/dict；set 需显式转 list）"
         os.makedirs(ci_state_dir, exist_ok=True)
         path = os.path.join(ci_state_dir, f"state{phase}.json")
-        data_with_version = {"_version": 1, **data}
+        blob = asdict(st)
+        blob["adult_source_urls"] = list(blob["adult_source_urls"])
+        blob["_version"] = 1
         with open(path, "w") as f:
-            json.dump(_ser(data_with_version), f, ensure_ascii=False, default=str)
+            json.dump(blob, f, ensure_ascii=False, default=str)
         live_print(f"  📦 状态已保存 → {path}")
 
-    def _load_state(phase):
+    def _load_state(phase) -> Optional[CIState]:
         path = os.path.join(ci_state_dir, f"state{phase}.json")
         if not os.path.exists(path):
             return None
         with open(path) as f:
-            return json.load(f)
+            return CIState.from_dict(json.load(f))
 
     # ════════════════════════════════════════════
     # 阶段1：加载配置、抓取源、黑白名单过滤
     # ════════════════════════════════════════════
     if ci_phase is None or ci_phase >= 1:
         if ci_phase is not None and ci_phase >= 2:
-            s = _load_state(1)
-            if not s:
+            st = _load_state(1)
+            if not st:
                 live_print(f"  ❌ 未找到阶段1状态文件，无法继续阶段{ci_phase}")
                 return
-            url_to_source = s["url_to_source"]
-            valid_results = s["valid_results"]
-            to_test = s["to_test"]
-            adult_results = s["adult_results"]
-            adult_source_urls = set(s.get("adult_source_urls", []))
-            logs_blacklist = s["logs_blacklist"]
-            logs_whitelist = s["logs_whitelist"]
-            cat_order = s["cat_order"]
-            chan_to_cat = s["chan_to_cat"]
-            chans_in_cat = s["chans_in_cat"]
-            channel_to_station = s["channel_to_station"]
-            channel_model = s.get("channel_model", {})
-            epg_report = s["epg_report"]
-            start_time = s["start_time"]
+            url_to_source = st.url_to_source
+            valid_results = st.valid_results
+            to_test = st.to_test
+            adult_results = st.adult_results
+            adult_source_urls = st.adult_source_urls
+            logs_blacklist = st.logs_blacklist
+            logs_whitelist = st.logs_whitelist
+            cat_order = st.cat_order
+            chan_to_cat = st.chan_to_cat
+            chans_in_cat = st.chans_in_cat
+            channel_to_station = st.channel_to_station
+            channel_model = st.channel_model
+            epg_report = st.epg_report
+            start_time = st.start_time
             live_print("  🔄 已从阶段1状态恢复")
         else:
             # ----- 阶段1：从头执行 -----
@@ -134,7 +167,9 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 return
 
             start_time = time.time()
-            channels, url_to_group = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=_AI_CACHE)
+            channels, url_to_group, unmatched_names, ai_pending_aliases = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=_AI_CACHE)
+            # 解析阶段不再写文件；在此显式落盘，与抓取逻辑解耦
+            save_parse_results(unmatched_names, ai_pending_aliases)
 
             if not channels:
                 live_print("⚠️ 未获取到任何有效直播源，退出。")
@@ -152,9 +187,11 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 live_print(f"  📡 {src.split('/')[-1]}: {cnt} 条")
 
             # 黑白名单过滤分流
-            to_test, valid_results, logs_blacklist, logs_whitelist = apply_filter_lists(
+            to_test, valid_results, logs_blacklist, logs_whitelist, auto_blacklist = apply_filter_lists(
                 channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
             )
+            # 过滤即返回内存结果；无效名落盘由调用方显式触发，避免副作用
+            append_auto_blacklist(auto_blacklist)
 
             # 过滤 IPv6 地址
             enable_ipv6 = os.environ.get("ENABLE_IPV6", "").lower() == "true"
@@ -186,22 +223,22 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         if _AI_CACHE:
             _save_ai_cache(_AI_CACHE)
         if ci_phase == 1:
-            _save_state(1, {
-                "url_to_source": url_to_source,
-                "valid_results": valid_results,
-                "to_test": to_test,
-                "logs_blacklist": logs_blacklist,
-                "logs_whitelist": logs_whitelist,
-                "adult_results": adult_results,
-                "adult_source_urls": list(adult_source_urls),
-                "cat_order": cat_order,
-                "chan_to_cat": chan_to_cat,
-                "chans_in_cat": chans_in_cat,
-                "channel_to_station": channel_to_station,
-                "channel_model": channel_model,
-                "epg_report": epg_report,
-                "start_time": start_time,
-            })
+            _save_state(1, CIState(
+                url_to_source=url_to_source,
+                valid_results=valid_results,
+                to_test=to_test,
+                logs_blacklist=logs_blacklist,
+                logs_whitelist=logs_whitelist,
+                adult_results=adult_results,
+                adult_source_urls=adult_source_urls,
+                cat_order=cat_order,
+                chan_to_cat=chan_to_cat,
+                chans_in_cat=chans_in_cat,
+                channel_to_station=channel_to_station,
+                channel_model=channel_model,
+                epg_report=epg_report,
+                start_time=start_time,
+            ))
             # 阶段1 Summary
             write_summary("## 🔍 阶段1 — 抓取与过滤\n")
             write_summary_table(
@@ -232,29 +269,29 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     # ════════════════════════════════════════════
     if ci_phase is None or ci_phase >= 2:
         if ci_phase is not None and ci_phase >= 3:
-            s = _load_state(2)
-            if not s:
+            st = _load_state(2)
+            if not st:
                 live_print(f"  ❌ 未找到阶段2状态文件")
                 return
-            valid_results = s["valid_results"]
-            resolution_map = s.get("resolution_map", {})
-            adult_results = s["adult_results"]
-            adult_source_urls = set(s.get("adult_source_urls", []))
-            to_test = s.get("to_test", [])
-            url_to_source = s.get("url_to_source", {})
-            cat_order = s["cat_order"]
-            chan_to_cat = s["chan_to_cat"]
-            chans_in_cat = s["chans_in_cat"]
-            channel_to_station = s["channel_to_station"]
-            channel_model = s.get("channel_model", {})
-            epg_report = s["epg_report"]
-            logs_success = s["logs_success"]
-            logs_fail = s["logs_fail"]
-            logs_whitelist = s.get("logs_whitelist", [])
-            logs_blacklist = s.get("logs_blacklist", [])
-            fail_counts = s["fail_counts"]
-            source_stats = s["source_stats"]
-            start_time = s["start_time"]
+            valid_results = st.valid_results
+            resolution_map = st.resolution_map
+            adult_results = st.adult_results
+            adult_source_urls = st.adult_source_urls
+            to_test = st.to_test
+            url_to_source = st.url_to_source
+            cat_order = st.cat_order
+            chan_to_cat = st.chan_to_cat
+            chans_in_cat = st.chans_in_cat
+            channel_to_station = st.channel_to_station
+            channel_model = st.channel_model
+            epg_report = st.epg_report
+            logs_success = st.logs_success
+            logs_fail = st.logs_fail
+            logs_whitelist = st.logs_whitelist
+            logs_blacklist = st.logs_blacklist
+            fail_counts = st.fail_counts
+            source_stats = st.source_stats
+            start_time = st.start_time
             live_print("  🔄 已从阶段2状态恢复")
         else:
             live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
@@ -341,27 +378,27 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 resolution_map = {}
 
         if ci_phase == 2:
-            _save_state(2, {
-                "valid_results": valid_results,
-                "resolution_map": resolution_map,
-                "adult_results": adult_results,
-                "adult_source_urls": list(adult_source_urls),
-                "to_test": to_test,
-                "url_to_source": url_to_source,
-                "cat_order": cat_order,
-                "chan_to_cat": chan_to_cat,
-                "chans_in_cat": chans_in_cat,
-                "channel_to_station": channel_to_station,
-                "channel_model": channel_model,
-                "epg_report": epg_report,
-                "logs_success": logs_success,
-                "logs_fail": logs_fail,
-                "logs_whitelist": logs_whitelist,
-                "logs_blacklist": logs_blacklist,
-                "fail_counts": fail_counts,
-                "source_stats": source_stats,
-                "start_time": start_time,
-            })
+            _save_state(2, CIState(
+                valid_results=valid_results,
+                resolution_map=resolution_map,
+                adult_results=adult_results,
+                adult_source_urls=adult_source_urls,
+                to_test=to_test,
+                url_to_source=url_to_source,
+                cat_order=cat_order,
+                chan_to_cat=chan_to_cat,
+                chans_in_cat=chans_in_cat,
+                channel_to_station=channel_to_station,
+                channel_model=channel_model,
+                epg_report=epg_report,
+                logs_success=logs_success,
+                logs_fail=logs_fail,
+                logs_whitelist=logs_whitelist,
+                logs_blacklist=logs_blacklist,
+                fail_counts=fail_counts,
+                source_stats=source_stats,
+                start_time=start_time,
+            ))
             # 阶段2 Summary
             src_ok_dict = source_stats.get("ok", {})
             src_total_dict = source_stats.get("total", {})
@@ -606,11 +643,10 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         # 文件列表
         write_summary("<details><summary>💾 输出文件</summary>\n")
         file_rows = []
-        import os as _os
         for f_path in ["output/live.txt", "output/live.m3u", "output/adult.txt", "output/adult.m3u",
                        "output/epg.xml", "output/epg.xml.gz", "output/log.txt"]:
-            if _os.path.exists(f_path):
-                size = _os.path.getsize(f_path)
+            if os.path.exists(f_path):
+                size = os.path.getsize(f_path)
                 size_str = f"{size/1024:.1f}KB" if size < 1024*1024 else f"{size/1024/1024:.1f}MB"
                 file_rows.append([f"`{f_path}`", size_str])
         if file_rows:

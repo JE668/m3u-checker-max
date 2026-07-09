@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "m3u-checker-max"
+version = "1.0.0"
+description = "IPTV 直播源检测与分类系统（抓取 → 过滤 → 测速 → 分类 → 输出）"
+requires-python = ">=3.8"
+dependencies = ["requests>=2.28.0"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+src = ["utils", "main.py", "run_ci.py"]
+
+[tool.ruff.lint]
+# 基础但关键的检查：语法/未定义名(E/F)、空白(W)、导入排序(I)
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # 长行（中文注释/字符串较多，暂不强制换行）
+
+[tool.ruff.lint.isort]
+known-first-party = ["utils"]
+lines-after-imports = 2
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

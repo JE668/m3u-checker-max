@@ -86,15 +86,24 @@ def _build_logo_index():
     live_print(f"⚠️ 图标索引不可用: 本地 icons/ 和 {ICONS_INDEX_FILE} 均缺失")
     return index
 
-LOGO_INDEX = _build_logo_index()
-
 # logo URL 指向 CDN 加速的 GitHub Raw（LFS 文件通过 Raw URL 正常返回图片内容）
 _ICONS_BASE_URL = f"{REPO_RAW}/icons"
 
+# 延迟构建：避免 import 模块时即扫描 5000+ 图标文件 / 读取索引（消除 import 副作用）
+_LOGO_INDEX_CACHE = None
+
+def get_logo_index() -> dict:
+    """构建并返回 {clean_name: filename} 字典（首次调用时构建并缓存）。"""
+    global _LOGO_INDEX_CACHE
+    if _LOGO_INDEX_CACHE is None:
+        _LOGO_INDEX_CACHE = _build_logo_index()
+    return _LOGO_INDEX_CACHE
+
 def get_local_logo_url(name: str) -> str:
     target = re.sub(r'[\s\-_]', '', name).lower()
-    if target in LOGO_INDEX:
-        return f"{_ICONS_BASE_URL}/{LOGO_INDEX[target]}"
+    index = get_logo_index()
+    if target in index:
+        return f"{_ICONS_BASE_URL}/{index[target]}"
     return ""
 
 def load_demo_template(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str]) -> Tuple[List[str], Dict[str, str], Dict[str, List[str]]]:

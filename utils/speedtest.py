@@ -10,6 +10,10 @@ from utils.config import (
     get_session, get_pool, live_print, _AI_AVAILABLE, _NUM_RE
 )
 
+# 测速阶段控制台成功日志采样上限：只采样显示前 N 条成功，避免海量频道刷屏。
+# 完整的成功/失败日志仍会写入 output/log.txt，不受此限制影响。可用环境变量覆盖。
+SUCCESS_LOG_SAMPLE_LIMIT = int(os.getenv("SUCCESS_LOG_SAMPLE_LIMIT", "15"))
+
 # ffprobe 可用性检查（首次调用时检测，结果缓存）
 _ffprobe_checked = False
 _ffprobe_available = False
@@ -25,7 +29,11 @@ def _check_ffprobe():
 
 def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, int]:
     """使用 ffprobe 探测直播流的视频分辨率
-    
+
+    采用「单次下载 + 管道」：通过共享 session 拉流，直接管道喂给 ffprobe，
+    避免 ffprobe 自己再发起一次网络下载（原先的冗余请求），
+    同时复用与 check_channel 一致的 session/UA/代理/重试策略。
+
     返回: (width, height) 或 (0, 0)
     """
     if not _check_ffprobe():
@@ -33,30 +41,55 @@ def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, in
     if timeout is None:
         timeout = PROBE_TIMEOUT
     try:
-        result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-print_format", "json",
-             "-show_streams", "-select_streams", "v:0",
-             "-rw_timeout", str(int(timeout * 1000000)),
-             "-analyzeduration", "1500000",
-             "-probesize", "5000000",
-             url],
-            capture_output=True, text=True, timeout=timeout + 2
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            data = json.loads(result.stdout)
-            for stream in data.get("streams", []):
-                w = stream.get("width", 0)
-                h = stream.get("height", 0)
-                if w > 0 and h > 0:
-                    return w, h
-    except subprocess.TimeoutExpired:
-        pass
+        with get_session().get(url, stream=True, timeout=(CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT)) as resp:
+            if resp.status_code != 200:
+                return 0, 0
+            proc = subprocess.Popen(
+                ["ffprobe", "-v", "quiet", "-print_format", "json",
+                 "-show_streams", "-select_streams", "v:0",
+                 "-rw_timeout", str(int(timeout * 1000000)),
+                 "-analyzeduration", "1500000",
+                 "-probesize", "5000000",
+                 "-i", "pipe:0"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            downloaded = 0
+            try:
+                for chunk in resp.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+                    try:
+                        proc.stdin.write(chunk)
+                    except (BrokenPipeError, ValueError):
+                        break
+                    downloaded += len(chunk)
+                    if downloaded >= 5000000:  # 达到 probesize 上限即停止喂数据
+                        break
+            finally:
+                try:
+                    proc.stdin.close()
+                except Exception:
+                    pass
+            try:
+                out, _ = proc.communicate(timeout=timeout + 2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, _ = proc.communicate()
+            if out and out.strip():
+                data = json.loads(out)
+                for stream in data.get("streams", []):
+                    w = stream.get("width", 0)
+                    h = stream.get("height", 0)
+                    if w > 0 and h > 0:
+                        return w, h
+    except requests.exceptions.RequestException:
+        return 0, 0
+    except subprocess.SubprocessError:
+        return 0, 0
     except json.JSONDecodeError:
-        pass
-    except FileNotFoundError:
-        pass
+        return 0, 0
     except Exception:
-        pass
+        return 0, 0
     return 0, 0
 
 
@@ -201,48 +234,55 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
                     to_test.append((name, url))
                     logs_whitelist.append(f"⚪→🔍 [白名单离线] {name:<12} | 降级测速 | {url}")
 
-    # 自动追加无效频道名到黑名单文件（检查去重，防无限膨胀）
-    if auto_blacklist:
-        existing = set()
-        appended_already = False
-        auto_section_line = -1
-        if os.path.exists(BLACKLIST_FILE):
-            with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
-                bl_lines = f.readlines()
-            for i, line in enumerate(bl_lines):
-                s = line.strip()
+    return to_test, valid_results, logs_blacklist, logs_whitelist, auto_blacklist
+
+
+def append_auto_blacklist(auto_blacklist: List[str]) -> None:
+    """将无效频道名自动追加到黑名单文件（与过滤分流逻辑解耦）。
+
+    在 apply_filter_lists 检测出 auto_blacklist 后由调用方显式调用，
+    避免「过滤即写文件」的副作用；写入前做去重，防止文件无限膨胀。
+    """
+    if not auto_blacklist:
+        return
+    existing = set()
+    appended_already = False
+    auto_section_line = -1
+    if os.path.exists(BLACKLIST_FILE):
+        with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
+            bl_lines = f.readlines()
+        for i, line in enumerate(bl_lines):
+            s = line.strip()
+            if s and not s.startswith('#'):
+                existing.add(s)
+            if '# 自动追加的无效频道名' in line:
+                appended_already = True
+                if auto_section_line < 0:
+                    auto_section_line = i
+    new_entries = set(auto_blacklist) - existing
+    if new_entries:
+        if appended_already and auto_section_line >= 0:
+            # 插入到已有 auto 区块之后（跳过连续注释行和空行）
+            insert_pos = auto_section_line + 1
+            while insert_pos < len(bl_lines):
+                s = bl_lines[insert_pos].strip()
                 if s and not s.startswith('#'):
-                    existing.add(s)
-                if '# 自动追加的无效频道名' in line:
-                    appended_already = True
-                    if auto_section_line < 0:
-                        auto_section_line = i
-        new_entries = set(auto_blacklist) - existing
-        if new_entries:
-            if appended_already and auto_section_line >= 0:
-                # 插入到已有 auto 区块之后（跳过连续注释行和空行）
-                insert_pos = auto_section_line + 1
-                while insert_pos < len(bl_lines):
-                    s = bl_lines[insert_pos].strip()
-                    if s and not s.startswith('#'):
-                        break
-                    insert_pos += 1
-                # 在首个非注释/非空行之前插入新条目
-                for name in sorted(new_entries):
-                    bl_lines.insert(insert_pos, f"{name}\n")
-                    insert_pos += 1
-                with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
-                    f.writelines(bl_lines)
-            else:
-                with open(BLACKLIST_FILE, 'a', encoding='utf-8') as f:
-                    f.write("\n# 自动追加的无效频道名\n")
-                    for name in sorted(new_entries):
-                        f.write(f"{name}\n")
-            live_print(f"  📛 [自动黑名单] 发现 {len(new_entries)} 个新无效频道名，已追加到 {BLACKLIST_FILE}")
+                    break
+                insert_pos += 1
+            # 在首个非注释/非空行之前插入新条目
+            for name in sorted(new_entries):
+                bl_lines.insert(insert_pos, f"{name}\n")
+                insert_pos += 1
+            with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
+                f.writelines(bl_lines)
         else:
-            live_print(f"  ℹ️ [自动黑名单] 本次无新无效频道名，跳过追加")
-    
-    return to_test, valid_results, logs_blacklist, logs_whitelist
+            with open(BLACKLIST_FILE, 'a', encoding='utf-8') as f:
+                f.write("\n# 自动追加的无效频道名\n")
+                for name in sorted(new_entries):
+                    f.write(f"{name}\n")
+        live_print(f"  📛 [自动黑名单] 发现 {len(new_entries)} 个新无效频道名，已追加到 {BLACKLIST_FILE}")
+    else:
+        live_print("  ℹ️ [自动黑名单] 本次无新无效频道名，跳过追加")
 
 
 def _classify_failure(reason: str) -> str:
@@ -363,12 +403,13 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
     total_samples = len(sample_tasks) + len(small_host_tasks)
     sample_results = {}  # host -> [True/False, ...]
     sample_processed = 0
+    success_printed = 0  # 控制台成功日志采样计数
 
     # 合并样本任务一起并发测
     all_samples = sample_tasks + small_host_tasks
 
     def _process_result(name, url, host, is_valid, elapsed, reason):
-        nonlocal sample_processed
+        nonlocal sample_processed, success_printed
         sample_processed += 1
         sample_results.setdefault(host, []).append(is_valid)
         if not is_valid:
@@ -384,11 +425,14 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
                 source_total[src] = source_total.get(src, 0) + 1
             valid_results.setdefault(name, []).append((url, elapsed))
             msg = f"🎯 [{sample_processed}/{total_samples}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
-            live_print(msg)
-            logs_success.append(msg)
+            logs_success.append(msg)  # 完整日志仍写入文件
+            if success_printed < SUCCESS_LOG_SAMPLE_LIMIT:
+                live_print(msg)  # 控制台仅采样显示前 N 条成功
+                success_printed += 1
         else:
             msg = f"🎯 [{sample_processed}/{total_samples}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
             logs_fail.append(msg)
+            live_print(msg)  # 失败日志全部打印，便于排查
 
     if all_samples:
         live_print(f"🎯 预筛阶段: {len(all_samples)} 个样本")
@@ -439,8 +483,10 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
                     source_total[src] = source_total.get(src, 0) + 1
                 valid_results.setdefault(name, []).append((url, elapsed))
                 msg = f"[{full_processed}/{total}] 🟢 {_fmt_name(name):<24} | {elapsed:>4}s | {reason:<15} | {url}"
-                live_print(msg)
-                logs_success.append(msg)
+                logs_success.append(msg)  # 完整日志仍写入文件
+                if success_printed < SUCCESS_LOG_SAMPLE_LIMIT:
+                    live_print(msg)  # 控制台仅采样显示前 N 条成功
+                    success_printed += 1
             else:
                 cat = _classify_failure(reason)
                 fail_counts[cat] = fail_counts.get(cat, 0) + 1
@@ -449,8 +495,11 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
                     source_total[src] = source_total.get(src, 0) + 1
                 msg = f"[{full_processed}/{total}] 🔴 {_fmt_name(name):<24} | {reason:<15} | {url}"
                 logs_fail.append(msg)
+                live_print(msg)  # 失败日志全部打印，便于排查
 
     live_print(f"\n🏁 测速结束: 成功 {len(logs_success)} / 失败 {len(logs_fail)}\n")
+    if success_printed >= SUCCESS_LOG_SAMPLE_LIMIT:
+        live_print(f"  ℹ️ 成功日志已采样（仅显示前 {SUCCESS_LOG_SAMPLE_LIMIT} 条），共 {len(logs_success)} 条成功详情见 output/log.txt")
 
     # 失败原因分类统计
     if fail_counts:

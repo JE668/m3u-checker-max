@@ -91,33 +91,39 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
         except Exception as e:  # P0-1: 精确捕获异常并输出详情
             live_print(f"❌ 连接失败: {source_url} — {type(e).__name__}: {e}")
 
-    if unmatched_names:
-        # AI 兜底处理：尝试用 AI 标准化未匹配的频道名，匹配后写入 alias.txt
-        if ai_cache is not None and _AI_AVAILABLE:
-            for name in list(unmatched_names):
-                ai_name, ai_changed = _ai_fallback(name, ai_cache)
-                if ai_changed and ai_name != name:
-                    ai_pending_aliases[ai_name].add(name)
-                    aliases_exact[name] = ai_name
-                    known_main_names.add(ai_name)
-                    unmatched_names.discard(name)
-                    live_print(f"  🤖 [AI兜底→alias] {name} => {ai_name}")
+    # ── AI 兜底处理未匹配频道（仅内存计算，不落盘）──
+    if unmatched_names and ai_cache is not None and _AI_AVAILABLE:
+        for name in list(unmatched_names):
+            ai_name, ai_changed = _ai_fallback(name, ai_cache)
+            if ai_changed and ai_name != name:
+                ai_pending_aliases[ai_name].add(name)
+                aliases_exact[name] = ai_name
+                known_main_names.add(ai_name)
+                unmatched_names.discard(name)
+                live_print(f"  🤖 [AI兜底→alias] {name} => {ai_name}")
 
-        # 写入剩余未匹配
-        if unmatched_names:
-            with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
-                f.write(f"=============== 未匹配频道名单 ===============\n")
-                f.write(f"时间: {datetime.now()}\n")
-                f.write(f"说明: 以下 {len(unmatched_names)} 个频道在抓取时未能在 config/alias.txt 中找到匹配。\n")
-                f.write(f"建议: 将它们复制到 alias.txt 中进行别名映射，以保持列表纯净。\n")
-                f.write(f"==============================================\n\n")
-                for name in sorted(unmatched_names):
-                    f.write(f"{name}\n")
-            live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
-        else:
-            live_print(f"\n✅ AI 辅助后全部未匹配频道已归入已知频道，无待办清单")
-            if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
+    return channels, url_to_group, unmatched_names, ai_pending_aliases
+
+
+def save_parse_results(unmatched_names: Set[str], ai_pending_aliases: Dict[str, Set[str]]) -> None:
+    """将解析阶段收集到的未匹配频道与 AI 别名落盘。
+
+    与 fetch_and_parse_channels 解耦：解析函数只负责采集内存数据，
+    由调用方在合适的时机显式触发持久化，避免「解析即写文件」的副作用。
+    """
+    # ── 未匹配频道清单 ──
+    if unmatched_names:
+        with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
+            f.write(f"=============== 未匹配频道名单 ===============\n")
+            f.write(f"时间: {datetime.now()}\n")
+            f.write(f"说明: 以下 {len(unmatched_names)} 个频道在抓取时未能在 config/alias.txt 中找到匹配。\n")
+            f.write(f"建议: 将它们复制到 alias.txt 中进行别名映射，以保持列表纯净。\n")
+            f.write(f"==============================================\n\n")
+            for name in sorted(unmatched_names):
+                f.write(f"{name}\n")
+        live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
     else:
+        live_print(f"\n✅ AI 辅助后全部未匹配频道已归入已知频道，无待办清单")
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
 
     # ── 批量写入 AI 发现的别名到 alias.txt ──
@@ -158,8 +164,6 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                 live_print(f"  🤖 [AI→alias.txt] 别名均已存在，无需写入")
         except Exception as e:
             live_print(f"  ⚠️ [AI→alias.txt] 写入失败: {e}")
-
-    return channels, url_to_group
 
 def fetch_source_meta() -> Optional[dict]:
     """获取 get-m3u 探针元数据，返回 {host_port: {bandwidth_mbps: float}}"""
