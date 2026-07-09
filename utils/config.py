@@ -15,11 +15,11 @@ import requests
 _NUM_RE = re.compile(r'\d+')
 
 try:
-    from utils.ai_helper import classify_channel, clear_cache, get_cache_stats, standardize_channel_name
+    from utils.ai_helper import get_cache_stats, standardize_channel_name  # noqa: F401
     _AI_AVAILABLE = True
 except ImportError:
     standardize_channel_name = lambda x: x
-    classify_channel = lambda x: ''
+    get_cache_stats = lambda: {}
     _AI_AVAILABLE = False
 
 def _dedup_blacklist():

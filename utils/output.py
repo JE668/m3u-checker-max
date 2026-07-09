@@ -70,25 +70,25 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
         live_print(f"❌ 写入 M3U/TXT 失败: {e}")
         return
 
-    # 写入成人内容（按来源分离，活/死都收；只要配置了成人来源就强制重写，避免陈旧内容残留）
+    # 写入限制级内容（按来源分离，活/死都收；只要配置了限制级来源就强制重写，避免陈旧内容残留）
     adult_written = 0
     if adult_source_urls:
         try:
             with open(ADULT_M3U, "w", encoding="utf-8") as fam3u, open(ADULT_TXT, "w", encoding="utf-8") as fatxt:
                 fam3u.write(M3U_HEADER)
-                fatxt.write("📛成人内容,#genre#\n")
+                fatxt.write("📛限制级内容,#genre#\n")
                 for name in sorted((adult_results or {}).keys()):
                     valid_urls = sorted(adult_results[name], key=lambda x: (0 if x[1] < 0 else 1, x[1]))
                     for url, elapsed in valid_urls:
                         logo = f"https://gh.felicity.ac.cn/https://raw.githubusercontent.com/taksssss/tv/main/icon/{name}.png"
-                        fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛成人内容",{name}\n')
+                        fam3u.write(f'#EXTINF:-1 tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="📛限制级内容",{name}\n')
                         fam3u.write(f"{url}\n")
                         fatxt.write(f"{name},{url}\n")
                         adult_written += 1
             if adult_written == 0:
-                live_print("  ⚠️ 成人来源已配置，但本次无存活频道 → 已重写为空列表（清除陈旧内容）")
+                live_print("  ⚠️ 限制级来源已配置，但本次无存活频道 → 已重写为空列表（清除陈旧内容）")
         except OSError as e:
-            live_print(f"❌ 写入成人内容失败: {e}")
+            live_print(f"❌ 写入限制级内容失败: {e}")
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"任务时间: {datetime.now()}\n")

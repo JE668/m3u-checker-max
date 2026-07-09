@@ -22,15 +22,12 @@ from utils.loaders import get_main_name
 
 
 # ── EXTINF 属性提取正则 ──
-_RE_EXTINF_GROUP = re.compile(r'group-title="([^"]*)"')
-
-def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str], ai_cache: Optional[Dict[str, str]] = None) -> Tuple[list, Dict[str, str]]:
+def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str], ai_cache: Optional[Dict[str, str]] = None) -> Tuple[list, Set[str], Dict[str, Set[str]]]:
     channels = []  # [(main_name, url, source_url), ...]
-    url_to_group = {}  # {url: group_title}
     unmatched_names = set()
     ai_pending_aliases = collections.defaultdict(set)  # {标准名: set(别名)} 批量收集，一次性写入
 
-    if not os.path.exists(SOURCES_FILE): return channels, url_to_group
+    if not os.path.exists(SOURCES_FILE): return channels
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
@@ -58,7 +55,6 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
             r = fetch_url(source_url, timeout=10)  # P0-3: 使用 Session + UA + 重试
             r.encoding = 'utf-8'
             tmp_name = ""
-            tmp_group = ""  # 记录 group-title
             count = 0
             seen_source_renames = set()
 
@@ -69,19 +65,14 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                 if line.startswith("#EXTINF"):
                     # 提取频道名
                     tmp_name = line.split(",")[-1].strip()
-                    # 提取 group-title
-                    group_match = _RE_EXTINF_GROUP.search(line)
-                    tmp_group = group_match.group(1) if group_match else ""
                 elif line.startswith("http"):
                     name = tmp_name if tmp_name else "未命名频道"
                     main_name = _resolve_name(name, aliases_exact, aliases_regex, known_main_names, unmatched_names, ai_cache, ai_pending_aliases, seen_source_renames)
 
                     if line not in seen_urls:
                         channels.append((main_name, line, source_url))
-                        url_to_group[line] = tmp_group
                         seen_urls.add(line); count += 1
                     tmp_name = ""
-                    tmp_group = ""
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
                     raw_name = parts[0].strip()
@@ -89,7 +80,6 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
 
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip(), source_url))
-                        url_to_group[parts[1].strip()] = ""  # 逗号格式无 group-title
                         seen_urls.add(parts[1].strip()); count += 1
             label = "🔍待测"
             live_print(f"✅ {source_url} -> 提取 {count} 条 [{label}]")
@@ -107,7 +97,7 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                 unmatched_names.discard(name)
                 live_print(f"  🤖 [AI兜底→alias] {name} => {ai_name}")
 
-    return channels, url_to_group, unmatched_names, ai_pending_aliases
+    return channels, unmatched_names, ai_pending_aliases
 
 
 def save_parse_results(unmatched_names: Set[str], ai_pending_aliases: Dict[str, Set[str]]) -> None:

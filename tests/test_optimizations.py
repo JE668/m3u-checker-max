@@ -232,7 +232,7 @@ class TestMainCIState(unittest.TestCase):
             to_test=[("CCTV-1", "http://a/1"), ("湖南卫视", "http://b/2")],
             logs_blacklist=["bad"],
             logs_whitelist=["ok"],
-            adult_results={"成人台": [("http://x", 1.0)]},
+            adult_results={"限制级台": [("http://x", 1.0)]},
             adult_source_urls={"http://x", "http://y"},
             cat_order=["央视频道", "卫视频道"],
             chan_to_cat={"CCTV-1": "央视频道"},
@@ -549,19 +549,19 @@ class TestAdultRewrite(unittest.TestCase):
         with open(m3u, encoding="utf-8") as f:
             self.assertEqual(f.read(), "#EXTM3U\n")
         with open(txt, encoding="utf-8") as f:
-            self.assertEqual(f.read(), "📛成人内容,#genre#\n")
+            self.assertEqual(f.read(), "📛限制级内容,#genre#\n")
 
     def test_configured_with_live_writes_channels(self):
         """配置了成人来源且有存活频道 → 正常写入频道。"""
         m3u, txt = self._call(
             adult_source_urls={"http://x/adult.m3u8"},
-            adult_results={"成人台": [("http://x/adult.m3u8", 1.0)]},
+            adult_results={"限制级台": [("http://x/adult.m3u8", 1.0)]},
         )
         with open(m3u, encoding="utf-8") as f:
             content = f.read()
         self.assertIn("#EXTM3U\n", content)
         self.assertIn("http://x/adult.m3u8", content)
-        self.assertIn("成人台", content)
+        self.assertIn("限制级台", content)
 
     def test_not_configured_leaves_files_untouched(self):
         """未配置成人来源(adult_source_urls 为空) → 不创建/不触碰 adult 文件。"""
@@ -609,6 +609,31 @@ class TestCIGroup(unittest.TestCase):
         out = buf.getvalue()
         self.assertIn("::group::会失败的分组", out)
         self.assertIn("::endgroup::", out)
+
+
+class TestRefactorCleanup(unittest.TestCase):
+    """锁定 #6/#7 重构形态，防止回归。"""
+
+    def test_fetch_returns_3_tuple_no_url_to_group(self):
+        """#6: fetch_and_parse_channels 不再返回 url_to_group（死返回值已移除）"""
+        import utils.fetcher as F
+        import inspect
+        src = inspect.getsource(F)
+        self.assertNotIn("url_to_group", src)
+        ann = F.fetch_and_parse_channels.__annotations__.get("return")
+        self.assertIsNotNone(ann)
+        # Tuple[list, Set[str], Dict[str, Set[str]]] 应含 3 个类型参数
+        self.assertEqual(len(getattr(ann, "__args__", ())), 3)
+
+    def test_auto_update_demo_first_param_renamed(self):
+        """#7: auto_update_demo 第一个参数已从严误导的 valid_names 重命名为 valid_results"""
+        import utils.categorizer as CAT
+        import inspect
+        params = list(inspect.signature(CAT.auto_update_demo).parameters)
+        self.assertIn("valid_results", params)
+        self.assertNotIn("valid_names", params)
+        # 第五个可选参数已避开命名冲突，改名为 valid_results_opt
+        self.assertIn("valid_results_opt", params)
 
 
 if __name__ == "__main__":

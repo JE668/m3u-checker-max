@@ -131,8 +131,6 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     # 加载 AI 标准化缓存
     _AI_CACHE = _load_ai_cache()
 
-    start_time = time.time()
-
     def _save_state(phase, st: CIState):
         "将 CIState 序列化为磁盘 JSON（asdict 自动处理 list/dict；set 需显式转 list）"
         os.makedirs(ci_state_dir, exist_ok=True)
@@ -175,6 +173,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             epg_report = st.epg_report
             start_time = st.start_time
             live_print("  🔄 已从阶段1状态恢复")
+            source_channel_counts = {}  # 防御初始化（正常从头分支会定义；此处保证恢复分支也不缺）
         else:
             # ----- 阶段1：从头执行 -----
             live_print(f"\n{'━'*50}\n  {PHASE_TITLES[1]}\n{'━'*50}")
@@ -196,7 +195,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
 
             start_time = time.time()
             with ci_group("📡 抓取直播源"):
-                channels, url_to_group, unmatched_names, ai_pending_aliases = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=_AI_CACHE)
+                channels, unmatched_names, ai_pending_aliases = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=_AI_CACHE)
                 # 解析阶段不再写文件；在此显式落盘，与抓取逻辑解耦
                 save_parse_results(unmatched_names, ai_pending_aliases)
 
@@ -232,13 +231,13 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 elif ipv6_count:
                     live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
 
-            with ci_group("🔞 成人来源标记"):
-                # 成人来源标记（仅URL模式匹配，后续阶段2会参加测速再归类）
+            with ci_group("限制级来源标记"):
+                # 限制级来源标记（仅URL模式匹配，后续阶段2会参加测速再归类）
                 adult_sources = load_adult_sources()
                 adult_results = {}
                 adult_source_urls = set()  # 始终初始化，避免 adult-sources.txt 为空时 NameError
                 if adult_sources:
-                    live_print(f"  🔞 成人源URL模式: {adult_sources}")
+                    live_print(f"  限制级源URL模式: {adult_sources}")
                     for name, url in to_test:
                         src = url_to_source.get(url, '')
                         for a in adult_sources:
@@ -246,7 +245,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                                 adult_source_urls.add(url)
                                 break
                     if adult_source_urls:
-                        live_print(f"  🔞 标记 {len(adult_source_urls)} 个成人来源URL，将在阶段2参与测速后归类")
+                        live_print(f"  标记 {len(adult_source_urls)} 个限制级来源URL，将在阶段2参与测速后归类")
 
             with ci_group("📺 加载频道模型"):
                 channel_model, channel_to_station = load_channel_model()
@@ -279,7 +278,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                     ["📡 抓取频道", f"{sum(source_channel_counts.values())} 个"],
                     ["✅ 白名单免测", f"{len(logs_whitelist)} 个"],
                     ["🚫 黑名单拦截", f"{len(logs_blacklist)} 个"],
-                    ["🔞 成人来源", f"{len(adult_source_urls)} 个"],
+                    ["限制级来源", f"{len(adult_source_urls)} 个"],
                     ["🎯 待测频道", f"{len(to_test)} 个"],
                     ["📂 分类模板", f"{len(cat_order)} 个大类"],
                 ]
@@ -327,6 +326,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             start_time = st.start_time
             live_print("  🔄 已从阶段2状态恢复")
         else:
+            reso_stats = {}  # 防御初始化：分辨率探测关闭/无频道时不定义会导致下方摘要块 NameError
             live_print(f"\n{'━'*50}\n  {PHASE_TITLES[2]}\n{'━'*50}")
 
             with ci_group("🚀 并发测速"):
@@ -347,8 +347,8 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                                 valid_results[name].append((url, elapsed))
                                 existing_urls.add(url)
 
-            with ci_group("🔞 成人来源分离"):
-                # ═══ 成人来源分离：测速后将成人来源URL从 valid_results 移到 adult_results ═══
+            with ci_group("限制级来源分离"):
+                # ═══ 限制级来源分离：测速后将限制级来源URL从 valid_results 移到 adult_results ═══
                 if adult_source_urls:
                     adult_results = {}
                     for name in list(valid_results.keys()):
@@ -360,7 +360,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                             valid_results[name] = normal_urls
                         elif name in valid_results:
                             del valid_results[name]
-                    live_print(f"  🔞 成人来源测速后分离: {len(adult_results)} 个频道 → output/adult.m3u")
+                    live_print(f"  限制级来源测速后分离: {len(adult_results)} 个频道 → output/adult.m3u")
                 else:
                     adult_results = {}
 
@@ -449,7 +449,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                     ["🎯 测速频道", f"{total_test} 个"],
                     ["✅ 成功", f"{total_ok} ({success_rate})"],
                     ["❌ 失败", f"{total_test - total_ok} 个"],
-                    ["🔞 成人频道", f"{len(adult_results)} 个"],
+                    ["限制级频道", f"{len(adult_results)} 个"],
                 ]
             )
             write_summary("")
@@ -596,7 +596,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         live_print("  ├─ 阶段3: 模板进化 & 成品输出")
         live_print(f"  │  ├ 有效频道 .......... {total_channels:>4} 个 (→ output/live.m3u)")
         live_print(f"  │  ├ 输出分类数 ........ {len(cat_order):>4} 个")
-        live_print(f"  │  ├ 成人频道 .......... {adult_count:>4} 个 (→ output/adult.m3u)")
+        live_print(f"  │  ├ 限制级频道 .......... {adult_count:>4} 个 (→ output/adult.m3u)")
         live_print(f"  │  └ EPG .............. {'✅' if epg_report else '❌'}")
         live_print("  │")
         live_print(f"  └─ 耗时: {elapsed:.2f}s")
@@ -608,7 +608,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             [
                 ["📺 有效频道", f"{total_channels} 个"],
                 ["📂 输出分类", f"{len(cat_order)} 个"],
-                ["🔞 成人频道", f"{adult_count} 个"],
+                ["限制级频道", f"{adult_count} 个"],
                 ["📅 EPG", "✅" if epg_report else "❌"],
                 ["⏱️ 总耗时", f"{elapsed:.0f}s ({elapsed/60:.1f}min)"],
             ]
@@ -624,7 +624,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 ["待测频道", to_test_count],
                 ["测速成功", f"{source_ok} ({source_ok*100//source_total if source_total else 0}%)"],
                 ["有效频道(去重)", total_channels],
-                ["成人频道", adult_count],
+                ["限制级频道", adult_count],
                 ["输出分类", len(cat_order)],
                 ["白名单免测", len(logs_whitelist)],
                 ["黑名单拦截", len(logs_blacklist)],

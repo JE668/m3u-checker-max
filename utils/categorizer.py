@@ -137,7 +137,7 @@ def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, chan
 
 
 def load_adult_sources(filename: str = ADULT_SOURCES_FILE) -> list:
-    """加载成人内容来源列表"""
+    """加载限制级内容来源列表"""
     sources = []
     if not os.path.exists(filename):
         return sources
@@ -147,7 +147,7 @@ def load_adult_sources(filename: str = ADULT_SOURCES_FILE) -> list:
             if line and not line.startswith('#'):
                 sources.append(line)
     if sources:
-        live_print(f"  🔞 [成人来源] 从 {filename} 加载了 {len(sources)} 个成人源")
+        live_print(f"  [限制级来源] 从 {filename} 加载了 {len(sources)} 个限制级源")
     return sources
 
 
@@ -246,13 +246,13 @@ def is_non_tv_channel(name: str) -> bool:
     """检测是否为非电视台频道（直播平台/影视点播/广播等）"""
     return any(p in name for p in NON_TV_PATTERNS)
 
-def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chans_in_cat: dict, valid_results: Optional[dict] = None, url_to_source: Optional[dict] = None, source_cat_map: Optional[list] = None, channel_model: Optional[dict] = None) -> Tuple[list, dict, dict]:
+def auto_update_demo(valid_results: dict, cat_order: list, chan_to_cat: dict, chans_in_cat: dict, valid_results_opt: Optional[dict] = None, url_to_source: Optional[dict] = None, source_cat_map: Optional[list] = None, channel_model: Optional[dict] = None) -> Tuple[list, dict, dict]:
     live_print("\n━━━ 🧠 自适应进化 demo.txt ━━━━━━━━━━━━━━━━━━━━")
 
-    if valid_results is None:
-        valid_results = {}
+    if valid_results_opt is None:
+        valid_results_opt = {}
 
-    new_channels = [n for n in valid_names if n not in chan_to_cat]
+    new_channels = [n for n in valid_results if n not in chan_to_cat]
 
     if not new_channels:
         live_print("ℹ️ 状态: 测速存活的频道均已存在于 config/demo.txt 当前分组中。")
@@ -340,8 +340,8 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
         if cat.startswith(f"{DEFAULT_CATEGORY[0]},#genre#") and name in ai_map:
             cat = f"{ai_map[name]},#genre#"
         # 如果频道名匹配到兜底分类(📺其他频道)，尝试来源URL推断
-        if cat == f"{DEFAULT_CATEGORY[0]},#genre#" and source_cat_map and valid_results and url_to_source:
-            source_cat = _match_source_category(name, valid_results, url_to_source, source_cat_map)
+        if cat == f"{DEFAULT_CATEGORY[0]},#genre#" and source_cat_map and valid_results_opt and url_to_source:
+            source_cat = _match_source_category(name, valid_results_opt, url_to_source, source_cat_map)
             if source_cat and source_cat.strip():
                 cat = f"{source_cat},#genre#"
                 live_print(f"  🏷️ [来源推断] [{name}] → {source_cat} (基于来源URL)")

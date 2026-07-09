@@ -57,9 +57,6 @@ def get_main_name(raw_name: str, aliases_exact: Dict[str, str], aliases_regex: L
         unmatched_set.add(raw_name)
     return raw_name
 
-# icons Release 配置（icons 以 LFS 管理，GH Actions 中不下载 LFS 文件，改用索引匹配）
-ICONS_INDEX_FILE = "config/icons_index.txt"
-
 def _build_logo_index():
     """构建 {clean_name: filename} 字典，O(1) 查找。
     优先扫描本地 icons/ 目录（开发环境），否则读取预生成索引文件（CI 环境）。"""
