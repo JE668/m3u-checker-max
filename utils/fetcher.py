@@ -1,13 +1,24 @@
-import os, json, concurrent.futures, time, re
-import collections, requests
-from typing import Dict, List, Tuple, Optional, Set
+import collections
+import json
+import os
+import re
 from datetime import datetime
+from typing import Dict, List, Optional, Set, Tuple
+
+import requests
 
 from utils.config import (
-    SOURCES_FILE, ALIAS_FILE, UNMATCHED_FILE, SOURCE_META_URL,
-    get_session, fetch_url, live_print, _AI_AVAILABLE, _ai_fallback
+    _AI_AVAILABLE,
+    ALIAS_FILE,
+    SOURCE_META_URL,
+    SOURCES_FILE,
+    UNMATCHED_FILE,
+    _ai_fallback,
+    fetch_url,
+    get_session,
+    live_print,
 )
-from utils.loaders import get_main_name, load_aliases
+from utils.loaders import get_main_name
 
 
 # ── EXTINF 属性提取正则 ──
@@ -114,16 +125,16 @@ def save_parse_results(unmatched_names: Set[str], ai_pending_aliases: Dict[str, 
     # ── 未匹配频道清单 ──
     if unmatched_names:
         with open(UNMATCHED_FILE, "w", encoding="utf-8") as f:
-            f.write(f"=============== 未匹配频道名单 ===============\n")
+            f.write("=============== 未匹配频道名单 ===============\n")
             f.write(f"时间: {datetime.now()}\n")
             f.write(f"说明: 以下 {len(unmatched_names)} 个频道在抓取时未能在 config/alias.txt 中找到匹配。\n")
-            f.write(f"建议: 将它们复制到 alias.txt 中进行别名映射，以保持列表纯净。\n")
-            f.write(f"==============================================\n\n")
+            f.write("建议: 将它们复制到 alias.txt 中进行别名映射，以保持列表纯净。\n")
+            f.write("==============================================\n\n")
             for name in sorted(unmatched_names):
                 f.write(f"{name}\n")
         live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
     else:
-        live_print(f"\n✅ AI 辅助后全部未匹配频道已归入已知频道，无待办清单")
+        live_print("\n✅ AI 辅助后全部未匹配频道已归入已知频道，无待办清单")
         if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
 
     # ── 批量写入 AI 发现的别名到 alias.txt ──
@@ -161,7 +172,7 @@ def save_parse_results(unmatched_names: Set[str], ai_pending_aliases: Dict[str, 
                     f.writelines(alias_lines)
                 live_print(f"  🤖 [AI→alias.txt] 写入 {alias_write_count} 条新别名映射")
             else:
-                live_print(f"  🤖 [AI→alias.txt] 别名均已存在，无需写入")
+                live_print("  🤖 [AI→alias.txt] 别名均已存在，无需写入")
         except Exception as e:
             live_print(f"  ⚠️ [AI→alias.txt] 写入失败: {e}")
 

@@ -1,13 +1,20 @@
-import os, time, concurrent.futures, requests, re, json, sys, shutil, atexit
-from collections import Counter, defaultdict
-from typing import Optional, Tuple, List, Dict, Set, Any
-from datetime import datetime
+import atexit
+import concurrent.futures
+import json
+import os
+import re
+import sys
+import time
+from typing import Tuple
+
+import requests
+
 
 # 预编译正则：频道名排序用数字提取（categorizer.py 和 speedtest.py 共享）
 _NUM_RE = re.compile(r'\d+')
 
 try:
-    from utils.ai_helper import standardize_channel_name, clear_cache, get_cache_stats, classify_channel
+    from utils.ai_helper import classify_channel, clear_cache, get_cache_stats, standardize_channel_name
     _AI_AVAILABLE = True
 except ImportError:
     standardize_channel_name = lambda x: x
@@ -38,7 +45,7 @@ def _dedup_blacklist():
             new_lines.pop()
         with open(bl_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
-        live_print(f"  🧹 blacklist.txt 去重完成")
+        live_print("  🧹 blacklist.txt 去重完成")
 
 # ===============================
 # 1.2 AI 辅助标准化：持久化缓存
@@ -243,7 +250,7 @@ def get_session() -> requests.Session:
 def _validate_configs():
     """启动时验证所有必要配置文件的存在与基本完整性"""
     issues = []
-    
+
     checks = [
         (SOURCES_FILE, True, "直播源"),
         (EPG_FILE, True, "EPG"),
@@ -256,7 +263,7 @@ def _validate_configs():
         (CHANNEL_MODEL_FILE, False, "频道模型"),
         (ICONS_INDEX_FILE, False, "图标索引"),
     ]
-    
+
     for path, required, label in checks:
         exists = os.path.exists(path)
         if not exists and required:
@@ -293,7 +300,7 @@ def _validate_configs():
                 issues.append(f"⚠️ 无法读取 [{label}]: {path} — {e}")
         elif not required and not exists:
             live_print(f"  ℹ️ 可选配置不存在 [{label}]: {path}（不影响运行）")
-    
+
     if issues:
         live_print("\n━━━ ⚙️ 配置验证结果 ━━━━━━━━━━━━━━━━━━━")
         for issue in issues:

@@ -14,45 +14,61 @@ m3u-checker-max — IPTV 直播源检测与分类系统
   utils/output.py      成品输出 M3U/TXT/日志
 """
 
-import os, time, json, shutil, re, concurrent.futures
+import concurrent.futures
+import json
+import os
+import shutil
+import time
+from dataclasses import asdict, dataclass, field, fields
 from typing import Optional
-from dataclasses import dataclass, field, fields, asdict
-from datetime import datetime
 
+from utils.categorizer import (
+    auto_update_demo,
+    load_adult_sources,
+    load_channel_model,
+    load_source_cat,
+)
 from utils.config import (
-    BLACKLIST_FILE, WHITELIST_FILE, SOURCES_FILE, EPG_FILE, ALIAS_FILE,
-    DEMO_FILE, UNMATCHED_FILE, ADULT_SOURCES_FILE, CHANNEL_MODEL_FILE,
-    SOURCE_CAT_FILE, MAX_WORKERS, PROBE_RESOLUTION, PROBE_TIMEOUT,
-    AI_CACHE_FILE,
-    _dedup_blacklist, _validate_configs, _load_ai_cache, _save_ai_cache,
-    live_print, write_summary, write_summary_table, ci_group, get_pool, fmt_resolution,
-    get_cache_stats, _AI_AVAILABLE,
+    _AI_AVAILABLE,
+    BLACKLIST_FILE,
+    MAX_WORKERS,
+    PROBE_RESOLUTION,
+    PROBE_TIMEOUT,
+    WHITELIST_FILE,
+    _dedup_blacklist,
+    _load_ai_cache,
+    _save_ai_cache,
+    _validate_configs,
+    fmt_resolution,
+    get_cache_stats,
+    get_pool,
+    live_print,
+    write_summary,
+    write_summary_table,
 )
-
-from utils.loaders import (
-    load_filter_lists, load_aliases, load_demo_template,
-)
-
 from utils.epg import (
     download_and_merge_epg,
 )
-
 from utils.fetcher import (
-    fetch_and_parse_channels, fetch_source_meta, save_parse_results,
+    fetch_and_parse_channels,
+    fetch_source_meta,
+    save_parse_results,
 )
-
-from utils.categorizer import (
-    auto_update_demo, load_adult_sources,
-    load_source_cat, load_channel_model,
+from utils.loaders import (
+    load_aliases,
+    load_demo_template,
+    load_filter_lists,
 )
-
-from utils.speedtest import (
-    run_speed_test, apply_filter_lists, append_auto_blacklist, probe_resolution,
-)
-
 from utils.output import (
     write_outputs,
 )
+from utils.speedtest import (
+    append_auto_blacklist,
+    apply_filter_lists,
+    probe_resolution,
+    run_speed_test,
+)
+
 
 # ── _AI_CACHE 持久化缓存（main 函数的局部变量） ──
 _AI_CACHE = {}
@@ -271,7 +287,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         if ci_phase is not None and ci_phase >= 3:
             st = _load_state(2)
             if not st:
-                live_print(f"  ❌ 未找到阶段2状态文件")
+                live_print("  ❌ 未找到阶段2状态文件")
                 return
             valid_results = st.valid_results
             resolution_map = st.resolution_map
@@ -337,17 +353,17 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                     for url, elapsed in urls:
                         if url not in resolution_map:
                             probe_targets.append((name, url, elapsed))
-                
+
                 n_total = len(probe_targets)
                 if n_total > 0:
                     live_print(f"\n🔍 分辨率检测: {n_total} 个频道 (并发 {MAX_WORKERS}, 超时 {PROBE_TIMEOUT}s)")
                     reso_probed = 0
                     reso_found = 0
-                    
+
                     def _probe_one(name, url, elapsed):
                         w, h = probe_resolution(url)
                         return url, w, h
-                    
+
                     pool = get_pool()
                     futures = {pool.submit(_probe_one, n, u, e): (n, u)
                                for n, u, e in probe_targets}
@@ -359,9 +375,9 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                             reso_found += 1
                         if reso_probed % 50 == 0 or reso_probed == n_total:
                             live_print(f"  🔍 分辨率检测: {reso_probed}/{n_total} | 已识别: {reso_found}")
-                    
+
                     live_print(f"✅ 分辨率检测完成: {reso_found}/{reso_probed} 识别成功")
-                    
+
                     # 分辨率分类统计
                     reso_stats = {}
                     for url, (w, h) in resolution_map.items():
@@ -529,32 +545,32 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         source_count = len(url_to_source) if 'url_to_source' in locals() or 'url_to_source' in dir() else len(src_total_dict)
 
         # ── 控制台管道视图 ──
-        live_print(f"")
+        live_print("")
         live_print("━━━ 📊 直播源检测 — 阶段摘要 ━━━━━━━━━━━━━━━━━")
-        live_print(f"  源获取 → 测速校验 → 分类输出")
-        live_print(f"")
-        live_print(f"  ┌─ 阶段1: 抓取与过滤")
+        live_print("  源获取 → 测速校验 → 分类输出")
+        live_print("")
+        live_print("  ┌─ 阶段1: 抓取与过滤")
         live_print(f"  │  ├ 总抓取频道 ........ {source_total:>4} 个")
         live_print(f"  │  ├ 白名单免测 ........ {len(logs_whitelist):>4} 个")
         live_print(f"  │  ├ 黑名单拦截 ........ {len(logs_blacklist):>4} 个")
         live_print(f"  │  ├ 非TV过滤 .......... {non_tv_count:>4} 个")
         live_print(f"  │  └ 待测频道 .......... {to_test_count:>4} 个")
-        live_print(f"  │")
-        live_print(f"  ├─ 阶段2: 测速与校验")
+        live_print("  │")
+        live_print("  ├─ 阶段2: 测速与校验")
         live_print(f"  │  ├ 成功率 ............ {source_ok:>4}/{source_total} ({source_ok*100//source_total if source_total else 0}%)")
         live_print(f"  │  ├ 来源统计 .......... {source_count:>4} 个来源")
         live_print(f"  │  ├ 失败TOP ........... {top_fails[0][0]+': '+str(top_fails[0][1]) if top_fails else 'N/A'}")
         if reso_stats:
             live_print(f"  │  └ 分辨率分布 ........ {', '.join(f'{lbl}={cnt}' for lbl, cnt in sorted(reso_stats.items(), key=lambda x:-x[1])[:3])}")
         else:
-            live_print(f"  │  └ 分辨率分布 ........ (无数据)")
-        live_print(f"  │")
-        live_print(f"  ├─ 阶段3: 模板进化与输出")
+            live_print("  │  └ 分辨率分布 ........ (无数据)")
+        live_print("  │")
+        live_print("  ├─ 阶段3: 模板进化与输出")
         live_print(f"  │  ├ 有效频道 .......... {total_channels:>4} 个 (→ output/live.m3u)")
         live_print(f"  │  ├ 输出分类数 ........ {len(cat_order):>4} 个")
         live_print(f"  │  ├ 成人频道 .......... {adult_count:>4} 个 (→ output/adult.m3u)")
         live_print(f"  │  └ EPG .............. {'✅' if epg_report else '❌'}")
-        live_print(f"  │")
+        live_print("  │")
         live_print(f"  └─ 耗时: {elapsed:.2f}s")
 
         # ── 详细统计：写入 GITHUB_STEP_SUMMARY ──
@@ -654,11 +670,11 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         write_summary("\n</details>\n")
 
         # 控制台也输出详细统计
-        live_print(f"")
+        live_print("")
         live_print("━━━ 📋 详细统计 ━━━━━━━━━━━━━━━━━━━━━━━━━")
         # 来源统计表
         if src_total_dict:
-            live_print(f"\n🔗 各来源测速结果:")
+            live_print("\n🔗 各来源测速结果:")
             live_print(f"  {'来源':<50} {'成功':>6} {'总计':>6} {'成功率':>8}")
             live_print(f"  {'─'*74}")
             for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
@@ -669,20 +685,20 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 live_print(f"  {label:<50} {ok:>6} {total:>6} {rate:>8}")
         # 失败分布
         if fail_counts:
-            live_print(f"\n❌ 失败原因分布:")
+            live_print("\n❌ 失败原因分布:")
             for cat in sorted(fail_counts, key=fail_counts.get, reverse=True):
                 cnt = fail_counts[cat]
                 live_print(f"  {cat:<20} {cnt}")
         # 分类存活
         if cat_live_counts:
-            live_print(f"\n📺 分类频道存活情况:")
+            live_print("\n📺 分类频道存活情况:")
             for cat in sorted(cat_live_counts, key=cat_live_counts.get, reverse=True):
                 cnt = cat_live_counts[cat]
                 if cnt > 0:
                     live_print(f"  {cat:<40} {cnt} 个")
         # 分辨率
         if reso_stats:
-            live_print(f"\n🖥️ 分辨率分布:")
+            live_print("\n🖥️ 分辨率分布:")
             for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
                 cnt = reso_stats[lbl]
                 bar = '█' * min(cnt // 2 + 1, 15)

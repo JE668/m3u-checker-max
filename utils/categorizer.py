@@ -1,16 +1,24 @@
-import os, re, json, subprocess
-from typing import Dict, List, Tuple, Optional, Set
+import os
 from collections import Counter
 from datetime import datetime
-from urllib.parse import urlparse
+from typing import Dict, Optional, Tuple
 
-from utils.config import (
-    CATEGORY_RULES, DEFAULT_CATEGORY,
-    NON_TV_PATTERNS, NON_TV_LOG, ADULT_SOURCES_FILE, SOURCE_CAT_FILE, CHANNEL_MODEL_FILE,
-    DEMO_FILE, live_print, _AI_AVAILABLE, get_session, _NUM_RE
-)
-from utils.loaders import get_main_name, load_aliases, get_local_logo_url
 from utils.ai_helper import classify_channel, classify_channels_batch
+from utils.config import (
+    _AI_AVAILABLE,
+    _NUM_RE,
+    ADULT_SOURCES_FILE,
+    CATEGORY_RULES,
+    CHANNEL_MODEL_FILE,
+    DEFAULT_CATEGORY,
+    DEMO_FILE,
+    NON_TV_LOG,
+    NON_TV_PATTERNS,
+    SOURCE_CAT_FILE,
+    live_print,
+)
+from utils.loaders import get_main_name, load_aliases
+
 
 # 模块级缓存：避免同一 CI 周期内重复学习
 _demo_rules_cache = None
@@ -265,7 +273,7 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
     # 写入过滤日志（统计 + 明细）
     if non_tv_channels:
         with open(NON_TV_LOG, 'w', encoding='utf-8') as f:
-            f.write(f"# 非 TV 频道过滤日志\n")
+            f.write("# 非 TV 频道过滤日志\n")
             f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"# 总计: {len(non_tv_channels)} 个频道被过滤\n\n")
             # 按关键词分组统计
@@ -278,7 +286,7 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
             f.write("## 按关键词统计\n")
             for kw, cnt in kw_counts.most_common():
                 f.write(f"{kw}: {cnt}\n")
-            f.write(f"\n## 被过滤频道列表\n")
+            f.write("\n## 被过滤频道列表\n")
             for name in non_tv_channels:
                 matched_kw = next((p for p in NON_TV_PATTERNS if p in name), "未知")
                 f.write(f"[{matched_kw}] {name}\n")
@@ -380,7 +388,7 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
     try:
         with open(DEMO_FILE, 'w', encoding='utf-8', newline='\n') as f:  # P1-10: 强制 LF
             f.writelines(lines)
-        live_print(f"✅ 动作: config/demo.txt 已无损更新！原结构完美保留，底部已成功追加上述新频道。")
+        live_print("✅ 动作: config/demo.txt 已无损更新！原结构完美保留，底部已成功追加上述新频道。")
     except Exception as e:
         live_print(f"❌ 动作: config/demo.txt 更新失败: {e}")
     return cat_order, chan_to_cat, chans_in_cat

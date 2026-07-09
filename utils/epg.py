@@ -1,11 +1,14 @@
-import os, gzip, io, concurrent.futures, xml.etree.ElementTree as ET, re
-from typing import Dict, List, Optional, Set, Tuple
+import concurrent.futures
+import gzip
+import io
+import os
+import re
+import xml.etree.ElementTree as ET
+from typing import Dict, List, Set, Tuple
 
-from utils.config import (
-    EPG_FILE, EPG_BLACKLIST, EPG_MAX_WORKERS, OUTPUT_EPG, OUTPUT_EPG_GZ,
-    get_session, live_print, fetch_url
-)
-from utils.loaders import load_aliases, get_main_name
+from utils.config import EPG_BLACKLIST, EPG_FILE, EPG_MAX_WORKERS, OUTPUT_EPG, OUTPUT_EPG_GZ, fetch_url, live_print
+from utils.loaders import get_main_name
+
 
 def _download_single_epg(url: str, aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str]) -> Tuple[list, list, list]:
     """下载并解析单个 EPG 源（供并发调用）"""

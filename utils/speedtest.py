@@ -1,14 +1,31 @@
-import concurrent.futures, random, time, subprocess, json, re, os, requests, shutil
+import concurrent.futures
+import json
+import os
+import random
+import re
+import shutil
+import subprocess
+import time
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
+import requests
+
 from utils.config import (
+    BLACKLIST_FILE,
+    CHECK_CONNECT_TIMEOUT,
+    CHECK_READ_TIMEOUT,
+    CHECK_TOTAL_TIMEOUT,
+    DOWNLOAD_TARGET_BYTES,
+    INVALID_NAME_PATTERNS,
+    MIN_BANDWIDTH_MBPS,
     PROBE_TIMEOUT,
-    CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT, CHECK_TOTAL_TIMEOUT,
-    DOWNLOAD_TARGET_BYTES, MIN_BANDWIDTH_MBPS, SAMPLE_PER_HOST,
-    MAX_WORKERS, DEFAULT_HEADERS, INVALID_NAME_PATTERNS, BLACKLIST_FILE,
-    get_session, get_pool, live_print, _AI_AVAILABLE, _NUM_RE
+    SAMPLE_PER_HOST,
+    get_pool,
+    get_session,
+    live_print,
 )
+
 
 # 测速阶段控制台成功日志采样上限：只采样显示前 N 条成功，避免海量频道刷屏。
 # 完整的成功/失败日志仍会写入 output/log.txt，不受此限制影响。可用环境变量覆盖。
@@ -188,8 +205,8 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
     valid_results = {}
     logs_blacklist, logs_whitelist = [], []
     auto_blacklist = []  # 自动发现的无效频道名
-    
-    # 检测无效频道名
+
+    # 检测无效频道名（仅在此处记录一次 [无效名]，避免后续重复记录）
     for name, url, source_url in channels:
         for pattern in INVALID_NAME_PATTERNS:
             if re.match(pattern, name):
@@ -200,8 +217,11 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
     # 第一趟：分离白名单条目，并发做存活检测
     whitelist_candidates = []  # [(name, url), ...]
     for name, url, source_url in channels:
-        if name in blacklist_names or url in blacklist_urls or name in auto_blacklist:
+        if name in blacklist_names or url in blacklist_urls:
             logs_blacklist.append(f"⚫ [黑名单屏蔽] {name:<12} | {url}")
+        elif name in auto_blacklist:
+            # 已在上方 [无效名] 检测中记录，此处不再重复记录，亦不进入测速/白名单
+            pass
         elif name in whitelist_names or url in whitelist_urls:
             whitelist_candidates.append((name, url))
         else:
@@ -209,7 +229,6 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
 
     if whitelist_candidates:
         whitelist_alive = set()  # 存储 (name, url) of alive entries
-        dead_entries = []
 
         def _check_head(name, url):
             try:
@@ -453,7 +472,10 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
         live_print(f"\n💀 淘汰 {len(dead_hosts)} 台死服务器, 跳过 {skipped} 个频道")
         for host in dead_hosts:
             for name, url in remaining_by_host[host]:
-                logs_fail.append(f"⏭️ [服务器死亡] {_fmt_name(name):<24} | {url}")
+                reason = f"⏭️ [服务器死亡] {_fmt_name(name):<24} | {url}"
+                logs_fail.append(reason)
+                cat = _classify_failure(reason)
+                fail_counts[cat] = fail_counts.get(cat, 0) + 1
 
     # Phase 3: 全量测速存活服务器的剩余频道，按 meta 带宽降序排序
     full_test = []

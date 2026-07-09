@@ -1,13 +1,20 @@
-import os
-from typing import Dict, List, Tuple, Optional, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from utils.config import (
-    OUTPUT_M3U, OUTPUT_TXT, ADULT_M3U, ADULT_TXT, LOG_FILE,
-    M3U_HEADER, MIN_RESOLUTION_PIXELS, MIN_RESOLUTION,
-    fmt_resolution, live_print
+    ADULT_M3U,
+    ADULT_TXT,
+    LOG_FILE,
+    M3U_HEADER,
+    MIN_RESOLUTION,
+    MIN_RESOLUTION_PIXELS,
+    OUTPUT_M3U,
+    OUTPUT_TXT,
+    fmt_resolution,
+    live_print,
 )
 from utils.loaders import get_local_logo_url
+
 
 def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: List[str], chans_in_cat: Dict[str, List[str]], epg_report: list, logs_success: list, logs_fail: list, logs_whitelist: list, logs_blacklist: list, extra_stats: Optional[Dict[str, Any]] = None, adult_results: Optional[Dict[str, List[Tuple[str, float]]]] = None, channel_to_station: Optional[Dict[str, str]] = None, resolution_map: Optional[Dict[str, Tuple[int, int]]] = None) -> None:
     """写入 M3U/TXT 成品 + 日志文件"""
@@ -40,7 +47,7 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
                             if MIN_RESOLUTION_PIXELS > 0 and w * h > 0 and w * h < MIN_RESOLUTION_PIXELS:
                                 reso_filtered += 1
                                 continue
-                            
+
                             if not cat_written_in_txt:
                                 ftxt.write(f"\n{cat}\n")
                                 cat_written_in_txt = True
@@ -52,7 +59,7 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
                             cat_clean = cat.split(',')[0]
                             elapsed_display = "免测" if elapsed < 0 else f"{elapsed}s"
                             reso_tag = fmt_resolution(w, h)
-                            
+
                             # EXTINF 含分辨率属性
                             if w > 0 and h > 0:
                                 fm3u.write(f'#EXTINF:-1 RESOLUTION={w}x{h} tvg-id="{name}" tvg-name="{name}" tvg-logo="{logo}" group-title="{cat_clean}",{name}\n')
@@ -146,11 +153,11 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
 
     # ── 分辨率过滤结果日志 ──
     if reso_filtered or reso_ok:
-        live_print(f"\n🖥️ 分辨率筛选结果:")
+        live_print("\n🖥️ 分辨率筛选结果:")
         live_print(f"  ├ 通过 (≥{MIN_RESOLUTION}) .... {reso_ok}")
         live_print(f"  └ 过滤 (<{MIN_RESOLUTION}) .... {reso_filtered}")
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n分辨率筛选: 通过={reso_ok}, 过滤={reso_filtered} (阈值={MIN_RESOLUTION})\n")
 
-    live_print(f"✅ 所有结果文件已生成至 output/ 目录")
+    live_print("✅ 所有结果文件已生成至 output/ 目录")
 

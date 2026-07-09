@@ -1,11 +1,9 @@
-import os, re
-from typing import Dict, List, Tuple, Optional, Set
-from datetime import datetime
+import os
+import re
+from typing import Dict, List, Optional, Set, Tuple
 
-from utils.config import (
-    ALIAS_FILE, DEMO_FILE, ICON_DIR, ICONS_INDEX_FILE,
-    REPO_RAW, live_print
-)
+from utils.config import ALIAS_FILE, DEMO_FILE, ICON_DIR, ICONS_INDEX_FILE, REPO_RAW, live_print
+
 
 def load_filter_lists(filepath: str) -> Tuple[Set[str], Set[str]]:
     """通用黑/白名单加载器，自动区分频道名与具体链接"""
