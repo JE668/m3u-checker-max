@@ -6,6 +6,7 @@
 运行方式（无需第三方依赖，标准库 unittest）：
     python -m unittest tests.test_optimizations -v
 """
+import io
 import os
 import sys
 import json
@@ -13,6 +14,7 @@ import tempfile
 import unittest
 from unittest import mock
 from dataclasses import asdict
+from contextlib import redirect_stdout, redirect_stderr
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -513,6 +515,41 @@ class TestConfigConstants(unittest.TestCase):
     def test_success_log_sample_limit_single_source(self):
         """SUCCESS_LOG_SAMPLE_LIMIT 现由 config 单一来源定义（默认 15，支持 env 覆盖）。"""
         self.assertEqual(C.SUCCESS_LOG_SAMPLE_LIMIT, 15)
+
+
+class TestCIGroup(unittest.TestCase):
+    def test_emits_group_commands_in_ci(self):
+        """CI 环境(GITHUB_ACTIONS=true)下须输出 ::group::/::endgroup:: 到 stdout。"""
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            with redirect_stdout(buf):
+                with C.ci_group("抓取直播源"):
+                    pass
+        out = buf.getvalue()
+        self.assertIn("::group::抓取直播源", out)
+        self.assertIn("::endgroup::", out)
+
+    def test_local_fallback_prints_banner(self):
+        """本地环境(无 GITHUB_ACTIONS)下退化为 stderr 分隔行。"""
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with redirect_stderr(buf):
+                with C.ci_group("抓取直播源"):
+                    pass
+        err = buf.getvalue()
+        self.assertIn("抓取直播源", err)
+
+    def test_closes_group_on_exception(self):
+        """分组内异常时仍须输出 ::endgroup::，保证分组正确闭合。"""
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            with redirect_stdout(buf):
+                with self.assertRaises(ValueError):
+                    with C.ci_group("会失败的分组"):
+                        raise ValueError("boom")
+        out = buf.getvalue()
+        self.assertIn("::group::会失败的分组", out)
+        self.assertIn("::endgroup::", out)
 
 
 if __name__ == "__main__":

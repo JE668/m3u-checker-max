@@ -43,6 +43,7 @@ from utils.config import (
     get_cache_stats,
     get_pool,
     live_print,
+    ci_group,
     write_summary,
     write_summary_table,
     flush_summary,
@@ -113,6 +114,13 @@ class CIState:
         known = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in raw.items() if k in known})
 
+# 阶段标题：与 .github/workflows/update.yml 的 step 名及 Summary 标题保持单一来源一致
+PHASE_TITLES = {
+    1: "🔍 阶段1 — 抓取直播源 & 黑白名单过滤",
+    2: "🚀 阶段2 — 并发测速 & 流校验",
+    3: "🧠 阶段3 — 模板进化 & 成品输出",
+}
+
 def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
     global _AI_CACHE
@@ -169,72 +177,79 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             live_print("  🔄 已从阶段1状态恢复")
         else:
             # ----- 阶段1：从头执行 -----
-            aliases_exact, aliases_regex, known_main_names = load_aliases()
+            live_print(f"\n{'━'*50}\n  {PHASE_TITLES[1]}\n{'━'*50}")
 
-            # 加载黑白名单
-            blacklist_names, blacklist_urls = load_filter_lists(BLACKLIST_FILE)
-            whitelist_names, whitelist_urls = load_filter_lists(WHITELIST_FILE)
+            with ci_group("📂 加载配置（别名/名单/EPG/模板）"):
+                aliases_exact, aliases_regex, known_main_names = load_aliases()
 
-            epg_report = download_and_merge_epg(aliases_exact, aliases_regex, known_main_names)
+                # 加载黑白名单
+                blacklist_names, blacklist_urls = load_filter_lists(BLACKLIST_FILE)
+                whitelist_names, whitelist_urls = load_filter_lists(WHITELIST_FILE)
 
-            try:
-                cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex, known_main_names)
-            except Exception as e:
-                live_print(f"❌ config/demo.txt 加载严重错误: {e}")
-                return
+                epg_report = download_and_merge_epg(aliases_exact, aliases_regex, known_main_names)
+
+                try:
+                    cat_order, chan_to_cat, chans_in_cat = load_demo_template(aliases_exact, aliases_regex, known_main_names)
+                except Exception as e:
+                    live_print(f"❌ config/demo.txt 加载严重错误: {e}")
+                    return
 
             start_time = time.time()
-            channels, url_to_group, unmatched_names, ai_pending_aliases = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=_AI_CACHE)
-            # 解析阶段不再写文件；在此显式落盘，与抓取逻辑解耦
-            save_parse_results(unmatched_names, ai_pending_aliases)
+            with ci_group("📡 抓取直播源"):
+                channels, url_to_group, unmatched_names, ai_pending_aliases = fetch_and_parse_channels(aliases_exact, aliases_regex, known_main_names, ai_cache=_AI_CACHE)
+                # 解析阶段不再写文件；在此显式落盘，与抓取逻辑解耦
+                save_parse_results(unmatched_names, ai_pending_aliases)
 
-            if not channels:
-                live_print("⚠️ 未获取到任何有效直播源，退出。")
-                return
+                if not channels:
+                    live_print("⚠️ 未获取到任何有效直播源，退出。")
+                    return
 
-            # 建立 URL → 来源 映射
-            url_to_source = {}
-            for _, url, source_url in channels:
-                url_to_source[url] = source_url
+                # 建立 URL → 来源 映射
+                url_to_source = {}
+                for _, url, source_url in channels:
+                    url_to_source[url] = source_url
 
-            source_channel_counts = {}
-            for _, _, src in channels:
-                source_channel_counts[src] = source_channel_counts.get(src, 0) + 1
-            for src, cnt in source_channel_counts.items():
-                live_print(f"  📡 {src.split('/')[-1]}: {cnt} 条")
+                source_channel_counts = {}
+                for _, _, src in channels:
+                    source_channel_counts[src] = source_channel_counts.get(src, 0) + 1
+                for src, cnt in source_channel_counts.items():
+                    live_print(f"  📡 {src.split('/')[-1]}: {cnt} 条")
 
-            # 黑白名单过滤分流
-            to_test, valid_results, logs_blacklist, logs_whitelist, auto_blacklist = apply_filter_lists(
-                channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
-            )
-            # 过滤即返回内存结果；无效名落盘由调用方显式触发，避免副作用
-            append_auto_blacklist(auto_blacklist)
+            with ci_group("🚫 黑白名单过滤 & IPv6"):
+                # 黑白名单过滤分流
+                to_test, valid_results, logs_blacklist, logs_whitelist, auto_blacklist = apply_filter_lists(
+                    channels, blacklist_names, blacklist_urls, whitelist_names, whitelist_urls
+                )
+                # 过滤即返回内存结果；无效名落盘由调用方显式触发，避免副作用
+                append_auto_blacklist(auto_blacklist)
 
-            # 过滤 IPv6 地址
-            enable_ipv6 = os.environ.get("ENABLE_IPV6", "").lower() == "true"
-            ipv6_count = sum(1 for _, url in to_test if '[' in url)
-            if ipv6_count and not enable_ipv6:
-                to_test = [(n, u) for n, u in to_test if '[' not in u]
-                live_print(f"🔇 过滤 {ipv6_count} 条 IPv6 链接 (GitHub Actions 无 IPv6 路由)")
-            elif ipv6_count:
-                live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
+                # 过滤 IPv6 地址
+                enable_ipv6 = os.environ.get("ENABLE_IPV6", "").lower() == "true"
+                ipv6_count = sum(1 for _, url in to_test if '[' in url)
+                if ipv6_count and not enable_ipv6:
+                    to_test = [(n, u) for n, u in to_test if '[' not in u]
+                    live_print(f"🔇 过滤 {ipv6_count} 条 IPv6 链接 (GitHub Actions 无 IPv6 路由)")
+                elif ipv6_count:
+                    live_print(f"🌐 保留 {ipv6_count} 条 IPv6 链接 (ENABLE_IPV6=true)")
 
-            # 成人来源标记（仅URL模式匹配，后续阶段2会参加测速再归类）
-            adult_sources = load_adult_sources()
-            adult_results = {}
-            adult_source_urls = set()  # 始终初始化，避免 adult-sources.txt 为空时 NameError
-            if adult_sources:
-                live_print(f"  🔞 成人源URL模式: {adult_sources}")
-                for name, url in to_test:
-                    src = url_to_source.get(url, '')
-                    for a in adult_sources:
-                        if a in src:
-                            adult_source_urls.add(url)
-                            break
-                if adult_source_urls:
-                    live_print(f"  🔞 标记 {len(adult_source_urls)} 个成人来源URL，将在阶段2参与测速后归类")
+            with ci_group("🔞 成人来源标记"):
+                # 成人来源标记（仅URL模式匹配，后续阶段2会参加测速再归类）
+                adult_sources = load_adult_sources()
+                adult_results = {}
+                adult_source_urls = set()  # 始终初始化，避免 adult-sources.txt 为空时 NameError
+                if adult_sources:
+                    live_print(f"  🔞 成人源URL模式: {adult_sources}")
+                    for name, url in to_test:
+                        src = url_to_source.get(url, '')
+                        for a in adult_sources:
+                            if a in src:
+                                adult_source_urls.add(url)
+                                break
+                    if adult_source_urls:
+                        live_print(f"  🔞 标记 {len(adult_source_urls)} 个成人来源URL，将在阶段2参与测速后归类")
 
-            channel_model, channel_to_station = load_channel_model()
+            with ci_group("📺 加载频道模型"):
+                channel_model, channel_to_station = load_channel_model()
 
         # 阶段1结束前保存 AI 缓存，避免跨阶段丢失
         if _AI_CACHE:
@@ -257,7 +272,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 start_time=start_time,
             ))
             # 阶段1 Summary
-            write_summary("## 🔍 阶段1 — 抓取与过滤\n")
+            write_summary(f"## {PHASE_TITLES[1]}\n")
             write_summary_table(
                 ["指标", "数值"],
                 [
@@ -312,88 +327,92 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             start_time = st.start_time
             live_print("  🔄 已从阶段2状态恢复")
         else:
-            live_print(f"\n🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)...\n")
+            live_print(f"\n{'━'*50}\n  {PHASE_TITLES[2]}\n{'━'*50}")
 
-            source_meta = fetch_source_meta()
-            test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
-                to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
-            )
+            with ci_group("🚀 并发测速"):
+                live_print(f"🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)")
+                source_meta = fetch_source_meta()
+                test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
+                    to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
+                )
 
-            # 合并测速结果到 valid_results
-            for name, url_list in test_results.items():
-                if name not in valid_results:
-                    valid_results[name] = url_list
+                # 合并测速结果到 valid_results
+                for name, url_list in test_results.items():
+                    if name not in valid_results:
+                        valid_results[name] = url_list
+                    else:
+                        existing_urls = {u for u, _ in valid_results[name]}
+                        for url, elapsed in url_list:
+                            if url not in existing_urls:
+                                valid_results[name].append((url, elapsed))
+                                existing_urls.add(url)
+
+            with ci_group("🔞 成人来源分离"):
+                # ═══ 成人来源分离：测速后将成人来源URL从 valid_results 移到 adult_results ═══
+                if adult_source_urls:
+                    adult_results = {}
+                    for name in list(valid_results.keys()):
+                        adult_urls = [(u, e) for u, e in valid_results[name] if u in adult_source_urls]
+                        normal_urls = [(u, e) for u, e in valid_results[name] if u not in adult_source_urls]
+                        if adult_urls:
+                            adult_results[name] = adult_urls
+                        if normal_urls:
+                            valid_results[name] = normal_urls
+                        elif name in valid_results:
+                            del valid_results[name]
+                    live_print(f"  🔞 成人来源测速后分离: {len(adult_results)} 个频道 → output/adult.m3u")
                 else:
-                    existing_urls = {u for u, _ in valid_results[name]}
-                    for url, elapsed in url_list:
-                        if url not in existing_urls:
-                            valid_results[name].append((url, elapsed))
-                            existing_urls.add(url)
+                    adult_results = {}
 
-            # ═══ 成人来源分离：测速后将成人来源URL从 valid_results 移到 adult_results ═══
-            if adult_source_urls:
-                adult_results = {}
-                for name in list(valid_results.keys()):
-                    adult_urls = [(u, e) for u, e in valid_results[name] if u in adult_source_urls]
-                    normal_urls = [(u, e) for u, e in valid_results[name] if u not in adult_source_urls]
-                    if adult_urls:
-                        adult_results[name] = adult_urls
-                    if normal_urls:
-                        valid_results[name] = normal_urls
-                    elif name in valid_results:
-                        del valid_results[name]
-                live_print(f"  🔞 成人来源测速后分离: {len(adult_results)} 个频道 → output/adult.m3u")
-            else:
-                adult_results = {}
-
-            # ═══ 分辨率检测 ═══
-            resolution_map = {}
-            if PROBE_RESOLUTION and valid_results:
-                # 收集所有有效 URL
-                probe_targets = []
-                for name, urls in valid_results.items():
-                    for url, elapsed in urls:
-                        if url not in resolution_map:
-                            probe_targets.append((name, url, elapsed))
-
-                n_total = len(probe_targets)
-                if n_total > 0:
-                    live_print(f"\n🔍 分辨率检测: {n_total} 个频道 (并发 {MAX_WORKERS}, 超时 {PROBE_TIMEOUT}s)")
-                    reso_probed = 0
-                    reso_found = 0
-
-                    def _probe_one(name, url, elapsed):
-                        w, h = probe_resolution(url)
-                        return url, w, h
-
-                    pool = get_pool()
-                    futures = {pool.submit(_probe_one, n, u, e): (n, u)
-                               for n, u, e in probe_targets}
-                    for future in concurrent.futures.as_completed(futures):
-                        url, w, h = future.result()
-                        resolution_map[url] = (w, h)
-                        reso_probed += 1
-                        if w > 0 and h > 0:
-                            reso_found += 1
-                        if reso_probed % 50 == 0 or reso_probed == n_total:
-                            live_print(f"  🔍 分辨率检测: {reso_probed}/{n_total} | 已识别: {reso_found}")
-
-                    live_print(f"✅ 分辨率检测完成: {reso_found}/{reso_probed} 识别成功")
-
-                    # 分辨率分类统计
-                    reso_stats = {}
-                    for url, (w, h) in resolution_map.items():
-                        if w > 0 and h > 0:
-                            label = fmt_resolution(w, h)
-                            reso_stats[label] = reso_stats.get(label, 0) + 1
-                    if reso_stats:
-                        live_print("📊 分辨率分布:")
-                        for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
-                            cnt = reso_stats[lbl]
-                            bar = '█' * min(cnt // 2 + 1, 15)
-                            live_print(f"  {lbl:<10} {cnt:>4}  {bar}")
-            else:
+            with ci_group("🔍 分辨率检测"):
+                # ═══ 分辨率检测 ═══
                 resolution_map = {}
+                if PROBE_RESOLUTION and valid_results:
+                    # 收集所有有效 URL
+                    probe_targets = []
+                    for name, urls in valid_results.items():
+                        for url, elapsed in urls:
+                            if url not in resolution_map:
+                                probe_targets.append((name, url, elapsed))
+
+                    n_total = len(probe_targets)
+                    if n_total > 0:
+                        live_print(f"🔍 分辨率检测: {n_total} 个频道 (并发 {MAX_WORKERS}, 超时 {PROBE_TIMEOUT}s)")
+                        reso_probed = 0
+                        reso_found = 0
+
+                        def _probe_one(name, url, elapsed):
+                            w, h = probe_resolution(url)
+                            return url, w, h
+
+                        pool = get_pool()
+                        futures = {pool.submit(_probe_one, n, u, e): (n, u)
+                                   for n, u, e in probe_targets}
+                        for future in concurrent.futures.as_completed(futures):
+                            url, w, h = future.result()
+                            resolution_map[url] = (w, h)
+                            reso_probed += 1
+                            if w > 0 and h > 0:
+                                reso_found += 1
+                            if reso_probed % 50 == 0 or reso_probed == n_total:
+                                live_print(f"  🔍 分辨率检测: {reso_probed}/{n_total} | 已识别: {reso_found}")
+
+                        live_print(f"✅ 分辨率检测完成: {reso_found}/{reso_probed} 识别成功")
+
+                        # 分辨率分类统计
+                        reso_stats = {}
+                        for url, (w, h) in resolution_map.items():
+                            if w > 0 and h > 0:
+                                label = fmt_resolution(w, h)
+                                reso_stats[label] = reso_stats.get(label, 0) + 1
+                        if reso_stats:
+                            live_print("📊 分辨率分布:")
+                            for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
+                                cnt = reso_stats[lbl]
+                                bar = '█' * min(cnt // 2 + 1, 15)
+                                live_print(f"  {lbl:<10} {cnt:>4}  {bar}")
+                else:
+                    resolution_map = {}
 
         if ci_phase == 2:
             _save_state(2, CIState(
@@ -423,7 +442,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             total_ok = sum(src_ok_dict.values())
             total_test = sum(src_total_dict.values())
             success_rate = f"{total_ok*100//total_test}%" if total_test else "N/A"
-            write_summary("## 🚀 阶段2 — 测速与校验\n")
+            write_summary(f"## {PHASE_TITLES[2]}\n")
             write_summary_table(
                 ["指标", "数值"],
                 [
@@ -476,41 +495,47 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     # 阶段3：分类模板进化 & 成品输出
     # ════════════════════════════════════════════
     if ci_phase is None or ci_phase >= 3:
-        # 模板自进化
-        source_cat_map = load_source_cat()
-        cat_order, chan_to_cat, chans_in_cat = auto_update_demo(
-            valid_results, cat_order, chan_to_cat, chans_in_cat,
-            url_to_source=url_to_source, source_cat_map=source_cat_map, channel_model=channel_model
-        )
+        live_print(f"\n{'━'*50}\n  {PHASE_TITLES[3]}\n{'━'*50}")
 
-        # 过滤空分类
-        non_empty_cats = [cat for cat in cat_order if any(name in valid_results for name in chans_in_cat.get(cat, []))]
-        if len(non_empty_cats) < len(cat_order):
-            empty = len(cat_order) - len(non_empty_cats)
-            live_print(f"🧹 过滤 {empty} 个空分类（无存活频道）")
-            cat_order = non_empty_cats
+        with ci_group("🧠 模板自进化"):
+            # 模板自进化
+            source_cat_map = load_source_cat()
+            cat_order, chan_to_cat, chans_in_cat = auto_update_demo(
+                valid_results, cat_order, chan_to_cat, chans_in_cat,
+                url_to_source=url_to_source, source_cat_map=source_cat_map, channel_model=channel_model
+            )
 
-        # 写入成品
-        cat_live_counts = {}
-        for cat in cat_order:
-            cat_live_counts[cat] = sum(1 for name in chans_in_cat.get(cat, []) if name in valid_results)
+        with ci_group("🧹 过滤空分类"):
+            # 过滤空分类
+            non_empty_cats = [cat for cat in cat_order if any(name in valid_results for name in chans_in_cat.get(cat, []))]
+            if len(non_empty_cats) < len(cat_order):
+                empty = len(cat_order) - len(non_empty_cats)
+                live_print(f"🧹 过滤 {empty} 个空分类（无存活频道）")
+                cat_order = non_empty_cats
 
-        extra_stats = {
-            "source_ok": source_stats["ok"],
-            "source_total": source_stats["total"],
-            "fail_counts": fail_counts,
-            "cat_live_counts": cat_live_counts,
-            "elapsed_seconds": time.time() - start_time,
-        }
-        write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail,
-                       logs_whitelist, logs_blacklist, extra_stats,
-                       adult_results=adult_results, channel_to_station=channel_to_station,
-                       resolution_map=resolution_map)
+        with ci_group("📄 写入成品（M3U/TXT/日志）"):
+            # 写入成品
+            cat_live_counts = {}
+            for cat in cat_order:
+                cat_live_counts[cat] = sum(1 for name in chans_in_cat.get(cat, []) if name in valid_results)
 
-        # CI最后阶段：清理临时状态
-        if ci_phase == 3 and os.path.exists(ci_state_dir):
-            shutil.rmtree(ci_state_dir)
-            live_print(f"  🧹 已清理临时状态目录: {ci_state_dir}")
+            extra_stats = {
+                "source_ok": source_stats["ok"],
+                "source_total": source_stats["total"],
+                "fail_counts": fail_counts,
+                "cat_live_counts": cat_live_counts,
+                "elapsed_seconds": time.time() - start_time,
+            }
+            write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail,
+                           logs_whitelist, logs_blacklist, extra_stats,
+                           adult_results=adult_results, channel_to_station=channel_to_station,
+                           resolution_map=resolution_map)
+
+        with ci_group("🧹 清理临时状态"):
+            # CI最后阶段：清理临时状态
+            if ci_phase == 3 and os.path.exists(ci_state_dir):
+                shutil.rmtree(ci_state_dir)
+                live_print(f"  🧹 已清理临时状态目录: {ci_state_dir}")
 
     # ── Phase 3 完成后的统一统计摘要 ──
     if ci_phase is None or ci_phase == 3:
@@ -552,14 +577,14 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         live_print("━━━ 📊 直播源检测 — 阶段摘要 ━━━━━━━━━━━━━━━━━")
         live_print("  源获取 → 测速校验 → 分类输出")
         live_print("")
-        live_print("  ┌─ 阶段1: 抓取与过滤")
+        live_print("  ┌─ 阶段1: 抓取直播源 & 黑白名单过滤")
         live_print(f"  │  ├ 总抓取频道 ........ {source_total:>4} 个")
         live_print(f"  │  ├ 白名单免测 ........ {len(logs_whitelist):>4} 个")
         live_print(f"  │  ├ 黑名单拦截 ........ {len(logs_blacklist):>4} 个")
         live_print(f"  │  ├ 非TV过滤 .......... {non_tv_count:>4} 个")
         live_print(f"  │  └ 待测频道 .......... {to_test_count:>4} 个")
         live_print("  │")
-        live_print("  ├─ 阶段2: 测速与校验")
+        live_print("  ├─ 阶段2: 并发测速 & 流校验")
         live_print(f"  │  ├ 成功率 ............ {source_ok:>4}/{source_total} ({source_ok*100//source_total if source_total else 0}%)")
         live_print(f"  │  ├ 来源统计 .......... {source_count:>4} 个来源")
         live_print(f"  │  ├ 失败TOP ........... {top_fails[0][0]+': '+str(top_fails[0][1]) if top_fails else 'N/A'}")
@@ -568,7 +593,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         else:
             live_print("  │  └ 分辨率分布 ........ (无数据)")
         live_print("  │")
-        live_print("  ├─ 阶段3: 模板进化与输出")
+        live_print("  ├─ 阶段3: 模板进化 & 成品输出")
         live_print(f"  │  ├ 有效频道 .......... {total_channels:>4} 个 (→ output/live.m3u)")
         live_print(f"  │  ├ 输出分类数 ........ {len(cat_order):>4} 个")
         live_print(f"  │  ├ 成人频道 .......... {adult_count:>4} 个 (→ output/adult.m3u)")
@@ -577,7 +602,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         live_print(f"  └─ 耗时: {elapsed:.2f}s")
 
         # ── 详细统计：写入 GITHUB_STEP_SUMMARY ──
-        write_summary("## 🧠 阶段3 — 模板进化与输出\n")
+        write_summary(f"## {PHASE_TITLES[3]}\n")
         write_summary_table(
             ["指标", "数值"],
             [

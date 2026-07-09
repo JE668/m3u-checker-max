@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+from contextlib import contextmanager
 from typing import Tuple
 
 import requests
@@ -334,6 +335,29 @@ def _validate_configs():
 def live_print(content):
     """输出到 stderr（GitHub Actions 实时流式）+ 自动刷新"""
     print(content, flush=True, file=sys.stderr)
+
+@contextmanager
+def ci_group(title):
+    """将一组 CI 日志折叠为可点击分组（GitHub Actions ::group:: 命令）。
+
+    约束：GitHub Actions 不支持嵌套 group，因此阶段级与子任务级分组必须
+    平级出现，绝不可在阶段 group 内再开启子 group（嵌套的 ::group:: 会被
+    忽略，内层折叠失效）。本地运行（无 GITHUB_ACTIONS）退化为醒目的分隔行，
+    保持日志可读性。
+    """
+    in_ci = os.environ.get("GITHUB_ACTIONS") == "true"
+    if in_ci:
+        # stdout：GitHub Actions 工作流命令在 stdout 识别最稳定
+        print(f"::group::{title}", flush=True)
+    else:
+        live_print(f"\n▌ {title}")
+    try:
+        yield
+    finally:
+        if in_ci:
+            print("::endgroup::", flush=True)
+        else:
+            live_print("")
 
 # ===============================
 # 1.5 网络工具：重试装饰器 (P1-6)
