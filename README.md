@@ -21,14 +21,14 @@
  ┃ ┣ 📜 demo.txt             (输出分类骨架与排序模板)
  ┃ ┣ 📜 blacklist.txt        (频道/URL 黑名单)
  ┃ ┣ 📜 whitelist.txt        (频道/URL 白名单)
- ┃ ┣ 📜 adult-sources.txt    (成人来源 URL 列表)
+ ┃ ┣ 📜 adult-sources.txt    (限制级来源 URL 列表)
  ┃ ┣ 📜 source-cat.txt       (来源→分类 映射规则)
  ┃ ┣ 📜 Channel_model.txt    (频道分类数据库)
  ┃ ┣ 📜 icons_index.txt      (图标索引)
  ┃ ┗ 📜 settings.py          (统一配置参数)
  ┣ 📂 output                 ← 🚀 自动生成成品
  ┃ ┣ 📜 live.m3u / live.txt  (常规频道)
- ┃ ┣ 📜 adult.m3u / adult.txt(成人频道)
+ ┃ ┣ 📜 adult.m3u / adult.txt(限制级频道)
  ┃ ┣ 📜 epg.xml.gz           (EPG 节目单)
  ┃ ┣ 📜 log.txt              (运行报告)
  ┃ ┗ 📜 ai_cache.json        (AI 标准化缓存)
@@ -83,7 +83,7 @@
 ### 🛡️ 智能过滤
 - 黑名单/白名单支持频道名 + URL 双模式。
 - 无效频道名自动追加黑名单（去重防膨胀）。
-- 成人来源参与测速后分离（不再跳过测速）。
+- 限制级来源参与测速后分离（不再跳过测速）。
 
 ### 🚀 CI/CD 流水线
 - GitHub Actions 每天 **UTC 22:00 / 04:00 / 10:00 / 16:00** 自动运行。
@@ -115,7 +115,7 @@
 | `config/demo.txt` | 输出分类模板 | ✅ 必需 |
 | `config/blacklist.txt` | 黑名单 | ❌ 可选 |
 | `config/whitelist.txt` | 白名单免测 | ❌ 可选 |
-| `config/adult-sources.txt` | 成人来源分离 | ❌ 可选 |
+| `config/adult-sources.txt` | 限制级来源分离 | ❌ 可选 |
 | `config/source-cat.txt` | 来源→分类映射 | ❌ 可选 |
 | `config/Channel_model.txt` | 频道分类数据库 | ❌ 可选 |
 | `config/settings.py` | 统一参数配置 | ✅ 有默认值 |
@@ -139,8 +139,8 @@
 |------|------|
 | `output/live.m3u` | M3U 格式成品（含 EPG 地址、分辨率、台标） |
 | `output/live.txt` | TXT 格式成品 |
-| `output/adult.m3u` | 成人频道 M3U（参与测速后分离） |
-| `output/adult.txt` | 成人频道 TXT |
+| `output/adult.m3u` | 限制级频道 M3U（参与测速后分离） |
+| `output/adult.txt` | 限制级频道 TXT |
 | `output/epg.xml.gz` | 压缩版 EPG 节目单 |
 | `output/log.txt` | 运行日志（含来源统计、失败分布、分类存活） |
 | `output/ai_cache.json` | AI 标准化缓存 |
