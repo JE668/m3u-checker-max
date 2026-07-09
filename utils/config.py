@@ -120,6 +120,7 @@ _CFG_ENV = {  # (key, converter, default)
     "RETRY_MAX_ATTEMPTS": (int, 2),
     "RETRY_BACKOFF": (float, 1.0),
     "PROBE_TIMEOUT": (int, 4),
+    "SUCCESS_LOG_SAMPLE_LIMIT": (int, 15),
     "CDN_BASE": (str, "https://gh.felicity.ac.cn"),
 }
 for _key, (_conv, _default) in _CFG_ENV.items():
@@ -169,18 +170,17 @@ def fmt_resolution(w: int, h: int) -> str:
 
 # ── GitHub Actions Job Summary ──
 SUMMARY_FILE = os.environ.get("GITHUB_STEP_SUMMARY", "")
+_SUMMARY_BUFFER = []  # 缓冲，阶段结束时由 flush_summary() 一次性写出，减少 IO 次数
 
 def write_summary(content):
-    """写入 GITHUB_STEP_SUMMARY（仅 GitHub Actions 环境生效）"""
-    if SUMMARY_FILE:
-        try:
-            with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
-                f.write(content + "\n")
-        except OSError:
-            pass
+    """追加到 Step Summary 缓冲（仅 GitHub Actions 环境生效）。
+    累计到 _SUMMARY_BUFFER，由 flush_summary() 在阶段结束时一次性写出。"""
+    if not SUMMARY_FILE:
+        return
+    _SUMMARY_BUFFER.append(content + "\n")
 
 def write_summary_table(headers, rows):
-    """写入 Markdown 表格到 Step Summary"""
+    """追加 Markdown 表格到 Step Summary 缓冲"""
     if not SUMMARY_FILE:
         return
     lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"] * len(headers)) + " |"]
@@ -188,12 +188,16 @@ def write_summary_table(headers, rows):
         lines.append("| " + " | ".join(str(c) for c in row) + " |")
     write_summary("\n".join(lines))
 
-def ci_group(title, fn, *args, **kwargs):
-    """GitHub Actions 日志分组：在 ::group::/::endgroup:: 之间执行函数"""
-    print(f"::group::{title}", flush=True, file=sys.stderr)
-    result = fn(*args, **kwargs)
-    print("::endgroup::", flush=True, file=sys.stderr)
-    return result
+def flush_summary():
+    """将缓冲的 Step Summary 一次性写入文件（减少 IO；错误打到 stderr 可见，而非静默吞掉）"""
+    if not SUMMARY_FILE or not _SUMMARY_BUFFER:
+        return
+    try:
+        with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+            f.write("".join(_SUMMARY_BUFFER))
+    except OSError as e:
+        print(f"⚠️ 写入 GITHUB_STEP_SUMMARY 失败: {e}", file=sys.stderr, flush=True)
+    _SUMMARY_BUFFER.clear()
 
 RULES_FILE = os.path.join("config", "rules.json")
 

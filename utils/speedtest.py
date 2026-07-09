@@ -24,12 +24,9 @@ from utils.config import (
     get_pool,
     get_session,
     live_print,
+    SUCCESS_LOG_SAMPLE_LIMIT,
 )
 
-
-# 测速阶段控制台成功日志采样上限：只采样显示前 N 条成功，避免海量频道刷屏。
-# 完整的成功/失败日志仍会写入 output/log.txt，不受此限制影响。可用环境变量覆盖。
-SUCCESS_LOG_SAMPLE_LIMIT = int(os.getenv("SUCCESS_LOG_SAMPLE_LIMIT", "15"))
 
 # ffprobe 可用性检查（首次调用时检测，结果缓存）
 _ffprobe_checked = False

@@ -45,6 +45,7 @@ from utils.config import (
     live_print,
     write_summary,
     write_summary_table,
+    flush_summary,
 )
 from utils.epg import (
     download_and_merge_epg,
@@ -278,6 +279,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 )
                 write_summary("\n</details>\n")
             live_print("✅ 阶段1完成 (抓取源+过滤)")
+            flush_summary()
             return
 
     # ════════════════════════════════════════════
@@ -467,6 +469,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 write_summary_table(["分辨率", "数量", ""], rows)
                 write_summary("\n</details>\n")
             live_print("✅ 阶段2完成 (测速)")
+            flush_summary()
             return
 
     # ════════════════════════════════════════════
@@ -607,52 +610,44 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         )
         write_summary("\n</details>\n")
 
+        # ── 共享统计：仅计算一次，供下方 Markdown 与控制台双渲染（消除重复构建）──
+        src_rows = []
+        for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
+            ok = src_ok_dict.get(src, 0)
+            total = src_total_dict[src]
+            rate = f"{ok/total*100:.1f}%" if total > 0 else "-"
+            bar = "🟢" if ok/total >= 0.8 else "🟡" if ok/total >= 0.5 else "🔴"
+            src_rows.append((src, ok, total, rate, bar))
+        fail_rows = sorted(fail_counts.items(), key=lambda x: x[1], reverse=True) if fail_counts else []
+        cat_rows = [(c, n) for c, n in sorted(cat_live_counts.items(), key=lambda x: x[1], reverse=True) if n > 0] if cat_live_counts else []
+        reso_rows = sorted(reso_stats.items(), key=lambda x: x[1], reverse=True) if reso_stats else []
+
         # 各来源测速结果折叠
-        if src_total_dict:
+        if src_rows:
             write_summary("<details><summary>🔗 各来源测速结果</summary>\n")
-            rows = []
-            for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
-                ok = src_ok_dict.get(src, 0)
-                total = src_total_dict[src]
-                total_display = src.split("/")[-1][:50]
-                rate = f"{ok/total*100:.1f}%" if total > 0 else "-"
-                bar = "🟢" if ok/total >= 0.8 else "🟡" if ok/total >= 0.5 else "🔴"
-                rows.append([f"{bar} {total_display}", ok, total, rate])
+            rows = [[f"{bar} {src.split('/')[-1][:50]}", ok, total, rate] for (src, ok, total, rate, bar) in src_rows]
             write_summary_table(["来源", "成功", "总计", "成功率"], rows)
             write_summary("\n</details>\n")
 
         # 失败原因折叠
-        if fail_counts:
-            total_fails = sum(fail_counts.values())
+        if fail_rows:
+            total_fails = sum(c for _, c in fail_rows)
             write_summary("<details><summary>❌ 失败原因分布</summary>\n")
-            rows = []
-            for cat in sorted(fail_counts, key=fail_counts.get, reverse=True):
-                cnt = fail_counts[cat]
-                pct = f"{cnt/total_fails*100:.1f}%"
-                rows.append([cat, cnt, pct])
+            rows = [[cat, cnt, f"{cnt/total_fails*100:.1f}%"] for cat, cnt in fail_rows]
             write_summary_table(["原因", "数量", "占比"], rows)
             write_summary("\n</details>\n")
 
         # 分类频道存活折叠
-        if cat_live_counts:
+        if cat_rows:
             write_summary("<details><summary>📺 分类频道存活情况</summary>\n")
-            rows = []
-            for cat in sorted(cat_live_counts, key=cat_live_counts.get, reverse=True):
-                cnt = cat_live_counts[cat]
-                if cnt > 0:
-                    bar = '🟩' * min(cnt // 5 + 1, 15)
-                    rows.append([cat, cnt, bar])
+            rows = [[cat, cnt, '🟩' * min(cnt // 5 + 1, 15)] for cat, cnt in cat_rows]
             write_summary_table(["分类", "存活数", ""], rows)
             write_summary("\n</details>\n")
 
         # 分辨率折叠
-        if reso_stats:
+        if reso_rows:
             write_summary("<details><summary>🖥️ 分辨率分布</summary>\n")
-            rows = []
-            for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
-                cnt = reso_stats[lbl]
-                bar = '🟦' * min(cnt // 5 + 1, 15)
-                rows.append([lbl, cnt, bar])
+            rows = [[lbl, cnt, '🟦' * min(cnt // 5 + 1, 15)] for lbl, cnt in reso_rows]
             write_summary_table(["分辨率", "数量", ""], rows)
             write_summary("\n</details>\n")
 
@@ -669,38 +664,31 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             write_summary_table(["文件", "大小"], file_rows)
         write_summary("\n</details>\n")
 
-        # 控制台也输出详细统计
+        # 控制台也输出详细统计（复用上方共享统计，不再重复计算）
         live_print("")
         live_print("━━━ 📋 详细统计 ━━━━━━━━━━━━━━━━━━━━━━━━━")
         # 来源统计表
-        if src_total_dict:
+        if src_rows:
             live_print("\n🔗 各来源测速结果:")
             live_print(f"  {'来源':<50} {'成功':>6} {'总计':>6} {'成功率':>8}")
             live_print(f"  {'─'*74}")
-            for src in sorted(src_total_dict, key=lambda s: src_total_dict[s], reverse=True):
-                ok = src_ok_dict.get(src, 0)
-                total = src_total_dict[src]
-                rate = f"{ok/total*100:.1f}%" if total > 0 else "-"
+            for (src, ok, total, rate, bar) in src_rows:
                 label = src.split("/")[-1][:48]
                 live_print(f"  {label:<50} {ok:>6} {total:>6} {rate:>8}")
         # 失败分布
-        if fail_counts:
+        if fail_rows:
             live_print("\n❌ 失败原因分布:")
-            for cat in sorted(fail_counts, key=fail_counts.get, reverse=True):
-                cnt = fail_counts[cat]
+            for cat, cnt in fail_rows:
                 live_print(f"  {cat:<20} {cnt}")
         # 分类存活
-        if cat_live_counts:
+        if cat_rows:
             live_print("\n📺 分类频道存活情况:")
-            for cat in sorted(cat_live_counts, key=cat_live_counts.get, reverse=True):
-                cnt = cat_live_counts[cat]
-                if cnt > 0:
-                    live_print(f"  {cat:<40} {cnt} 个")
+            for cat, cnt in cat_rows:
+                live_print(f"  {cat:<40} {cnt} 个")
         # 分辨率
-        if reso_stats:
+        if reso_rows:
             live_print("\n🖥️ 分辨率分布:")
-            for lbl in sorted(reso_stats, key=reso_stats.get, reverse=True):
-                cnt = reso_stats[lbl]
+            for lbl, cnt in reso_rows:
                 bar = '█' * min(cnt // 2 + 1, 15)
                 live_print(f"  {lbl:<10} {cnt:>4}  {bar}")
 
@@ -710,6 +698,8 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         if _AI_AVAILABLE:
             stats = get_cache_stats()
             live_print(f"  🤖 AI 缓存已保存: 运行时命中 {stats['hits']} / 未命中 {stats['misses']}")
+
+    flush_summary()
 
 
 if __name__ == "__main__":

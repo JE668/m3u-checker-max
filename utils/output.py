@@ -8,6 +8,7 @@ from utils.config import (
     M3U_HEADER,
     MIN_RESOLUTION,
     MIN_RESOLUTION_PIXELS,
+    SUCCESS_LOG_SAMPLE_LIMIT,
     OUTPUT_M3U,
     OUTPUT_TXT,
     live_print,
@@ -103,7 +104,13 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
         if logs_blacklist:
             f.write("❌ 黑名单拦截:\n" + "\n".join(logs_blacklist) + "\n\n")
 
-        f.write("🟢 测速有效源:\n" + "\n".join(logs_success) + "\n\n")
+        success_total = len(logs_success)
+        if success_total > SUCCESS_LOG_SAMPLE_LIMIT:
+            f.write(f"🟢 测速有效源 (采样前 {SUCCESS_LOG_SAMPLE_LIMIT}/{success_total} 条):\n")
+            f.write("\n".join(logs_success[:SUCCESS_LOG_SAMPLE_LIMIT]) + "\n")
+            f.write(f"  … 其余 {success_total - SUCCESS_LOG_SAMPLE_LIMIT} 条已省略（完整列表见 output/live.m3u）\n\n")
+        else:
+            f.write("🟢 测速有效源:\n" + "\n".join(logs_success) + "\n\n")
         f.write("🔴 测速失效源:\n" + "\n".join(logs_fail))
 
     # 附加数据：写入 log.txt 额外统计

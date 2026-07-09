@@ -418,5 +418,102 @@ class TestAutoUpdateDemo(unittest.TestCase):
         )
 
 
+class TestSummaryBuffer(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.path = os.path.join(self.tmp, "summary.md")
+        C._SUMMARY_BUFFER.clear()
+        self._patch = mock.patch.object(C, "SUMMARY_FILE", self.path)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        C._SUMMARY_BUFFER.clear()
+
+    def test_write_summary_buffers_until_flush(self):
+        """write_summary 须缓冲（不立即落盘），flush_summary 才一次性写出。"""
+        C.write_summary("hello")
+        self.assertFalse(os.path.exists(self.path), "flush 前应仍未落盘")
+        C.flush_summary()
+        with open(self.path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "hello\n")
+
+    def test_buffer_cleared_after_flush(self):
+        """flush 后缓冲清空，二次 flush 不应重复写出。"""
+        C.write_summary("a")
+        C.write_summary("b")
+        C.flush_summary()
+        C.flush_summary()
+        with open(self.path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "a\nb\n")
+
+    def test_summary_table_renders_markdown(self):
+        C.write_summary_table(["A", "B"], [["1", "2"]])
+        C.flush_summary()
+        with open(self.path, encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("| A | B |", content)
+        self.assertIn("| --- | --- |", content)
+        self.assertIn("| 1 | 2 |", content)
+
+    def test_empty_buffer_flush_is_noop(self):
+        """无内容时 flush 不得创建文件。"""
+        C.flush_summary()
+        self.assertFalse(os.path.exists(self.path))
+
+
+class TestLogTxtSampling(unittest.TestCase):
+    def _call_write_outputs(self, success_logs, n_channels):
+        import utils.output as O
+        tmp = tempfile.mkdtemp()
+        names = [f"CH{i}" for i in range(n_channels)]
+        valid_results = {n: [("http://example.com/stream", 1.0)] for n in names}
+        cat_order = ["新闻,#genre#"]
+        chans_in_cat = {"新闻,#genre#": names}
+        log = os.path.join(tmp, "log.txt")
+        patches = (
+            mock.patch.object(O, "OUTPUT_M3U", os.path.join(tmp, "live.m3u")),
+            mock.patch.object(O, "OUTPUT_TXT", os.path.join(tmp, "live.txt")),
+            mock.patch.object(O, "LOG_FILE", log),
+            mock.patch.object(O, "ADULT_M3U", os.path.join(tmp, "a.m3u")),
+            mock.patch.object(O, "ADULT_TXT", os.path.join(tmp, "a.txt")),
+            mock.patch.object(O, "M3U_HEADER", "#EXTM3U\n"),
+            mock.patch.object(O, "MIN_RESOLUTION", "1920x1080"),
+            mock.patch.object(O, "MIN_RESOLUTION_PIXELS", 1920 * 1080),
+            mock.patch.object(O, "get_local_logo_url", lambda n: ""),
+        )
+        for p in patches:
+            p.start()
+        try:
+            O.write_outputs(valid_results, cat_order, chans_in_cat, [], success_logs, [], [], [])
+        finally:
+            for p in patches:
+                p.stop()
+        with open(log, encoding="utf-8") as f:
+            return f.read()
+
+    def test_success_log_sampled_when_over_limit(self):
+        """成功日志超过上限时须采样（仅前 N 条）+ 省略提示，避免每次提交膨胀仓库。"""
+        content = self._call_write_outputs([f"🟢 成功 {i}" for i in range(20)], 20)
+        self.assertIn("采样前 15/20 条", content)
+        self.assertIn("🟢 成功 0", content)
+        self.assertIn("🟢 成功 14", content)
+        self.assertNotIn("🟢 成功 15", content)  # 第16条起被省略
+        self.assertIn("其余 5 条已省略", content)
+
+    def test_success_log_full_when_under_limit(self):
+        """未超上限时成功日志全量写入（行为不变）。"""
+        content = self._call_write_outputs([f"🟢 成功 {i}" for i in range(3)], 3)
+        self.assertIn("🟢 成功 0", content)
+        self.assertIn("🟢 成功 2", content)
+        self.assertNotIn("采样前", content)
+
+
+class TestConfigConstants(unittest.TestCase):
+    def test_success_log_sample_limit_single_source(self):
+        """SUCCESS_LOG_SAMPLE_LIMIT 现由 config 单一来源定义（默认 15，支持 env 覆盖）。"""
+        self.assertEqual(C.SUCCESS_LOG_SAMPLE_LIMIT, 15)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
