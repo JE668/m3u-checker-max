@@ -320,9 +320,12 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
     demo_rules = _build_demo_rules(chans_in_cat)
 
     # 第一趟：规则匹配（关闭 AI，避免逐条调用），收集需要 AI 兜底的频道
+    # rule_cat 缓存第一趟结果，第二趟直接复用，避免对 tv_channels 重复计算 _match_category
     ai_pending = []
+    rule_cat = {}
     for name in tv_channels:
         cat, _ = _match_category(name, demo_rules, channel_model, use_ai=False)
+        rule_cat[name] = cat
         if cat.startswith(f"{DEFAULT_CATEGORY[0]},#genre#"):
             ai_pending.append(name)
     # 批量 AI 分类（一次或分片请求，结果写入缓存，避免 N 次逐条调用）
@@ -332,7 +335,7 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
 
     additions = {}
     for name in tv_channels:
-        cat, _ = _match_category(name, demo_rules, channel_model, use_ai=False)
+        cat = rule_cat[name]
         # AI 批量结果兜底
         if cat.startswith(f"{DEFAULT_CATEGORY[0]},#genre#") and name in ai_map:
             cat = f"{ai_map[name]},#genre#"

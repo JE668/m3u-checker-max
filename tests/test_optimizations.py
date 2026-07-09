@@ -378,5 +378,45 @@ class TestCategorizerSort(unittest.TestCase):
         self.assertIs(seen.get("use_ai"), True)
 
 
+class TestAutoUpdateDemo(unittest.TestCase):
+    def test_match_category_called_once_per_channel(self):
+        """auto_update_demo 对每个频道只调一次 _match_category（第二趟复用缓存）。
+
+        回归：重构前第一趟(收集待分类) + 第二趟(算结果) 对同一频道调了两次 _match_category，
+        属冗余计算。重构后第二趟读 rule_cat 缓存，每个新频道应恰好被匹配一次（无重复）。
+        """
+        import utils.categorizer as CAT
+        chans_in_cat = {"📺央视频道,#genre#": ["CCTV-1"]}
+        cat_order = ["📺央视频道,#genre#"]
+        chan_to_cat = {"CCTV-1": "📺央视频道,#genre#"}
+        valid_names = {"CCTV-1": 1.0, "湖南卫视": 1.0, "某乱码台": 1.0}
+
+        tmp = tempfile.mkdtemp()
+        CAT.DEMO_FILE = os.path.join(tmp, "demo.txt")
+        CAT.NON_TV_LOG = os.path.join(tmp, "non-tv-filtered.txt")
+        with open(CAT.DEMO_FILE, "w", encoding="utf-8") as f:
+            f.write("📺央视频道,#genre#\nCCTV-1\n")
+
+        real_match = CAT._match_category
+        calls = []
+        def spy(name, *a, **k):
+            calls.append(name)
+            return real_match(name, *a, **k)
+
+        new_channels = [n for n in valid_names if n not in chan_to_cat]
+
+        with mock.patch.object(CAT, "_match_category", spy), \
+             mock.patch.object(CAT, "classify_channels_batch", return_value={}):
+            CAT.auto_update_demo(valid_names, cat_order, chan_to_cat, chans_in_cat, channel_model={})
+
+        # 调用构成：第一趟规则匹配(每新频道1次) + 末尾排序(channel_sort_key 需优先级,每新频道1次)。
+        # 第二轮(原 line335)已改为复用 rule_cat 缓存，不再重复调 _match_category。
+        # 因此总数须为 2×新频道数；若缓存修复被回退(第二轮再调)，则变 3× 而失败。
+        self.assertEqual(
+            len(calls), 2 * len(new_channels),
+            f"_match_category 应恰好 2×新频道数(第一趟+排序)，实际调用序列 {calls}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

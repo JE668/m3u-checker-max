@@ -10,7 +10,6 @@ from utils.config import (
     MIN_RESOLUTION_PIXELS,
     OUTPUT_M3U,
     OUTPUT_TXT,
-    fmt_resolution,
     live_print,
 )
 from utils.loaders import get_local_logo_url
@@ -57,8 +56,6 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
                                 logo = f"{fallback_logo_base}/{name}.png"
 
                             cat_clean = cat.split(',')[0]
-                            elapsed_display = "免测" if elapsed < 0 else f"{elapsed}s"
-                            reso_tag = fmt_resolution(w, h)
 
                             # EXTINF 含分辨率属性
                             if w > 0 and h > 0:

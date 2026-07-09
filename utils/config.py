@@ -90,7 +90,21 @@ def _ai_fallback(raw_name, ai_cache):
 # 1. 核心配置区 — 从 config/settings.py 加载
 # ===============================
 try:
-    from config.settings import *
+    from config.settings import (  # noqa: F401, F811  (settings.py 为配置覆盖来源；部分名在下方有兜底默认值，属有意再导出/重定义)
+        MAX_WORKERS, EPG_MAX_WORKERS, SAMPLE_PER_HOST,
+        CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT, CHECK_TOTAL_TIMEOUT,
+        DOWNLOAD_TARGET_BYTES, MIN_BANDWIDTH_MBPS,
+        RETRY_MAX_ATTEMPTS, RETRY_BACKOFF,
+        PROBE_RESOLUTION, PROBE_TIMEOUT, MIN_RESOLUTION,
+        CDN_BASE, SOURCE_META_URL,
+        SOURCES_FILE, EPG_FILE, ALIAS_FILE, DEMO_FILE,
+        BLACKLIST_FILE, CHANNEL_MODEL_FILE, WHITELIST_FILE,
+        ADULT_SOURCES_FILE, SOURCE_CAT_FILE, ICON_DIR, ICONS_INDEX_FILE,
+        OUTPUT_TXT, OUTPUT_M3U, OUTPUT_EPG, OUTPUT_EPG_GZ, LOG_FILE,
+        UNMATCHED_FILE, ADULT_TXT, ADULT_M3U, NON_TV_LOG,
+        DEFAULT_HEADERS, NON_TV_PATTERNS, ADULT_KEYWORDS,
+        INVALID_NAME_PATTERNS, EPG_BLACKLIST,
+    )
 except ImportError:
     pass  # 无 settings.py 时用下方默认值
 
