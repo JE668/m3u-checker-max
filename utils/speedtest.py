@@ -68,7 +68,7 @@ def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, in
                  "-analyzeduration", "1500000",
                  "-probesize", "5000000",
                  "-i", "pipe:0"],
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             downloaded = 0
             try:

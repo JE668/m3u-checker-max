@@ -164,14 +164,14 @@ def standardize_channel_name(raw_name: str) -> str:
     }
 
     try:
-        response = requests.post(API_ENDPOINT, json=payload, headers=headers, timeout=5)
-        if response.status_code == 200:
+        response = _post_with_retry(payload, headers, timeout=5)
+        if response is not None and response.status_code == 200:
             result = response.json()
             standardized = result['choices'][0]['message']['content'].strip()
             standardized = standardized.replace('"', '').replace("'", "")
             final = standardized if standardized else raw_name
         else:
-            # API 报错时降级到规则预处理结果
+            # API 报错/限流耗尽时降级到规则预处理结果
             final = pre_cleaned
     except Exception:
         # 网络异常时降级到规则预处理结果

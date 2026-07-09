@@ -236,10 +236,10 @@ def _match_source_category(name, valid_results, url_to_source, source_cat_map):
     return None
 
 
-def channel_sort_key(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None) -> Tuple[int, int, str]:
+def channel_sort_key(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None, use_ai: bool = True) -> Tuple[int, int, str]:
     nums = _NUM_RE.findall(name)
     val = int(nums[0]) if nums else 999
-    _, priority = _match_category(name, demo_rules, channel_model)
+    _, priority = _match_category(name, demo_rules, channel_model, use_ai=use_ai)
     return (priority if priority >= 0 else 0, val, name)
 
 def is_non_tv_channel(name: str) -> bool:
@@ -360,7 +360,7 @@ def auto_update_demo(valid_names: dict, cat_order: list, chan_to_cat: dict, chan
     lines = [l.replace('\r\n', '\n').replace('\r', '\n') for l in lines]
 
     for cat, names in additions.items():
-        sorted_names = sorted(names, key=lambda n: channel_sort_key(n, demo_rules))
+        sorted_names = sorted(names, key=lambda n: channel_sort_key(n, demo_rules, use_ai=False))
         cat_idx = -1
         for i, line in enumerate(lines):
             if line.strip() == cat:

@@ -109,7 +109,8 @@ class TestFetcher(unittest.TestCase):
         content = open(unm, encoding="utf-8").read()
         self.assertIn("芒果TV", content)
         self.assertIn("2 个频道", content)
-        self.assertIn("CCTV-1,ChinaTV,CCTV1", open(ali, encoding="utf-8").read())
+        with open(ali, encoding="utf-8") as fh:
+            self.assertIn("CCTV-1,ChinaTV,CCTV1", fh.read())
 
         if os.path.exists(unm):
             os.remove(unm)
@@ -201,9 +202,16 @@ class TestSpeedtest(unittest.TestCase):
                 pass
 
         S.get_session = lambda: type("S", (), {"get": lambda self, u, **k: FakeResp([b"x" * 65536, b"y" * 65536])})()
-        S.subprocess.Popen = lambda *a, **k: FakeProc()
+        captured_kwargs = {}
+        def fake_popen(*a, **k):
+            captured_kwargs.update(k)
+            return FakeProc()
+        S.subprocess.Popen = fake_popen
         self.assertEqual(S.probe_resolution("x"), (1920, 1080))
         self.assertEqual(sum(len(c) for c in captured), 128 * 1024)
+        # 回归 #1：stdin 必须以二进制模式打开（不能 text=True），否则往 stdin 写 bytes 会抛 TypeError
+        self.assertNotIn("text", captured_kwargs)
+        self.assertNotEqual(captured_kwargs.get("text"), True)
 
 
 class TestConfig(unittest.TestCase):
@@ -309,6 +317,65 @@ class TestMainCIState(unittest.TestCase):
         self.assertEqual(st.to_test, [])          # 缺失 → 默认工厂
         self.assertEqual(st.resolution_map, {})    # 阶段1 状态不含阶段2 字段
         self.assertIsNone(st.epg_report)
+
+
+class TestAiStandardize(unittest.TestCase):
+    def setUp(self):
+        A.API_KEY = "dummy"
+        A._CACHE.clear()
+
+    def test_standardize_uses_retry(self):
+        """standardize_channel_name 须走 _post_with_retry（限流+退避），而非裸 requests.post。"""
+        class Resp:
+            status_code = 200
+            def json(self):
+                return {"choices": [{"message": {"content": "CCTV-1"}}]}
+
+        captured = {}
+        def fake_retry(payload, headers, timeout, max_retries=3):
+            captured["called"] = True
+            captured["timeout"] = timeout
+            return Resp()
+        with mock.patch.object(A, "_post_with_retry", fake_retry):
+            out = A.standardize_channel_name("CCTV-1 超清 广东电信")
+        self.assertTrue(captured.get("called"))
+        self.assertEqual(captured.get("timeout"), 5)
+        self.assertEqual(out, "CCTV-1")
+
+    def test_standardize_degrade_on_retry_exhausted(self):
+        """_post_with_retry 返回 None（限流耗尽/异常）时须降级到规则预处理结果。"""
+        with mock.patch.object(A, "_post_with_retry", lambda *a, **k: None):
+            out = A.standardize_channel_name("CCTV-1 超清 广东电信")
+        # 规则预处理会去掉 超清/广东电信 → 'CCTV-1'
+        self.assertEqual(out, "CCTV-1")
+
+
+class TestCategorizerSort(unittest.TestCase):
+    def test_sort_key_disables_ai(self):
+        """排序用 channel_sort_key 必须 use_ai=False，避免冗余单条 AI 调用。"""
+        import utils.categorizer as CAT
+        A.API_KEY = ""  # 即便误触发 AI 也直接降级，测试不依赖网络
+        seen = {}
+        orig = CAT._match_category
+        def spy(name, demo_rules=None, channel_model=None, use_ai=True):
+            seen["use_ai"] = use_ai
+            return orig(name, demo_rules, channel_model, use_ai=use_ai)
+        with mock.patch.object(CAT, "_match_category", spy):
+            CAT.channel_sort_key("CCTV-1", None, use_ai=False)
+        self.assertIs(seen.get("use_ai"), False)
+
+    def test_sort_key_default_uses_ai(self):
+        """默认仍走 AI（保留向后兼容语义），仅排序调用显式关闭。"""
+        import utils.categorizer as CAT
+        A.API_KEY = ""
+        seen = {}
+        orig = CAT._match_category
+        def spy(name, demo_rules=None, channel_model=None, use_ai=True):
+            seen["use_ai"] = use_ai
+            return orig(name, demo_rules, channel_model, use_ai=use_ai)
+        with mock.patch.object(CAT, "_match_category", spy):
+            CAT.channel_sort_key("CCTV-1", None)
+        self.assertIs(seen.get("use_ai"), True)
 
 
 if __name__ == "__main__":
