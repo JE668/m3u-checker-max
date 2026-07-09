@@ -22,7 +22,6 @@ from utils.loaders import get_main_name
 
 
 # ── EXTINF 属性提取正则 ──
-_RE_EXTINF_ATTRS = re.compile(r'tvg-logo="([^"]*)"')
 _RE_EXTINF_GROUP = re.compile(r'group-title="([^"]*)"')
 
 def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str], ai_cache: Optional[Dict[str, str]] = None) -> Tuple[list, Dict[str, str]]:
@@ -55,12 +54,10 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
     seen_urls = set()
     live_print("\n━━━ 📥 抓取直播源 ━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     for source_url in sources:
-        skip_this_source = False
         try:
             r = fetch_url(source_url, timeout=10)  # P0-3: 使用 Session + UA + 重试
             r.encoding = 'utf-8'
             tmp_name = ""
-            tmp_logo = ""  # P2-14: 提取 tvg-logo
             tmp_group = ""  # 记录 group-title
             count = 0
             seen_source_renames = set()
@@ -72,9 +69,7 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                 if line.startswith("#EXTINF"):
                     # 提取频道名
                     tmp_name = line.split(",")[-1].strip()
-                    # P2-14: 提取 tvg-logo 和 group-title
-                    logo_match = _RE_EXTINF_ATTRS.search(line)
-                    tmp_logo = logo_match.group(1) if logo_match else ""
+                    # 提取 group-title
                     group_match = _RE_EXTINF_GROUP.search(line)
                     tmp_group = group_match.group(1) if group_match else ""
                 elif line.startswith("http"):
@@ -86,7 +81,6 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
                         url_to_group[line] = tmp_group
                         seen_urls.add(line); count += 1
                     tmp_name = ""
-                    tmp_logo = ""
                     tmp_group = ""
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
