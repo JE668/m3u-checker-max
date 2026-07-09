@@ -12,9 +12,12 @@ def load_filter_lists(filepath: str) -> Tuple[Set[str], Set[str]]:
         with open(filepath, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'): continue
-                if line.startswith('http'): urls.add(line)
-                else: names.add(line)
+                if not line or line.startswith('#'):
+                    continue
+                if line.startswith('http'):
+                    urls.add(line)
+                else:
+                    names.add(line)
     return names, urls
 
 def load_aliases() -> Tuple[Dict[str, str], List[Tuple[re.Pattern, str]], Set[str]]:
@@ -29,7 +32,8 @@ def load_aliases() -> Tuple[Dict[str, str], List[Tuple[re.Pattern, str]], Set[st
     with open(ALIAS_FILE, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
-            if not line or line.startswith('#'): continue
+            if not line or line.startswith('#'):
+                continue
             parts = line.split(',')
             main_name = parts[0].strip()
             known_main_names.add(main_name)
@@ -49,10 +53,13 @@ def load_aliases() -> Tuple[Dict[str, str], List[Tuple[re.Pattern, str]], Set[st
 
 def get_main_name(raw_name: str, aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str], unmatched_set: Optional[Set[str]] = None) -> str:
     raw_name = raw_name.strip()
-    if raw_name in known_main_names: return raw_name
-    if raw_name in aliases_exact: return aliases_exact[raw_name]
+    if raw_name in known_main_names:
+        return raw_name
+    if raw_name in aliases_exact:
+        return aliases_exact[raw_name]
     for reg, main_name in aliases_regex:
-        if reg.match(raw_name): return main_name
+        if reg.match(raw_name):
+            return main_name
     if unmatched_set is not None:
         unmatched_set.add(raw_name)
     return raw_name
@@ -66,7 +73,8 @@ def _build_logo_index():
         files = os.listdir(ICON_DIR)
         if len(files) > 10:  # 目录非空且有一定数量
             for f in files:
-                if f.startswith('.'): continue
+                if f.startswith('.'):
+                    continue
                 index[re.sub(r'[\s\-_]', '', os.path.splitext(f)[0]).lower()] = f
             return index
     # 2) 预生成索引文件（CI 环境，无需下载 321MB LFS 文件）
@@ -114,9 +122,11 @@ def load_demo_template(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[
     with open(DEMO_FILE, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
-            if not line: continue
+            if not line:
+                continue
             # P1-11: 修复运算符优先级 — 注释行但含 #genre# 的是分类行，应保留
-            if line.startswith('#') and "#genre#" not in line: continue
+            if line.startswith('#') and "#genre#" not in line:
+                continue
 
             if "#genre#" in line:
                 current_category = line.split(',')[0].strip()

@@ -18,8 +18,10 @@ try:
     from utils.ai_helper import get_cache_stats, standardize_channel_name  # noqa: F401
     _AI_AVAILABLE = True
 except ImportError:
-    standardize_channel_name = lambda x: x
-    get_cache_stats = lambda: {}
+    def standardize_channel_name(x):
+        return x
+    def get_cache_stats():
+        return {}
     _AI_AVAILABLE = False
 
 def _dedup_blacklist():
@@ -92,19 +94,45 @@ def _ai_fallback(raw_name, ai_cache):
 # ===============================
 try:
     from config.settings import (  # noqa: F401, F811  (settings.py 为配置覆盖来源；部分名在下方有兜底默认值，属有意再导出/重定义)
-        MAX_WORKERS, EPG_MAX_WORKERS, SAMPLE_PER_HOST,
-        CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT, CHECK_TOTAL_TIMEOUT,
-        DOWNLOAD_TARGET_BYTES, MIN_BANDWIDTH_MBPS,
-        RETRY_MAX_ATTEMPTS, RETRY_BACKOFF,
-        PROBE_RESOLUTION, PROBE_TIMEOUT, MIN_RESOLUTION,
-        CDN_BASE, SOURCE_META_URL,
-        SOURCES_FILE, EPG_FILE, ALIAS_FILE, DEMO_FILE,
-        BLACKLIST_FILE, CHANNEL_MODEL_FILE, WHITELIST_FILE,
-        ADULT_SOURCES_FILE, SOURCE_CAT_FILE, ICON_DIR, ICONS_INDEX_FILE,
-        OUTPUT_TXT, OUTPUT_M3U, OUTPUT_EPG, OUTPUT_EPG_GZ, LOG_FILE,
-        UNMATCHED_FILE, ADULT_TXT, ADULT_M3U, NON_TV_LOG,
-        DEFAULT_HEADERS, NON_TV_PATTERNS, ADULT_KEYWORDS,
-        INVALID_NAME_PATTERNS, EPG_BLACKLIST,
+        ADULT_KEYWORDS,
+        ADULT_M3U,
+        ADULT_SOURCES_FILE,
+        ADULT_TXT,
+        ALIAS_FILE,
+        BLACKLIST_FILE,
+        CDN_BASE,
+        CHANNEL_MODEL_FILE,
+        CHECK_CONNECT_TIMEOUT,
+        CHECK_READ_TIMEOUT,
+        CHECK_TOTAL_TIMEOUT,
+        DEFAULT_HEADERS,
+        DEMO_FILE,
+        DOWNLOAD_TARGET_BYTES,
+        EPG_BLACKLIST,
+        EPG_FILE,
+        EPG_MAX_WORKERS,
+        ICON_DIR,
+        ICONS_INDEX_FILE,
+        INVALID_NAME_PATTERNS,
+        LOG_FILE,
+        MAX_WORKERS,
+        MIN_BANDWIDTH_MBPS,
+        MIN_RESOLUTION,
+        NON_TV_LOG,
+        NON_TV_PATTERNS,
+        OUTPUT_EPG,
+        OUTPUT_EPG_GZ,
+        OUTPUT_M3U,
+        OUTPUT_TXT,
+        PROBE_RESOLUTION,
+        PROBE_TIMEOUT,
+        RETRY_BACKOFF,
+        RETRY_MAX_ATTEMPTS,
+        SAMPLE_PER_HOST,
+        SOURCE_CAT_FILE,
+        SOURCES_FILE,
+        UNMATCHED_FILE,
+        WHITELIST_FILE,
     )
 except ImportError:
     pass  # 无 settings.py 时用下方默认值
@@ -277,7 +305,7 @@ def _validate_configs():
         (DEMO_FILE, True, "分类模板"),
         (BLACKLIST_FILE, False, "黑名单"),
         (WHITELIST_FILE, False, "白名单"),
-        (ADULT_SOURCES_FILE, False, "成人来源"),
+        (ADULT_SOURCES_FILE, False, "限制级来源"),
         (SOURCE_CAT_FILE, False, "来源分类映射"),
         (CHANNEL_MODEL_FILE, False, "频道模型"),
         (ICONS_INDEX_FILE, False, "图标索引"),

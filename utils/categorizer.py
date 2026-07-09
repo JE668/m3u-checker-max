@@ -30,11 +30,11 @@ _CATEGORY_RULES_SORTED = sorted(CATEGORY_RULES, key=lambda x: x[2])
 def _build_demo_rules(chans_in_cat):
     """
     从 demo.txt 已有分类结构中自动学习关键词匹配规则。
-    
+
     对每个分类（"其他频道"除外），提取频道名的共同特征：
       - 中文2字前缀（如 "广东"→☘️广东频道）
       - 英文大写前缀（如 "CGTN"→📺中国国际电视台，标注长度≥3的英文前缀）
-    
+
     返回 {关键词(大写): 分类名不含,#genre#} 字典
     """
     global _demo_rules_cache, _demo_rules_signature
@@ -99,7 +99,7 @@ def _build_demo_rules(chans_in_cat):
 
 def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None, use_ai: bool = True) -> Tuple[str, int]:
     """根据频道名匹配分类
-    
+
     匹配优先级：
     0. Channel_model.txt 精确匹配（最高优先级）
     1. demo.txt 自学习规则（前缀精确匹配）
@@ -360,7 +360,7 @@ def auto_update_demo(valid_results: dict, cat_order: list, chan_to_cat: dict, ch
         lines = []
 
     # P1-10: 统一换行符处理 — 确保 \n 一致，去除 \r
-    lines = [l.replace('\r\n', '\n').replace('\r', '\n') for l in lines]
+    lines = [ln.replace('\r\n', '\n').replace('\r', '\n') for ln in lines]
 
     for cat, names in additions.items():
         sorted_names = sorted(names, key=lambda n: channel_sort_key(n, demo_rules, use_ai=False))

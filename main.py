@@ -39,14 +39,14 @@ from utils.config import (
     _load_ai_cache,
     _save_ai_cache,
     _validate_configs,
+    ci_group,
+    flush_summary,
     fmt_resolution,
     get_cache_stats,
     get_pool,
     live_print,
-    ci_group,
     write_summary,
     write_summary_table,
-    flush_summary,
 )
 from utils.epg import (
     download_and_merge_epg,
@@ -90,6 +90,7 @@ class CIState:
     logs_whitelist: list = field(default_factory=list)
     adult_results: dict = field(default_factory=dict)
     adult_source_urls: set = field(default_factory=set)
+    adult_configured: bool = False
     cat_order: list = field(default_factory=list)
     chan_to_cat: dict = field(default_factory=dict)
     chans_in_cat: dict = field(default_factory=dict)
@@ -163,6 +164,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             to_test = st.to_test
             adult_results = st.adult_results
             adult_source_urls = st.adult_source_urls
+            adult_configured = st.adult_configured
             logs_blacklist = st.logs_blacklist
             logs_whitelist = st.logs_whitelist
             cat_order = st.cat_order
@@ -236,6 +238,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 adult_sources = load_adult_sources()
                 adult_results = {}
                 adult_source_urls = set()  # 始终初始化，避免 adult-sources.txt 为空时 NameError
+                adult_configured = bool(adult_sources)  # 来源已配置（即便本次 0 命中也要强制重写，清除陈旧内容）
                 if adult_sources:
                     live_print(f"  限制级源URL模式: {adult_sources}")
                     for name, url in to_test:
@@ -262,6 +265,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 logs_whitelist=logs_whitelist,
                 adult_results=adult_results,
                 adult_source_urls=adult_source_urls,
+                adult_configured=adult_configured,
                 cat_order=cat_order,
                 chan_to_cat=chan_to_cat,
                 chans_in_cat=chans_in_cat,
@@ -309,6 +313,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             resolution_map = st.resolution_map
             adult_results = st.adult_results
             adult_source_urls = st.adult_source_urls
+            adult_configured = st.adult_configured
             to_test = st.to_test
             url_to_source = st.url_to_source
             cat_order = st.cat_order
@@ -420,6 +425,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 resolution_map=resolution_map,
                 adult_results=adult_results,
                 adult_source_urls=adult_source_urls,
+                adult_configured=adult_configured,
                 to_test=to_test,
                 url_to_source=url_to_source,
                 cat_order=cat_order,
@@ -529,7 +535,8 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail,
                            logs_whitelist, logs_blacklist, extra_stats,
                            adult_results=adult_results, channel_to_station=channel_to_station,
-                           resolution_map=resolution_map, adult_source_urls=adult_source_urls)
+                           resolution_map=resolution_map, adult_source_urls=adult_source_urls,
+                           adult_configured=adult_configured)
 
         with ci_group("🧹 清理临时状态"):
             # CI最后阶段：清理临时状态

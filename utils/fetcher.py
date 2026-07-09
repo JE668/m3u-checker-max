@@ -27,7 +27,8 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
     unmatched_names = set()
     ai_pending_aliases = collections.defaultdict(set)  # {标准名: set(别名)} 批量收集，一次性写入
 
-    if not os.path.exists(SOURCES_FILE): return channels
+    if not os.path.exists(SOURCES_FILE):
+        return channels
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
@@ -59,9 +60,11 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
             seen_source_renames = set()
 
             for line in r.iter_lines(decode_unicode=True):
-                if not line: continue
+                if not line:
+                    continue
                 line = line.strip()
-                if not line: continue
+                if not line:
+                    continue
                 if line.startswith("#EXTINF"):
                     # 提取频道名
                     tmp_name = line.split(",")[-1].strip()
@@ -71,7 +74,8 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
 
                     if line not in seen_urls:
                         channels.append((main_name, line, source_url))
-                        seen_urls.add(line); count += 1
+                        seen_urls.add(line)
+                        count += 1
                     tmp_name = ""
                 elif "," in line and "://" in line:
                     parts = line.split(",", 1)
@@ -80,7 +84,8 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
 
                     if parts[1].strip() not in seen_urls:
                         channels.append((main_name, parts[1].strip(), source_url))
-                        seen_urls.add(parts[1].strip()); count += 1
+                        seen_urls.add(parts[1].strip())
+                        count += 1
             label = "🔍待测"
             live_print(f"✅ {source_url} -> 提取 {count} 条 [{label}]")
         except Exception as e:  # P0-1: 精确捕获异常并输出详情
@@ -119,7 +124,8 @@ def save_parse_results(unmatched_names: Set[str], ai_pending_aliases: Dict[str, 
         live_print(f"\n⚠️ 发现 {len(unmatched_names)} 个未匹配的频道！已输出待办清单至: {UNMATCHED_FILE}")
     else:
         live_print("\n✅ AI 辅助后全部未匹配频道已归入已知频道，无待办清单")
-        if os.path.exists(UNMATCHED_FILE): os.remove(UNMATCHED_FILE)
+        if os.path.exists(UNMATCHED_FILE):
+            os.remove(UNMATCHED_FILE)
 
     # ── 批量写入 AI 发现的别名到 alias.txt ──
     if ai_pending_aliases:

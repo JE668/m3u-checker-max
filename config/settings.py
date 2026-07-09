@@ -30,12 +30,7 @@ MIN_RESOLUTION = "1920x1080"          # 最低分辨率过滤（0x0=不过滤）
 
 # ── CDN 与数据源 ──
 CDN_BASE = "https://gh.felicity.ac.cn"
-# get-m3u 探针元数据（测速优先级排序用）
-SOURCE_META_URL = (
-    "https://gh.felicity.ac.cn/"
-    "https://raw.githubusercontent.com/JE668/get-m3u/"
-    "refs/heads/main/output/source-meta.json"
-)
+# get-m3u 探针元数据（测速优先级排序用）：由 utils/config.py 依据 CDN_BASE 派生为单一来源
 
 # ── 文件路径 ──
 SOURCES_FILE = "config/sources.txt"
@@ -77,7 +72,7 @@ NON_TV_PATTERNS = (
     "赌场", "赌波",
 )
 
-# ── 成人频道匹配（已弃用关键词免测，仅URL来源匹配，见 config/adult-sources.txt）──
+# ── 限制级频道匹配（已弃用关键词免测，仅URL来源匹配，见 config/adult-sources.txt）──
 ADULT_KEYWORDS = ()
 
 # ── 频道名清洗规则 ──

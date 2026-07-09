@@ -21,10 +21,10 @@ from utils.config import (
     MIN_BANDWIDTH_MBPS,
     PROBE_TIMEOUT,
     SAMPLE_PER_HOST,
+    SUCCESS_LOG_SAMPLE_LIMIT,
     get_pool,
     get_session,
     live_print,
-    SUCCESS_LOG_SAMPLE_LIMIT,
 )
 
 
@@ -191,7 +191,7 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
 
 def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls: Set[str], whitelist_names: Set[str], whitelist_urls: Set[str]) -> Tuple[list, Dict[str, list], list, list]:
     """黑白名单过滤分流
-    
+
     channels: [(name, url, source_url), ...]
     - 白名单 → 并发 HEAD 存活检测，在线免测，离级降级
     - 黑名单 → 拦截
@@ -243,7 +243,8 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
                 name, url, alive = f.result()
                 if alive:
                     whitelist_alive.add((name, url))
-                    if name not in valid_results: valid_results[name] = []
+                    if name not in valid_results:
+                        valid_results[name] = []
                     valid_results[name].append((url, -1.0))
                     logs_whitelist.append(f"⚪ [白名单免测] {name:<12} | 免测 | {url}")
                 else:
@@ -332,10 +333,10 @@ def _classify_failure(reason: str) -> str:
 
 def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_urls: Optional[Dict[str, str]] = None, channel_to_station: Optional[Dict[str, str]] = None) -> Tuple[Dict[str, list], list, list, Dict[str, int], Dict[str, dict]]:
     """并发测速：服务器级预筛 + 全量测速
-    
+
     source_urls: {url: source_url} — 来源统计用
     返回: (valid_results, logs_success, logs_fail, fail_counts, source_stats)
-    
+
     改进点：
     1. 按 host (ip:port) 分组
     2. 每组先抽 SAMPLE_PER_HOST 个频道预检

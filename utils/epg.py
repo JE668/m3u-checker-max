@@ -106,7 +106,8 @@ def download_and_merge_epg(aliases_exact: Dict[str, str], aliases_regex: List[Tu
         with open(EPG_FILE, 'r', encoding='utf-8') as f:
             epg_urls = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
-    if not epg_urls: return epg_report
+    if not epg_urls:
+        return epg_report
 
     live_print("\n━━━ 📅 下载并整合 EPG ━━━━━━━━━━━━━━━━━━━━━━━")
 

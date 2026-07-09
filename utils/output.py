@@ -8,15 +8,15 @@ from utils.config import (
     M3U_HEADER,
     MIN_RESOLUTION,
     MIN_RESOLUTION_PIXELS,
-    SUCCESS_LOG_SAMPLE_LIMIT,
     OUTPUT_M3U,
     OUTPUT_TXT,
+    SUCCESS_LOG_SAMPLE_LIMIT,
     live_print,
 )
 from utils.loaders import get_local_logo_url
 
 
-def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: List[str], chans_in_cat: Dict[str, List[str]], epg_report: list, logs_success: list, logs_fail: list, logs_whitelist: list, logs_blacklist: list, extra_stats: Optional[Dict[str, Any]] = None, adult_results: Optional[Dict[str, List[Tuple[str, float]]]] = None, channel_to_station: Optional[Dict[str, str]] = None, resolution_map: Optional[Dict[str, Tuple[int, int]]] = None, adult_source_urls: Optional[set] = None) -> None:
+def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: List[str], chans_in_cat: Dict[str, List[str]], epg_report: list, logs_success: list, logs_fail: list, logs_whitelist: list, logs_blacklist: list, extra_stats: Optional[Dict[str, Any]] = None, adult_results: Optional[Dict[str, List[Tuple[str, float]]]] = None, channel_to_station: Optional[Dict[str, str]] = None, resolution_map: Optional[Dict[str, Tuple[int, int]]] = None, adult_source_urls: Optional[set] = None, adult_configured: bool = False) -> None:
     """写入 M3U/TXT 成品 + 日志文件"""
     if extra_stats is None:
         extra_stats = {}
@@ -72,7 +72,7 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
 
     # 写入限制级内容（按来源分离，活/死都收；只要配置了限制级来源就强制重写，避免陈旧内容残留）
     adult_written = 0
-    if adult_source_urls:
+    if adult_configured or adult_source_urls:
         try:
             with open(ADULT_M3U, "w", encoding="utf-8") as fam3u, open(ADULT_TXT, "w", encoding="utf-8") as fatxt:
                 fam3u.write(M3U_HEADER)

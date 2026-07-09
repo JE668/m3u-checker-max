@@ -7,25 +7,27 @@
     python -m unittest tests.test_optimizations -v
 """
 import io
+import json
 import os
 import sys
-import json
 import tempfile
 import unittest
-from unittest import mock
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import asdict
-from contextlib import redirect_stdout, redirect_stderr
+from unittest import mock
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-import utils.ai_helper as A
-import utils.config as C
-import utils.loaders as L
-import utils.fetcher as F
-import utils.speedtest as S
-import main as M
+import main as M  # noqa: E402
+
+import utils.ai_helper as A  # noqa: E402
+import utils.config as C  # noqa: E402
+import utils.fetcher as F  # noqa: E402
+import utils.loaders as L  # noqa: E402
+import utils.speedtest as S  # noqa: E402
 
 
 class TestAiHelper(unittest.TestCase):
@@ -63,7 +65,7 @@ class TestAiHelper(unittest.TestCase):
             p = json["messages"][-1]["content"]
             if "For each numbered channel" in p:
                 block = p.split("Channels:\n", 1)[1]
-                names = [l.split(". ", 1)[1] for l in block.splitlines() if ". " in l]
+                names = [ln.split(". ", 1)[1] for ln in block.splitlines() if ". " in ln]
                 return Resp("\n".join(f"{i + 1}. {make_cat(n)}" for i, n in enumerate(names)))
             name = p.split("Channel name: '", 1)[1].split("'", 1)[0]
             return Resp(make_cat(name))
@@ -271,7 +273,7 @@ class TestMainCIState(unittest.TestCase):
             "url_to_source": st.url_to_source, "valid_results": st.valid_results,
             "to_test": st.to_test, "logs_blacklist": st.logs_blacklist,
             "logs_whitelist": st.logs_whitelist, "adult_results": st.adult_results,
-            "adult_source_urls": list(st.adult_source_urls), "cat_order": st.cat_order,
+            "adult_source_urls": list(st.adult_source_urls), "adult_configured": st.adult_configured, "cat_order": st.cat_order,
             "chan_to_cat": st.chan_to_cat, "chans_in_cat": st.chans_in_cat,
             "channel_to_station": st.channel_to_station, "channel_model": st.channel_model,
             "epg_report": st.epg_report, "start_time": st.start_time,
@@ -299,7 +301,7 @@ class TestMainCIState(unittest.TestCase):
             keys,
             {
                 "url_to_source", "valid_results", "to_test", "logs_blacklist",
-                "logs_whitelist", "adult_results", "adult_source_urls", "cat_order",
+                "logs_whitelist", "adult_results", "adult_source_urls", "adult_configured", "cat_order",
                 "chan_to_cat", "chans_in_cat", "channel_to_station", "channel_model",
                 "epg_report", "start_time", "resolution_map", "logs_success",
                 "logs_fail", "fail_counts", "source_stats",
@@ -512,9 +514,9 @@ class TestLogTxtSampling(unittest.TestCase):
 
 
 class TestAdultRewrite(unittest.TestCase):
-    """方案B：只要配置了成人来源就强制重写 adult 文件，避免源挂掉时陈旧内容残留。"""
+    """方案B：只要配置了限制级来源就强制重写 adult 文件，避免源挂掉时陈旧内容残留。"""
 
-    def _call(self, adult_source_urls=None, adult_results=None):
+    def _call(self, adult_source_urls=None, adult_results=None, adult_configured=False):
         import utils.output as O
         tmp = tempfile.mkdtemp()
         valid_results = {"新闻": [("http://example.com/s", 1.0)]}
@@ -535,14 +537,15 @@ class TestAdultRewrite(unittest.TestCase):
             p.start()
         try:
             O.write_outputs(valid_results, cat_order, chans_in_cat, [], [], [], [], [],
-                            adult_results=adult_results, adult_source_urls=adult_source_urls)
+                            adult_results=adult_results, adult_source_urls=adult_source_urls,
+                            adult_configured=adult_configured)
         finally:
             for p in patches:
                 p.stop()
         return os.path.join(tmp, "a.m3u"), os.path.join(tmp, "a.txt")
 
     def test_configured_but_no_live_rewrites_empty(self):
-        """配置了成人来源但本次无存活频道 → adult 文件被重写为空列表（含表头），不残留陈旧内容。"""
+        """配置了限制级来源但本次无存活频道 → adult 文件被重写为空列表（含表头），不残留陈旧内容。"""
         m3u, txt = self._call(adult_source_urls={"http://x/adult.m3u8"}, adult_results={})
         self.assertTrue(os.path.exists(m3u))
         self.assertTrue(os.path.exists(txt))
@@ -552,7 +555,7 @@ class TestAdultRewrite(unittest.TestCase):
             self.assertEqual(f.read(), "📛限制级内容,#genre#\n")
 
     def test_configured_with_live_writes_channels(self):
-        """配置了成人来源且有存活频道 → 正常写入频道。"""
+        """配置了限制级来源且有存活频道 → 正常写入频道。"""
         m3u, txt = self._call(
             adult_source_urls={"http://x/adult.m3u8"},
             adult_results={"限制级台": [("http://x/adult.m3u8", 1.0)]},
@@ -564,10 +567,20 @@ class TestAdultRewrite(unittest.TestCase):
         self.assertIn("限制级台", content)
 
     def test_not_configured_leaves_files_untouched(self):
-        """未配置成人来源(adult_source_urls 为空) → 不创建/不触碰 adult 文件。"""
+        """未配置限制级来源(adult_source_urls 为空且 adult_configured 为 False) → 不创建/不触碰 adult 文件。"""
         m3u, txt = self._call(adult_source_urls=set(), adult_results={})
         self.assertFalse(os.path.exists(m3u))
         self.assertFalse(os.path.exists(txt))
+
+    def test_configured_flag_empty_rewrites(self):
+        """配置了限制级来源(adult_configured)但本次 0 命中 → 仍强制重写为空列表，清除陈旧内容。"""
+        m3u, txt = self._call(adult_configured=True, adult_source_urls=set(), adult_results={})
+        self.assertTrue(os.path.exists(m3u))
+        self.assertTrue(os.path.exists(txt))
+        with open(m3u, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "#EXTM3U\n")
+        with open(txt, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "📛限制级内容,#genre#\n")
 
 
 class TestConfigConstants(unittest.TestCase):
@@ -616,8 +629,9 @@ class TestRefactorCleanup(unittest.TestCase):
 
     def test_fetch_returns_3_tuple_no_url_to_group(self):
         """#6: fetch_and_parse_channels 不再返回 url_to_group（死返回值已移除）"""
-        import utils.fetcher as F
         import inspect
+
+        import utils.fetcher as F
         src = inspect.getsource(F)
         self.assertNotIn("url_to_group", src)
         ann = F.fetch_and_parse_channels.__annotations__.get("return")
@@ -627,8 +641,9 @@ class TestRefactorCleanup(unittest.TestCase):
 
     def test_auto_update_demo_first_param_renamed(self):
         """#7: auto_update_demo 第一个参数已从严误导的 valid_names 重命名为 valid_results"""
-        import utils.categorizer as CAT
         import inspect
+
+        import utils.categorizer as CAT
         params = list(inspect.signature(CAT.auto_update_demo).parameters)
         self.assertIn("valid_results", params)
         self.assertNotIn("valid_names", params)

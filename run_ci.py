@@ -10,7 +10,9 @@
     PYTHONUNBUFFERED=1   # 建议在 CI 中设置，确保日志实时输出
 """
 import sys
+
 import main
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
