@@ -529,7 +529,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             write_outputs(valid_results, cat_order, chans_in_cat, epg_report, logs_success, logs_fail,
                            logs_whitelist, logs_blacklist, extra_stats,
                            adult_results=adult_results, channel_to_station=channel_to_station,
-                           resolution_map=resolution_map)
+                           resolution_map=resolution_map, adult_source_urls=adult_source_urls)
 
         with ci_group("🧹 清理临时状态"):
             # CI最后阶段：清理临时状态

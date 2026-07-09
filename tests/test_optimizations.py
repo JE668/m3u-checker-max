@@ -511,6 +511,65 @@ class TestLogTxtSampling(unittest.TestCase):
         self.assertNotIn("采样前", content)
 
 
+class TestAdultRewrite(unittest.TestCase):
+    """方案B：只要配置了成人来源就强制重写 adult 文件，避免源挂掉时陈旧内容残留。"""
+
+    def _call(self, adult_source_urls=None, adult_results=None):
+        import utils.output as O
+        tmp = tempfile.mkdtemp()
+        valid_results = {"新闻": [("http://example.com/s", 1.0)]}
+        cat_order = ["新闻"]
+        chans_in_cat = {"新闻": ["新闻"]}
+        patches = (
+            mock.patch.object(O, "OUTPUT_M3U", os.path.join(tmp, "live.m3u")),
+            mock.patch.object(O, "OUTPUT_TXT", os.path.join(tmp, "live.txt")),
+            mock.patch.object(O, "LOG_FILE", os.path.join(tmp, "log.txt")),
+            mock.patch.object(O, "ADULT_M3U", os.path.join(tmp, "a.m3u")),
+            mock.patch.object(O, "ADULT_TXT", os.path.join(tmp, "a.txt")),
+            mock.patch.object(O, "M3U_HEADER", "#EXTM3U\n"),
+            mock.patch.object(O, "MIN_RESOLUTION", "1920x1080"),
+            mock.patch.object(O, "MIN_RESOLUTION_PIXELS", 1920 * 1080),
+            mock.patch.object(O, "get_local_logo_url", lambda n: ""),
+        )
+        for p in patches:
+            p.start()
+        try:
+            O.write_outputs(valid_results, cat_order, chans_in_cat, [], [], [], [], [],
+                            adult_results=adult_results, adult_source_urls=adult_source_urls)
+        finally:
+            for p in patches:
+                p.stop()
+        return os.path.join(tmp, "a.m3u"), os.path.join(tmp, "a.txt")
+
+    def test_configured_but_no_live_rewrites_empty(self):
+        """配置了成人来源但本次无存活频道 → adult 文件被重写为空列表（含表头），不残留陈旧内容。"""
+        m3u, txt = self._call(adult_source_urls={"http://x/adult.m3u8"}, adult_results={})
+        self.assertTrue(os.path.exists(m3u))
+        self.assertTrue(os.path.exists(txt))
+        with open(m3u, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "#EXTM3U\n")
+        with open(txt, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "📛成人内容,#genre#\n")
+
+    def test_configured_with_live_writes_channels(self):
+        """配置了成人来源且有存活频道 → 正常写入频道。"""
+        m3u, txt = self._call(
+            adult_source_urls={"http://x/adult.m3u8"},
+            adult_results={"成人台": [("http://x/adult.m3u8", 1.0)]},
+        )
+        with open(m3u, encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("#EXTM3U\n", content)
+        self.assertIn("http://x/adult.m3u8", content)
+        self.assertIn("成人台", content)
+
+    def test_not_configured_leaves_files_untouched(self):
+        """未配置成人来源(adult_source_urls 为空) → 不创建/不触碰 adult 文件。"""
+        m3u, txt = self._call(adult_source_urls=set(), adult_results={})
+        self.assertFalse(os.path.exists(m3u))
+        self.assertFalse(os.path.exists(txt))
+
+
 class TestConfigConstants(unittest.TestCase):
     def test_success_log_sample_limit_single_source(self):
         """SUCCESS_LOG_SAMPLE_LIMIT 现由 config 单一来源定义（默认 15，支持 env 覆盖）。"""
