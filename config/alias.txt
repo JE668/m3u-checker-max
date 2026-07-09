@@ -1455,3 +1455,112 @@ n tb-641温泉旅馆,nhdtb-641温泉旅馆
 风尚购物,风尚购物 (1080p)
 高台电视台,高台电视台 (1080p)
 鹤壁新闻综合,鹤壁新闻综合 (480p) [Not 24/7]
+
+# AI 自动添加 (2026-07-09 09:05)
+<thought>*   Input: CGNTV Chinese
+    *   Task: Standardize the channel name.
+    *   Rules:
+        *   Remove quality markers (4K, HD, etc.).
+        *   Remove region markers (广东, etc.).
+        *   Remove redundant descriptions.
+        *   Output only the final result.
+
+    *   CGNTV is the brand/channel name.
+    *   Chinese is a language/description marker.
+
+    *   Standardized name: CGNTV
+
+    *   Is CGNTV the official/concise version? Yes.
+    *   Is Chinese a redundant description in this context? Yes, usually channel names dont include the language unless its part of the official brand name (like CNN International). However, CGNTV is the core brand.
+
+    *   CGNTV</thought>CGNTV,CGNTV Chinese (1080p)
+<thought>*   Input: CGTN
+    *   Task: Standardize the channel name.
+    *   Rules: Remove quality markers, region markers, redundant descriptions. Return the most concise, official version.
+    *   Input analysis: CGTN is already the official, concise name of the channel.
+
+    *   CGTN is the official name. No quality markers, no region markers, no redundant descriptions.
+
+    *   Output: CGTN</thought>CGTN,CGTN (1080p)
+<thought>*   Input: China Travel
+    *   Task: Standardize the channel name.
+    *   Rules: Remove quality markers, region markers, redundant descriptions. Keep it concise and official.
+    *   Input analysis: China Travel is already a concise, official-sounding name. It doesnt contain quality markers (4K, HD, etc.) or region markers (广东, etc.).
+
+    *   China Travel -> China Travel
+
+    *   Output only the final result.</thought>China Travel,China Travel (1080p)
+<thought>*   Input: Lotus Macau 720p
+    *   Task: Standardize the channel name.
+    *   Rules:
+        *   Remove quality markers (4K, HD, 720p, etc.).
+        *   Remove region markers (if redundant/part of description, but Macau is part of the name Lotus Macau).
+        *   Remove redundant descriptions.
+        *   Output only the final result.
+
+    *   Lotus Macau 720p
+    *   720p is a quality marker.
+    *   Lotus Macau is the channel name.
+
+    *   Lotus Macau
+
+    *   Does it follow the rules? Yes.
+    *   Is it concise? Yes.
+    *   Is it the official version? Yes.</thought>Lotus Macau,Lotus Macau HD 720p (720p)
+<thought>*   Input: Tech Storm
+    *   Task: Standardize the channel name.
+    *   Rules: Remove quality markers, region markers, redundant descriptions. Keep it concise and official.
+    *   Input analysis: Tech Storm appears to be the core name of the channel. There are no quality markers (4K, HD, etc.), region markers (广东, etc.), or redundant descriptions.
+
+    *   Tech Storm is already clean.
+
+    *   Output: Tech Storm</thought>Tech Storm,Tech Storm (720p) [Geo-blocked]
+BabyFirst,BabyFirst (720p)
+CCTV-4 America,CCTV-4 America (1080p)
+CGTN Global Biz,CGTN Global Biz (1080p)
+CTS News,CTS News (華視新聞資訊) [Geo-blocked]
+CTi Variety,CTi Variety (中天綜合台) (720p)
+Celestial Movies,Celestial Movies (576i)
+CreaTV Community Channel 15,CreaTV Community Channel 15 (San Jose CA) (720p)
+DHA,DHA (720p) [Not 24/7]
+DaAi1,DaAi1 (大愛1) (720p)
+DaAi2,DaAi2 (大愛2) (720p)
+Dali TV,Dali TV (大立電視台) (720p)
+Discovering China,Discovering China (1080p)
+EBC Financial News,EBC Financial News (東森財經新聞台) (1080p) [Not 24/7]
+EBC News,EBC News (東森新聞台) (1080p) [Not 24/7]
+FTV,FTV (民視) (720p) [Not 24/7]
+FTV One,FTV One (民視第一台) (720p) [Not 24/7]
+FTV Taiwan,FTV Taiwan (民視台灣台) (720p) [Not 24/7]
+GOOD TV CH1 綜合台,GOOD TV CH1 綜合台 (720p) [Not 24/7]
+GOOD TV CH2 真理台,GOOD TV CH2 真理台 (720p)
+HOY Infotainment,HOY Infotainment (1080p) [Geo-blocked]
+HOY International Business Channel,HOY International Business Channel (1080p) [Geo-blocked]
+HOY TV,HOY TV (1080p) [Geo-blocked]
+Indigenous TV,Indigenous TV (720p)
+Lighting Lives Blessing Nations TV Chinese,Lighting Lives Blessing Nations TV Chinese (LLBN) (480p)
+Love Nature,Love Nature HD (720p),Love Nature (1080p)
+Luxe TV,Luxe TV (1080p)
+NTD TV,NTD TV (1080p)
+Okey,Okey [Geo-blocked]
+Ou-Mun Macau Satellite Ch. 96,Ou-Mun Macau Satellite Ch. 96 (720p)
+Peace TV Chinese,Peace TV Chinese (1080p)
+Pet Club TV,Pet Club TV (1080p)
+RTHK TV 31,RTHK TV 31 (港台電視31) (1080p) [Geo-blocked]
+RTHK TV 32,RTHK TV 32 (港台電視32) (1080p) [Geo-blocked]
+RTHK TV 33,RTHK TV 33 (港台電視33) (1080p) [Geo-blocked]
+RTHK TV 34,RTHK TV 34 (港台電視34) (1080p) [Geo-blocked]
+RTHK TV 35,RTHK TV 35 (港台電視35) (1080p) [Geo-blocked]
+SET News,SET News (三立新聞) (1080p) [Geo-blocked]
+Supreme Master TV,Supreme Master TV (720p)
+TDM Entertainment Ch. 95,TDM Entertainment Ch. 95 (720p)
+TDM Info. Macau,TDM Info. Macau (720p) [Not 24/7]
+TDM Ou Mun Macau Ch. 91,TDM Ou Mun Macau Ch. 91 (720p)
+TDM Sports Ch. 93,TDM Sports Ch. 93 (720p)
+TVBS Asia,TVBS Asia (1080p)
+TVBS News,TVBS News (TVBS新聞台) [Geo-blocked]
+Taiwan Indigenous TV,Taiwan Indigenous TV (原住民電視) (720p)
+Thrill,Thrill (540p)
+meWATCH LIVE 1,meWATCH LIVE 1 (1080p)
+唯心電視,唯心電視 (480p)
+耀才財經台,耀才財經台 (576p)
