@@ -651,5 +651,82 @@ class TestRefactorCleanup(unittest.TestCase):
         self.assertIn("valid_results_opt", params)
 
 
+class TestEPGDayFilter(unittest.TestCase):
+    """EPG 按天数过滤功能测试"""
+
+    def _make_programmes(self, dates_channels):
+        """构造测试用 programme 列表。
+        dates_channels: [(start_ts, stop_ts, channel_id), ...]
+        """
+        import xml.etree.ElementTree as _ET
+        progs = []
+        for start, stop, ch in dates_channels:
+            elem = _ET.Element("programme")
+            elem.set("start", start)
+            elem.set("stop", stop)
+            elem.set("channel", ch)
+            progs.append(elem)
+        return progs
+
+    def test_keep_3_days_filters_out_old_data(self):
+        """保留3天（前1+今+后1），应丢弃7天前的数据"""
+        from datetime import datetime, timedelta
+
+        from utils.epg import _BJT, _filter_programmes_by_days
+
+        now = datetime.now(_BJT)
+        today_str = now.strftime("%Y%m%d")
+        yesterday_str = (now - timedelta(days=1)).strftime("%Y%m%d")
+        tomorrow_str = (now + timedelta(days=1)).strftime("%Y%m%d")
+        week_ago_str = (now - timedelta(days=7)).strftime("%Y%m%d")
+
+        progs = self._make_programmes([
+            (f"{week_ago_str}060000 +0800", f"{week_ago_str}070000 +0800", "CCTV-1"),
+            (f"{yesterday_str}060000 +0800", f"{yesterday_str}070000 +0800", "CCTV-1"),
+            (f"{today_str}060000 +0800", f"{today_str}070000 +0800", "CCTV-1"),
+            (f"{tomorrow_str}060000 +0800", f"{tomorrow_str}070000 +0800", "CCTV-1"),
+        ])
+        kept = _filter_programmes_by_days(progs, 3)
+        # 应保留3条（前1+今+后1），丢弃7天前的1条
+        self.assertEqual(len(kept), 3)
+        kept_starts = [p.get("start")[:8] for p in kept]
+        self.assertNotIn(week_ago_str, kept_starts)
+        self.assertIn(yesterday_str, kept_starts)
+        self.assertIn(today_str, kept_starts)
+        self.assertIn(tomorrow_str, kept_starts)
+
+    def test_keep_0_days_preserves_all(self):
+        """keep_days=0 应保留全部数据（不过滤）"""
+        from utils.epg import _filter_programmes_by_days
+
+        progs = self._make_programmes([
+            ("20200101060000 +0800", "20200101070000 +0800", "CCTV-1"),
+            ("20260701060000 +0800", "20260701070000 +0800", "CCTV-2"),
+        ])
+        kept = _filter_programmes_by_days(progs, 0)
+        self.assertEqual(len(kept), 2)
+
+    def test_parse_epg_time_handles_various_formats(self):
+        """验证 EPG 时间戳解析的健壮性"""
+
+        from utils.epg import _BJT, _parse_epg_time
+
+        # 标准 14位+时区
+        dt = _parse_epg_time("20260709060000 +0800")
+        self.assertEqual(dt.year, 2026)
+        self.assertEqual(dt.month, 7)
+        self.assertEqual(dt.day, 9)
+        self.assertEqual(dt.hour, 6)
+        self.assertEqual(dt.tzinfo, _BJT)
+
+        # UTC 时区转换（+0000 → BJT +8）
+        dt_utc = _parse_epg_time("20260709060000 +0000")
+        self.assertEqual(dt_utc.hour, 14)  # UTC 6:00 = BJT 14:00
+
+        # 仅 14位无时区（默认 UTC+8）
+        dt_no_tz = _parse_epg_time("20260709060000")
+        self.assertEqual(dt_no_tz.hour, 6)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

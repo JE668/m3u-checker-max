@@ -4,10 +4,68 @@ import io
 import os
 import re
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set, Tuple
 
-from utils.config import EPG_BLACKLIST, EPG_FILE, EPG_MAX_WORKERS, OUTPUT_EPG, OUTPUT_EPG_GZ, fetch_url, live_print
+from utils.config import (
+    EPG_BLACKLIST,
+    EPG_FILE,
+    EPG_KEEP_DAYS,
+    EPG_MAX_WORKERS,
+    OUTPUT_EPG,
+    OUTPUT_EPG_GZ,
+    fetch_url,
+    live_print,
+)
 from utils.loaders import get_main_name
+
+
+# ── 北京时间 UTC+8 ──
+_BJT = timezone(timedelta(hours=8))
+
+
+def _parse_epg_time(ts: str) -> datetime:
+    """解析 EPG 时间戳格式 'YYYYMMDDHHmmSS +XXXX' 或 'YYYYMMDDHHmmSS'"""
+    # 去掉时区后缀（如 '+0800'），只取前14位
+    core = ts[:14]
+    tz_sign = ts[15] if len(ts) > 15 else '+'
+    tz_h = int(ts[16:18]) if len(ts) > 17 else 8
+    tz_m = int(ts[19:21]) if len(ts) > 20 else 0
+    tz_offset = timedelta(hours=tz_h if tz_sign == '+' else -tz_h, minutes=tz_m if tz_sign == '+' else -tz_m)
+    dt = datetime.strptime(core, "%Y%m%d%H%M%S").replace(tzinfo=timezone(tz_offset))
+    return dt.astimezone(_BJT)
+
+
+def _filter_programmes_by_days(programmes: list, keep_days: int) -> list:
+    """按天数过滤节目数据，保留北京时间前一天+当天+后一天。
+    keep_days=0 时不过滤（保留全部）；keep_days<0 视为0。
+    返回过滤后的 programmes 列表。
+    """
+    if keep_days <= 0:
+        return programmes
+
+    now_bjt = datetime.now(_BJT)
+    today = now_bjt.date()
+    # 计算保留窗口：前1天到后(keep_days-2)天 → 默认 keep_days=3 即 [-1, 0, +1]
+    day_before = today - timedelta(days=1)
+    day_after = today + timedelta(days=keep_days - 2)
+    # 窗口起始时刻和结束时刻（用 UTC+8 整日边界）
+    window_start = datetime(day_before.year, day_before.month, day_before.day, 0, 0, 0, tzinfo=_BJT)
+    window_end = datetime(day_after.year, day_after.month, day_after.day, 23, 59, 59, tzinfo=_BJT)
+
+    kept = []
+    for prog in programmes:
+        start_ts = prog.get('start')
+        if not start_ts:
+            continue
+        try:
+            dt = _parse_epg_time(start_ts)
+            if window_start <= dt <= window_end:
+                kept.append(prog)
+        except (ValueError, IndexError):
+            # 解析失败的保留（不丢弃）
+            kept.append(prog)
+    return kept
 
 
 def _download_single_epg(url: str, aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str]) -> Tuple[list, list, list]:
@@ -144,6 +202,19 @@ def download_and_merge_epg(aliases_exact: Dict[str, str], aliases_regex: List[Tu
 
     # 写入合并后的 EPG 文件
     if len(merged_channels) > 0:
+        # ── 按天数过滤节目 ──
+        orig_prog_count = len(merged_programmes)
+        if EPG_KEEP_DAYS > 0:
+            merged_programmes = _filter_programmes_by_days(merged_programmes, EPG_KEEP_DAYS)
+            kept_prog_count = len(merged_programmes)
+            dropped = orig_prog_count - kept_prog_count
+            live_print(f"📅 EPG 按天数过滤（保留{EPG_KEEP_DAYS}天）：{orig_prog_count} → {kept_prog_count} 条节目（丢弃 {dropped} 条过期数据）")
+            # 修剪没有节目的频道
+            orig_ch_count = len(merged_channels)
+            surviving_channels = set(prog.get('channel') for prog in merged_programmes)
+            merged_channels = [ch for ch in merged_channels if ch.get('id') in surviving_channels]
+            live_print(f"📺 频道数同步修剪：{orig_ch_count} → {len(merged_channels)}（去除无节目频道）")
+
         try:
             merged_tv = ET.Element("tv")
             merged_tv.set("generator-info-name", "Merged EPG by GitHub Actions")

@@ -91,3 +91,4 @@ EPG_BLACKLIST = [
     "没有节目", "未提供节目", "未提供節目",
     "no program", "no data", "精彩剧集", "暂未提供"
 ]
+EPG_KEEP_DAYS = 3                    # EPG 保留天数（前一天+当天+后一天），0=保留全部
