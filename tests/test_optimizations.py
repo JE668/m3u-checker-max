@@ -31,6 +31,11 @@ import utils.speedtest as S  # noqa: E402
 
 
 class TestAiHelper(unittest.TestCase):
+    def setUp(self):
+        """每个测试前重置 AI 模型状态（主→备切换标记等）"""
+        A._current_model = A.MODEL_PRIMARY
+        A._fallback_triggered = False
+
     def test_province_regex_equivalence(self):
         """重构后的 _PROVINCE_RE 必须与原硬编码正则逐字等价。"""
         import re
@@ -88,6 +93,42 @@ class TestAiHelper(unittest.TestCase):
             mreq.post = flaky
             self.assertEqual(A.classify_channel("CCTV-1"), "📺央视频道")
             self.assertEqual(calls["n"], 3)
+
+    def test_fallback_switches_to_secondary_model(self):
+        """主模型持续 429 时应自动切换到备选模型并成功返回。"""
+        A.API_KEY = "dummy"
+        A._CAT_CACHE.clear()
+        A._current_model = A.MODEL_PRIMARY
+        A._fallback_triggered = False
+
+        class Resp:
+            def __init__(self, content, status=200):
+                self.status_code = status
+                self._c = content
+
+            def json(self):
+                return {"choices": [{"message": {"content": self._c}}]}
+
+        models_used = []
+
+        def post(url, json=None, headers=None, timeout=5):
+            models_used.append(json["model"])
+            # 主模型始终返回 429，逼出 fallback
+            if json["model"] == A.MODEL_PRIMARY:
+                return Resp("", status=429)
+            # 备选模型成功返回
+            return Resp("📺央视频道")
+
+        with mock.patch("utils.ai_helper.requests") as mreq:
+            mreq.post = post
+            result = A.classify_channel("CCTV-1")
+        self.assertEqual(result, "📺央视频道")
+        # 至少有一次主模型尝试，然后切换到备选
+        self.assertIn(A.MODEL_PRIMARY, models_used)
+        self.assertIn(A.MODEL_FALLBACK, models_used)
+        # 切换后全局状态已变更
+        self.assertTrue(A._fallback_triggered)
+        self.assertEqual(A._current_model, A.MODEL_FALLBACK)
 
 
 class TestLoaders(unittest.TestCase):

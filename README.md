@@ -59,7 +59,7 @@
 - **分辨率识别**：ffprobe 探测分辨率，支持 4K/1080p/720p 等分类统计。
 
 ### 🤖 AI 辅助智能
-- **名称标准化**：Google Gemini (**Gemma 4**) 自动清洗混乱的频道名，去除质量标记、地区后缀。
+- **名称标准化**：NVIDIA NIM (**Step 3.5 Flash**) 自动清洗混乱的频道名，去除质量标记、地区后缀。
 - **AI 兜底匹配**：alias.txt 无法匹配时，AI 自动识别并写入新别名映射。
 - **AI 频道分类**：自动判断频道归属省份/类别（覆盖 34 省 + 港澳台 + 系列频道），写入 demo.txt。
 - **运行时 + 持久化双重缓存**：减少重复 API 调用，节省额度。
@@ -97,7 +97,7 @@
 
 1. **Fork 本仓库** 到你的 GitHub 账号。
 2. 进入 **Settings → Secrets and variables → Actions**，添加：
-   - `GEMINI_API_KEY`（可选，启用 AI 功能）
+   - `NVIDIA_API_KEY`（可选，启用 AI 功能）
 3. 进入 `config/` 目录，按需修改配置。
 4. 进入 **Actions** 页面，点击 **I understand my workflows...**
 5. 手动触发：**Run workflow** → 开始全量检测。
@@ -124,7 +124,7 @@
 
 | 变量 | 用途 | 默认值 |
 |------|------|--------|
-| `GEMINI_API_KEY` | Google Gemini API Key | (禁用 AI) |
+| `NVIDIA_API_KEY` | NVIDIA NIM API Key | (禁用 AI) |
 | `MAX_WORKERS` | 并发线程数 | 50 |
 | `ENABLE_IPV6` | 启用 IPv6 测速 | false |
 | `CDN_BASE` | CDN 加速地址 | `https://gh.felicity.ac.cn` |
@@ -208,7 +208,7 @@ python run_ci.py 3   # 分类输出
 | 名称 | 说明 |
 |------|------|
 | [gh.felicity.ac.cn](https://gh.felicity.ac.cn) | GitHub Raw 加速 CDN（由 [@felicity](https://github.com/felicity) 提供） |
-| [Google Gemini API](https://ai.google.dev/gemini-api) | AI 频道名称标准化与分类（Gemma 4 模型） |
+| [NVIDIA NIM API](https://build.nvidia.com) | AI 频道名称标准化与分类（Step 3.5 Flash + Gemma 4 31B） |
 | [iptv-org](https://github.com/iptv-org) | 全球 IPTV 社区标准与频道数据库 |
 
 ### 🧠 频道模型与分类参考

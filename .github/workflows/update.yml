@@ -78,21 +78,21 @@ jobs:
         env:
           PYTHONUNBUFFERED: 1
           ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: stdbuf -oL python run_ci.py 1
 
       - name: 🚀 阶段2 — 并发测速 & 流校验
         env:
           PYTHONUNBUFFERED: 1
           ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: stdbuf -oL python run_ci.py 2
 
       - name: 🧠 阶段3 — 模板进化 & 成品输出
         env:
           PYTHONUNBUFFERED: 1
           ENABLE_IPV6: ${{ vars.ENABLE_IPV6 }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: stdbuf -oL python run_ci.py 3
 
       - name: 💾 提交并推送

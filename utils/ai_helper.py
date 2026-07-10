@@ -6,16 +6,18 @@ import requests
 
 
 # ============================
-# Google Gemini API — 官方端点
+# NVIDIA NIM API — 免费 AI 推理
 # ============================
-# OpenAI 兼容模式（无需额外 SDK）
-# 官方文档: https://ai.google.dev/gemini-api/docs/openai
+# OpenAI 兼容端点（无需额外 SDK，改一行 base_url 即可切换）
+# 免费层：40 RPM，无每日请求上限，中国大陆可直连
+# 注册：build.nvidia.com → Get API Key → nvapi-xxxx
 
-API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-MODEL = "gemma-4-26b-a4b-it"
+API_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
+MODEL_PRIMARY = "stepfun-ai/step-3.5-flash"       # 主力：阶跃星辰 Step 3.5 Flash，响应极快、中文好
+MODEL_FALLBACK = "google/gemma-4-31b-it"            # 备选：Google Gemma 4 31B，指令遵循强
 
-# 请在 GitHub Secrets 以及本地环境变量中设置 GEMINI_API_KEY
-API_KEY = os.getenv("GEMINI_API_KEY", "")
+# 请在 GitHub Secrets 以及本地环境变量中设置 NVIDIA_API_KEY
+API_KEY = os.getenv("NVIDIA_API_KEY", "")
 
 # ── AI 标准化缓存（避免重复 API 调用，每次运行有效） ──
 _CACHE = {}  # {raw_name: standardized_name}
@@ -34,9 +36,13 @@ def get_cache_stats():
 
 
 # ── AI 调用限流 + 退避重试 ──
-# 两次 API 调用之间最小间隔（秒），避免高频触发 429。可用环境变量 AI_MIN_INTERVAL 覆盖。
-_AI_MIN_INTERVAL = float(os.getenv("AI_MIN_INTERVAL", "0.2"))
+# NVIDIA NIM 免费层限制：40 RPM（所有模型共享）
+# 两次 API 调用之间最小间隔（秒），1.5s ≈ 40/min 上限
+# 可用环境变量 AI_MIN_INTERVAL 覆盖。
+_AI_MIN_INTERVAL = float(os.getenv("AI_MIN_INTERVAL", "1.5"))
 _last_ai_call_ts = 0.0
+_current_model = MODEL_PRIMARY   # 当前使用的模型（主→备自动切换）
+_fallback_triggered = False      # 是否已切换到备选模型
 
 def _ai_rate_limit():
     """控制 AI API 调用频率：若距上次调用不足最小间隔则短暂休眠。"""
@@ -47,24 +53,35 @@ def _ai_rate_limit():
     _last_ai_call_ts = time.time()
 
 def _post_with_retry(payload: dict, headers: dict, timeout: float, max_retries: int = 3):
-    """带限流与指数退避重试的 API POST。
+    """带限流与指数退避重试的 API POST（主模型失败后自动切换备选模型）。
 
-    仅对 429（限流）和异常做重试；其他状态码（含 5xx）按原样返回，
-    由调用方决定降级策略，保持与原逻辑一致。耗尽重试后返回 None。
+    两阶段策略：先用主模型重试 max_retries 次，若全部失败且未切换过，
+    再用备选模型重试 max_retries 次。其他状态码（含 5xx）按原样返回，
+    由调用方决定降级策略。耗尽全部重试后返回 None。
     """
-    backoff = 0.5
-    for _ in range(max_retries):
-        try:
-            _ai_rate_limit()
-            resp = requests.post(API_ENDPOINT, json=payload, headers=headers, timeout=timeout)
-            if resp.status_code == 429:
+    global _current_model, _fallback_triggered
+    models_to_try = [_current_model]
+    if _current_model == MODEL_PRIMARY and not _fallback_triggered:
+        models_to_try.append(MODEL_FALLBACK)
+
+    for model in models_to_try:
+        payload["model"] = model
+        _current_model = model
+        if model == MODEL_FALLBACK:
+            _fallback_triggered = True
+        backoff = 1.0
+        for attempt in range(max_retries):
+            try:
+                _ai_rate_limit()
+                resp = requests.post(API_ENDPOINT, json=payload, headers=headers, timeout=timeout)
+                if resp.status_code == 429:
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 8.0)
+                    continue
+                return resp
+            except Exception:
                 time.sleep(backoff)
-                backoff = min(backoff * 2, 4.0)
-                continue
-            return resp
-        except Exception:
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 4.0)
+                backoff = min(backoff * 2, 8.0)
     return None
 
 
@@ -107,7 +124,7 @@ def _simple_standardize(raw_name: str) -> str:
 
 def standardize_channel_name(raw_name: str) -> str:
     """
-    调用 Google Gemini API（Gemma 4）将混乱的频道名称标准化。
+    调用 NVIDIA NIM API（Step 3.5 Flash / Gemma 4 31B）将混乱的频道名称标准化。
     两次缓存：运行时字典缓存 + 去重过滤（同名请求只调用一次 API）。
 
     返回: 标准化后的名称。API 不可用时静默返回原名。
@@ -155,7 +172,7 @@ def standardize_channel_name(raw_name: str) -> str:
     }
 
     payload = {
-        "model": MODEL,
+        "model": _current_model,
         "messages": [
             {"role": "system", "content": "You are a precise data cleaning tool. Output only the final result."},
             {"role": "user", "content": prompt}
@@ -224,7 +241,7 @@ def classify_channel(name: str) -> str:
     }
 
     payload = {
-        "model": MODEL,
+        "model": _current_model,
         "messages": [
             {"role": "system", "content": "You are a precise IPTV channel categorizer. Output only the category name."},
             {"role": "user", "content": prompt}
@@ -300,7 +317,7 @@ def classify_channels_batch(names: list, batch_size: int = 50) -> dict:
             f"Channels:\n{numbered}\n"
         )
         payload = {
-            "model": MODEL,
+            "model": _current_model,
             "messages": [
                 {"role": "system", "content": "You are a precise IPTV channel categorizer. Output only numbered category names."},
                 {"role": "user", "content": prompt}
