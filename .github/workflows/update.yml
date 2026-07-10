@@ -100,7 +100,9 @@ jobs:
           echo "📋 变更检测"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add -A config/ output/ || git add -f config/ output/
+          # 仅提交 config/ 变更与 AI 缓存（output/ 其他大文件由 .gitignore 排除，避免仓库膨胀）
+          git add -A config/
+          git add output/ai_cache.json 2>/dev/null || git add -f output/ai_cache.json
           if ! git diff --staged --quiet; then
             CHANGED_COUNT=$(git diff --staged --name-only | wc -l | tr -d ' ')
             CHANGED_FILES=$(git diff --staged --name-only | tr '\n' ' ')
