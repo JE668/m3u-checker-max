@@ -189,7 +189,7 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
 
 
 
-def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls: Set[str], whitelist_names: Set[str], whitelist_urls: Set[str]) -> Tuple[list, Dict[str, list], list, list]:
+def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls: Set[str], whitelist_names: Set[str], whitelist_urls: Set[str]) -> Tuple[list, Dict[str, list], list, list, list]:
     """黑白名单过滤分流
 
     channels: [(name, url, source_url), ...]

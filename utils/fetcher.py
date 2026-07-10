@@ -28,7 +28,7 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
     ai_pending_aliases = collections.defaultdict(set)  # {标准名: set(别名)} 批量收集，一次性写入
 
     if not os.path.exists(SOURCES_FILE):
-        return channels
+        return channels, set(), {}
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 

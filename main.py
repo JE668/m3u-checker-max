@@ -526,8 +526,8 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 cat_live_counts[cat] = sum(1 for name in chans_in_cat.get(cat, []) if name in valid_results)
 
             extra_stats = {
-                "source_ok": source_stats["ok"],
-                "source_total": source_stats["total"],
+                "source_ok": source_stats.get("ok", {}),
+                "source_total": source_stats.get("total", {}),
                 "fail_counts": fail_counts,
                 "cat_live_counts": cat_live_counts,
                 "elapsed_seconds": time.time() - start_time,
