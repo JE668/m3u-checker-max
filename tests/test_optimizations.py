@@ -668,8 +668,8 @@ class TestEPGDayFilter(unittest.TestCase):
             progs.append(elem)
         return progs
 
-    def test_keep_3_days_filters_out_old_data(self):
-        """保留3天（前1+今+后1），应丢弃7天前的数据"""
+    def test_keep_2_days_filters_out_old_data(self):
+        """保留2天（前1+今），应丢弃7天前和明天的数据"""
         from datetime import datetime, timedelta
 
         from utils.epg import _BJT, _filter_programmes_by_days
@@ -686,14 +686,14 @@ class TestEPGDayFilter(unittest.TestCase):
             (f"{today_str}060000 +0800", f"{today_str}070000 +0800", "CCTV-1"),
             (f"{tomorrow_str}060000 +0800", f"{tomorrow_str}070000 +0800", "CCTV-1"),
         ])
-        kept = _filter_programmes_by_days(progs, 3)
-        # 应保留3条（前1+今+后1），丢弃7天前的1条
-        self.assertEqual(len(kept), 3)
+        kept = _filter_programmes_by_days(progs, 2)
+        # 应保留2条（前1+今），丢弃7天前1条+明天1条
+        self.assertEqual(len(kept), 2)
         kept_starts = [p.get("start")[:8] for p in kept]
         self.assertNotIn(week_ago_str, kept_starts)
+        self.assertNotIn(tomorrow_str, kept_starts)
         self.assertIn(yesterday_str, kept_starts)
         self.assertIn(today_str, kept_starts)
-        self.assertIn(tomorrow_str, kept_starts)
 
     def test_keep_0_days_preserves_all(self):
         """keep_days=0 应保留全部数据（不过滤）"""
