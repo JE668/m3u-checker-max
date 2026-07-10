@@ -36,10 +36,12 @@ def get_cache_stats():
 
 
 # ── AI 调用限流 + 退避重试 ──
-# NVIDIA NIM 免费层限制：40 RPM（所有模型共享）
-# 两次 API 调用之间最小间隔（秒），1.5s ≈ 40/min 上限
-# 可用环境变量 AI_MIN_INTERVAL 覆盖。
-_AI_MIN_INTERVAL = float(os.getenv("AI_MIN_INTERVAL", "1.5"))
+# NVIDIA NIM 免费层限制：40 RPM（所有模型共享，step-3.5-flash 可达 60 RPM）
+# 默认不再做客户端固定限速（_AI_MIN_INTERVAL=0）：AI 调用本就是偶发突发，
+# 且 ai_cache.json 已跨 CI 持久化，绝大多数频道名直接命中缓存、不调 API；
+# 真实节流交由服务端 429 + 指数退避（含 Retry-After）动态完成，避免无意义空等。
+# 如需硬性客户端限速，设置环境变量 AI_MIN_INTERVAL（秒）即可恢复。
+_AI_MIN_INTERVAL = float(os.getenv("AI_MIN_INTERVAL", "0"))
 _last_ai_call_ts = 0.0
 _current_model = MODEL_PRIMARY   # 当前使用的模型（主→备自动切换）
 _fallback_triggered = False      # 是否已切换到备选模型
@@ -75,7 +77,13 @@ def _post_with_retry(payload: dict, headers: dict, timeout: float, max_retries: 
                 _ai_rate_limit()
                 resp = requests.post(API_ENDPOINT, json=payload, headers=headers, timeout=timeout)
                 if resp.status_code == 429:
-                    time.sleep(backoff)
+                    # 尊重服务端 Retry-After；缺失时退化为指数退避
+                    ra = resp.headers.get("Retry-After")
+                    try:
+                        wait = float(ra) if ra is not None else backoff
+                    except (TypeError, ValueError):
+                        wait = backoff
+                    time.sleep(wait)
                     backoff = min(backoff * 2, 8.0)
                     continue
                 return resp
