@@ -10,7 +10,7 @@
  */
 
 const DEV_LOG = true;//Log开关
-const YuNingXi = ''; // 音乐解析KEY
+const YuNingXi = 'd37780d47b5dc5b7788c8b51f4e156bb6acbb7095927e42fcc14137160d4d00f'; // 音乐解析KEY
 //去http://api-v2.yuafeng.cn注册 免费!免费!免费!
 //音源地址1(下载后填写key) https://gitee.com/Myn_1/Mao_Yuna/raw/MYN_update/lx-music/lx-玉宁熙.js
 //音源地址2(可填key) http://ynx.de5.net/API/lx-ynx.php?APIKEY=[d37780d47b5dc5b7788c8b51f4e156bb6acbb7095927e42fcc14137160d4d00f]
