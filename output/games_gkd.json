@@ -1,0 +1,32 @@
+[
+  {
+    "id": "Unity-Rewarded-Ad",
+    "name": "Unity 激励广告页自动关闭",
+    "description": "看激励视频后出现的右上角 Skip/Close 小按钮,通过 Unity 的 FullScreenWebViewDisplay 暴露 desc=Close,自动点击。",
+    "properties": {
+      "global": {
+        "request": { "timeout": 10, "whiteList": ["com.Chodun.CatGunner"] },
+        "activityId": "com.unity3d.ads.adplayer.FullScreenWebViewDisplay",
+        "text": "Skip|Close|Claim",
+        "time": [2000, 5000]
+      },
+      "groups": [
+        {
+          "id": "skip-rewarded-ad",
+          "pre": [
+            "Descs"
+          ],
+          "properties": {
+            "request": { "show": false }
+          },
+          "actions": [
+            {
+              "actionType": "Click",
+              "text": "Close"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
