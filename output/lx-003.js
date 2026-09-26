@@ -1,13 +1,13 @@
 /*!
  * @name 听音音源
  * @description 请到https://api.yaohud.cn/自行去获取key，支持除酷狗以外的所有平台
- * @version v1
+ * @version v1.0.1
  * @author 竹佀
  */
 const { EVENT_NAMES, request, on, send } = globalThis.lx
 
 // 这里填你的key
-const API_KEY = 'xwT5YzREvIwK8LVZ72n'
+const API_KEY = 'd37780d47b5dc5b7788c8b51f4e156bb6acbb7095927e42fcc14137160d4d00f'
 
 // 各个平台的配置
 const SOURCE_CONFIGS = {
