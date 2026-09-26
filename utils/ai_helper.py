@@ -38,19 +38,43 @@ def get_cache_stats():
 
 # ── AI 调用限流 + 退避重试 ──
 # NVIDIA NIM 免费层限制：40 RPM（所有模型共享，step-3.5-flash 可达 60 RPM）
-# 默认不再做客户端固定限速（_AI_MIN_INTERVAL=0）：AI 调用本就是偶发突发，
+# 默认不做客户端固定限速（_AI_MIN_INTERVAL=0）：AI 调用本就是偶发突发，
 # 且 ai_cache.json 已跨 CI 持久化，绝大多数频道名直接命中缓存、不调 API；
-# 真实节流交由服务端 429 + 指数退避（含 Retry-After）动态完成，避免无意义空等。
+# 真实节流交由服务端 429 + 指数退避（含 Retry-After）动态完成。
 # 如需硬性客户端限速，设置环境变量 AI_MIN_INTERVAL（秒）即可恢复。
 _AI_MIN_INTERVAL = float(os.getenv("AI_MIN_INTERVAL", "0"))
 _last_ai_call_ts = 0.0
 _ai_lock = threading.Lock()
-_current_model = MODEL_PRIMARY   # 当前使用的模型（主→备自动切换）
-_fallback_triggered = False      # 是否已切换到备选模型
+
+# 主备模型切换：thread-local 存储 + 60s 重置窗口试探主模型恢复
+# （旧实现用全局 _current_model/_fallback_triggered，一旦切备选永不回切）
+_MODEL_STATE = threading.local()
+_MODEL_FALLBACK_WINDOW = float(os.getenv("AI_MODEL_FALLBACK_WINDOW", "60"))
+
+
+def _get_model():
+    """获取当前线程应使用的模型（thread-local，主模型失败 60s 内用备选）"""
+    now = time.time()
+    model = getattr(_MODEL_STATE, "model", MODEL_PRIMARY)
+    ts = getattr(_MODEL_STATE, "fallback_ts", 0.0)
+    if model == MODEL_FALLBACK and now - ts >= _MODEL_FALLBACK_WINDOW:
+        # 重置窗口到点，试探主模型
+        _MODEL_STATE.model = MODEL_PRIMARY
+        return MODEL_PRIMARY
+    return model
+
+
+def _mark_primary_failed():
+    """主模型失败，切换到备选（仅影响当前线程，60s 后自动回探）"""
+    _MODEL_STATE.model = MODEL_FALLBACK
+    _MODEL_STATE.fallback_ts = time.time()
+
 
 def _ai_rate_limit():
-    """控制 AI API 调用频率（线程安全）。"""
+    """控制 AI API 调用频率（线程安全；默认 0 = 由服务端 429 动态节流）。"""
     global _last_ai_call_ts
+    if _AI_MIN_INTERVAL <= 0:
+        return  # 无客户端限速
     while True:
         with _ai_lock:
             elapsed = time.time() - _last_ai_call_ts
@@ -66,17 +90,16 @@ def _post_with_retry(payload: dict, headers: dict, timeout: float, max_retries: 
     两阶段策略：先用主模型重试 max_retries 次，若全部失败且未切换过，
     再用备选模型重试 max_retries 次。其他状态码（含 5xx）按原样返回，
     由调用方决定降级策略。耗尽全部重试后返回 None。
+
+    主备切换为 thread-local（每线程独立），主模型失败 60s 后自动回探。
     """
-    global _current_model, _fallback_triggered
-    models_to_try = [_current_model]
-    if _current_model == MODEL_PRIMARY and not _fallback_triggered:
+    current = _get_model()
+    models_to_try = [current]
+    if current == MODEL_PRIMARY:
         models_to_try.append(MODEL_FALLBACK)
 
     for model in models_to_try:
         payload["model"] = model
-        _current_model = model
-        if model == MODEL_FALLBACK:
-            _fallback_triggered = True
         backoff = 1.0
         for attempt in range(max_retries):
             try:
@@ -96,6 +119,9 @@ def _post_with_retry(payload: dict, headers: dict, timeout: float, max_retries: 
             except Exception:
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 8.0)
+        # 主模型重试耗尽 → 本线程切备选（60s 后自动回探）
+        if model == MODEL_PRIMARY and len(models_to_try) > 1:
+            _mark_primary_failed()
     return None
 
 
@@ -186,7 +212,7 @@ def standardize_channel_name(raw_name: str) -> str:
     }
 
     payload = {
-        "model": _current_model,
+        "model": _get_model(),
         "messages": [
             {"role": "system", "content": "You are a precise data cleaning tool. Output only the final result."},
             {"role": "user", "content": prompt}
@@ -255,7 +281,7 @@ def classify_channel(name: str) -> str:
     }
 
     payload = {
-        "model": _current_model,
+        "model": _get_model(),
         "messages": [
             {"role": "system", "content": "You are a precise IPTV channel categorizer. Output only the category name."},
             {"role": "user", "content": prompt}
@@ -331,7 +357,7 @@ def classify_channels_batch(names: list, batch_size: int = 50) -> dict:
             f"Channels:\n{numbered}\n"
         )
         payload = {
-            "model": _current_model,
+            "model": _get_model(),
             "messages": [
                 {"role": "system", "content": "You are a precise IPTV channel categorizer. Output only numbered category names."},
                 {"role": "user", "content": prompt}

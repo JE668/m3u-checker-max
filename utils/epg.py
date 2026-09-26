@@ -31,6 +31,70 @@ __all__ = [
 _BJT = timezone(timedelta(hours=8))
 
 
+# ===============================
+# EPG 条件请求缓存（ETag / Last-Modified → HTTP 304）
+# ===============================
+# 每次 CI 全量下载 5+ 个 EPG 源（大 gzip XML）成本高；
+# 多数源一天内不变，用条件请求可省 ~80% 下载量。
+import hashlib
+import json
+
+EPG_CACHE_DIR = "output/.epg_cache"
+
+
+def _epg_cache_paths(url: str) -> Tuple[str, str]:
+    key = hashlib.sha256(url.encode()).hexdigest()[:24]
+    return (os.path.join(EPG_CACHE_DIR, f"{key}.meta.json"),
+            os.path.join(EPG_CACHE_DIR, f"{key}.body"))
+
+
+def _fetch_epg_conditional(url: str, timeout: int = 20):
+    """带 ETag/Last-Modified 条件请求的 EPG 下载。
+
+    返回 (content: bytes, from_cache: bool)
+    - 命中 304 时直接复用缓存 body，带宽与时间成本归零
+    - 源不支持条件请求（无 ETag/Last-Modified）则与普通下载等价
+    """
+    from utils.config import get_session
+
+    meta_path, body_path = _epg_cache_paths(url)
+    headers = {}
+    try:
+        if os.path.exists(meta_path) and os.path.exists(body_path):
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            if meta.get("etag"):
+                headers["If-None-Match"] = meta["etag"]
+            if meta.get("last_modified"):
+                headers["If-Modified-Since"] = meta["last_modified"]
+    except (json.JSONDecodeError, OSError):
+        headers = {}
+
+    resp = get_session().get(url, timeout=timeout, headers=headers)
+
+    if resp.status_code == 304 and os.path.exists(body_path):
+        with open(body_path, 'rb') as f:
+            return f.read(), True
+
+    if resp.status_code != 200 or not resp.content:
+        return resp.content, False
+
+    # 保存缓存
+    try:
+        os.makedirs(EPG_CACHE_DIR, exist_ok=True)
+        meta = {
+            "etag": resp.headers.get("ETag", ""),
+            "last_modified": resp.headers.get("Last-Modified", ""),
+        }
+        with open(body_path, 'wb') as f:
+            f.write(resp.content)
+        with open(meta_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f)
+    except OSError:
+        pass
+    return resp.content, False
+
+
 def _parse_epg_time(ts: str) -> datetime:
     """解析 EPG 时间戳格式 'YYYYMMDDHHmmSS +XXXX' 或 'YYYYMMDDHHmmSS'"""
     # 去掉时区后缀（如 '+0800'），只取前14位
@@ -85,8 +149,9 @@ def _download_single_epg(url: str, aliases_exact: Dict[str, str], aliases_regex:
     report_lines = [f"▶ 来源: {url}"]
     try:
         live_print(f"📥 正在获取: {url}")
-        r = fetch_url(url, timeout=20)
-        content = r.content
+        content, from_cache = _fetch_epg_conditional(url, timeout=20)
+        if from_cache:
+            report_lines.append(" -> 📦 304 未变化，使用缓存")
         if not content:
             report_lines.append(" -> ⚠️ 响应为空，跳过")
             return report_lines, [], []

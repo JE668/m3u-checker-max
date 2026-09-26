@@ -137,45 +137,60 @@ def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, in
     return 0, 0
 
 
+# ── 分辨率缓存并发写锁（50 线程池并发调用时的 read-modify-write 竞态防护）──
+_RESO_CACHE_LOCK = threading.Lock()
+
+# 失败探测（0x0）使用更短的缓存 TTL：流恢复后能被更快重新探测
+RESOLUTION_FAIL_TTL = int(os.environ.get("RESOLUTION_FAIL_TTL", str(24 * 3600)))  # 默认 1 天
+
+
 def probe_resolution_cached(url: str) -> Tuple[int, int]:
-    """带缓存的分辨率探测：URL hash 命中且未过期则直接返回，节省 ffprobe 调用"""
+    """带缓存的分辨率探测：URL hash 命中且未过期则直接返回，节省 ffprobe 调用
+
+    - 成功结果缓存 RESOLUTION_CACHE_TTL（默认 7 天）
+    - 失败结果（0,0）只缓存 RESOLUTION_FAIL_TTL（默认 1 天），流恢复后可更快重探
+    - 50 线程并发下用锁保护缓存文件的读-改-写
+    """
     import hashlib, json, os, time as _time
 
     cache_key = hashlib.sha256(url.encode()).hexdigest()[:16]
 
-    # 尝试读取缓存
+    # 尝试读取缓存（成功与失败条目使用不同 TTL）
     if os.path.exists(RESOLUTION_CACHE_FILE):
         try:
             with open(RESOLUTION_CACHE_FILE, 'r', encoding='utf-8') as f:
                 cache = json.load(f)
             entry = cache.get(cache_key)
-            if entry and _time.time() - entry.get("ts", 0) < RESOLUTION_CACHE_TTL:
-                return (entry["w"], entry["h"])
+            if entry:
+                ttl = RESOLUTION_CACHE_TTL if (entry.get("w", 0) > 0) else RESOLUTION_FAIL_TTL
+                if _time.time() - entry.get("ts", 0) < ttl:
+                    return (entry["w"], entry["h"])
         except (json.JSONDecodeError, OSError, KeyError):
             pass
 
     # 缓存未命中，实际探测
     wh = probe_resolution(url)
 
-    # 更新缓存
+    # 更新缓存（加锁：50 线程并发 read-modify-write 防竞态）
     try:
-        cache = {}
-        if os.path.exists(RESOLUTION_CACHE_FILE):
-            try:
-                with open(RESOLUTION_CACHE_FILE, 'r', encoding='utf-8') as f:
-                    cache = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                cache = {}
-        cache[cache_key] = {"w": wh[0], "h": wh[1], "ts": _time.time()}
+        with _RESO_CACHE_LOCK:
+            cache = {}
+            if os.path.exists(RESOLUTION_CACHE_FILE):
+                try:
+                    with open(RESOLUTION_CACHE_FILE, 'r', encoding='utf-8') as f:
+                        cache = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    cache = {}
+            cache[cache_key] = {"w": wh[0], "h": wh[1], "ts": _time.time()}
 
-        # 保留最近 N 条，防止无限膨胀
-        if len(cache) > RESOLUTION_CACHE_MAX_ENTRIES:
-            sorted_entries = sorted(cache.items(), key=lambda x: x[1].get("ts", 0))
-            cache = dict(sorted_entries[-RESOLUTION_CACHE_MAX_ENTRIES:])
+            # 保留最近 N 条，防止无限膨胀
+            if len(cache) > RESOLUTION_CACHE_MAX_ENTRIES:
+                sorted_entries = sorted(cache.items(), key=lambda x: x[1].get("ts", 0))
+                cache = dict(sorted_entries[-RESOLUTION_CACHE_MAX_ENTRIES:])
 
-        os.makedirs(os.path.dirname(RESOLUTION_CACHE_FILE), exist_ok=True)
-        with open(RESOLUTION_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cache, f, ensure_ascii=False)
+            os.makedirs(os.path.dirname(RESOLUTION_CACHE_FILE), exist_ok=True)
+            with open(RESOLUTION_CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(cache, f, ensure_ascii=False)
     except Exception:
         pass  # 缓存写入失败不影响主流程
 

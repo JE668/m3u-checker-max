@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import asdict
@@ -95,11 +96,12 @@ class TestAiHelper(unittest.TestCase):
             self.assertEqual(calls["n"], 3)
 
     def test_fallback_switches_to_secondary_model(self):
-        """主模型持续 429 时应自动切换到备选模型并成功返回。"""
+        """主模型持续 429 时应自动切换到备选模型并成功返回（thread-local 状态）。"""
         A.API_KEY = "dummy"
         A._CAT_CACHE.clear()
-        A._current_model = A.MODEL_PRIMARY
-        A._fallback_triggered = False
+        # 重置 thread-local 模型状态
+        A._MODEL_STATE.model = A.MODEL_PRIMARY
+        A._MODEL_STATE.fallback_ts = 0.0
 
         class Resp:
             def __init__(self, content, status=200):
@@ -126,9 +128,10 @@ class TestAiHelper(unittest.TestCase):
         # 至少有一次主模型尝试，然后切换到备选
         self.assertIn(A.MODEL_PRIMARY, models_used)
         self.assertIn(A.MODEL_FALLBACK, models_used)
-        # 切换后全局状态已变更
-        self.assertTrue(A._fallback_triggered)
-        self.assertEqual(A._current_model, A.MODEL_FALLBACK)
+        # 切换后 thread-local 状态已变更；窗口到点后自动回探主模型
+        self.assertEqual(A._MODEL_STATE.model, A.MODEL_FALLBACK)
+        A._MODEL_STATE.fallback_ts = time.time() - A._MODEL_FALLBACK_WINDOW - 1
+        self.assertEqual(A._get_model(), A.MODEL_PRIMARY)
 
 
 class TestLoaders(unittest.TestCase):
