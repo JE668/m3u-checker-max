@@ -47,8 +47,9 @@ __all__ = [
     "WHITELIST_HEAD_TIMEOUT",
 ]
 
-# 白名单存活检测 HEAD 请求超时（秒）
-WHITELIST_HEAD_TIMEOUT = 3
+# 白名单存活检测 HEAD 请求超时（秒）：HEAD 只探测存活，1.5s 足够，
+# 3s 在全挂源上会放大为 50 线程 × 3s 的排队浪费
+WHITELIST_HEAD_TIMEOUT = 1.5
 
 # ── 分辨率缓存 ──
 RESOLUTION_CACHE_FILE = "output/resolution_cache.json"
@@ -457,6 +458,46 @@ def append_auto_blacklist(auto_blacklist: List[str]) -> None:
         live_print(f"  📛 [自动黑名单] 发现 {len(new_entries)} 个新无效频道名，已追加到 {BLACKLIST_FILE}")
     else:
         live_print("  ℹ️ [自动黑名单] 本次无新无效频道名，跳过追加")
+
+    _cap_auto_blacklist()
+
+
+# 自动追加区块的最大条数：超出后丢弃最旧的，防止 git 仓库无限膨胀
+AUTO_BLACKLIST_CAP = int(os.environ.get("AUTO_BLACKLIST_CAP", "5000"))
+
+
+def _cap_auto_blacklist(cap: int = AUTO_BLACKLIST_CAP) -> None:
+    """裁剪自动追加区块，仅保留最新的 cap 条（手动维护段不受影响）"""
+    if cap <= 0 or not os.path.exists(BLACKLIST_FILE):
+        return
+    try:
+        with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except OSError:
+        return
+
+    # 定位自动区块（从标记行到文件末尾）
+    auto_start = -1
+    for i, line in enumerate(lines):
+        if '# 自动追加的无效频道名' in line:
+            auto_start = i
+            break
+    if auto_start < 0:
+        return
+
+    auto_entries = [ln for ln in lines[auto_start + 1:] if ln.strip() and not ln.startswith('#')]
+    if len(auto_entries) <= cap:
+        return
+
+    # 新条目在 append 时插到区块头部，故保留头部即为保留最新
+    kept = auto_entries[:cap]
+    new_lines = lines[:auto_start + 1] + kept
+    try:
+        with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+        live_print(f"  🧹 [自动黑名单] 裁剪 {len(auto_entries)} → {cap} 条（保留最新）")
+    except OSError:
+        pass
 
 
 def _classify_failure(reason: str) -> str:

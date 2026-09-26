@@ -347,8 +347,9 @@ def get_session() -> requests.Session:
         session = requests.Session()
         session.trust_env = False  # CI 环境 dotenv 代理干扰
         session.headers.update(DEFAULT_HEADERS)
-        # 连接池大小匹配并发度
-        adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=MAX_WORKERS)
+        # 连接池大小：session 已是 per-thread，单线程并发需求有限，
+        # pool_maxsize=MAX_WORKERS 会浪费内存且制造大量半开连接
+        adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         _thread_local.session = session
