@@ -1,3 +1,5 @@
+import os
+import tempfile
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,6 +18,11 @@ from utils.config import (
 from utils.loaders import get_local_logo_url
 
 
+__all__ = [
+    "write_outputs",
+]
+
+
 def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: List[str], chans_in_cat: Dict[str, List[str]], epg_report: list, logs_success: list, logs_fail: list, logs_whitelist: list, logs_blacklist: list, extra_stats: Optional[Dict[str, Any]] = None, adult_results: Optional[Dict[str, List[Tuple[str, float]]]] = None, channel_to_station: Optional[Dict[str, str]] = None, resolution_map: Optional[Dict[str, Tuple[int, int]]] = None, adult_source_urls: Optional[set] = None, adult_configured: bool = False) -> None:
     """写入 M3U/TXT 成品 + 日志文件"""
     if extra_stats is None:
@@ -31,8 +38,11 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
     reso_filtered = 0
     reso_ok = 0
 
+    # ── 原子写入：先写临时文件再 rename，防止中途崩溃产生残缺文件 ──
+    _tmp_m3u = OUTPUT_M3U + '.tmp'
+    _tmp_txt = OUTPUT_TXT + '.tmp'
     try:
-        with open(OUTPUT_M3U, "w", encoding="utf-8") as fm3u, open(OUTPUT_TXT, "w", encoding="utf-8") as ftxt:
+        with open(_tmp_m3u, "w", encoding="utf-8") as fm3u, open(_tmp_txt, "w", encoding="utf-8") as ftxt:
             fm3u.write(M3U_HEADER)
             for cat in cat_order:
                 cat_written_in_txt = False
@@ -66,15 +76,26 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
                             fm3u.write(f"{url}\n")
                             ftxt.write(f"{name},{url}\n")
                             reso_ok += 1
+        # 两个文件都写完，原子替换
+        os.replace(_tmp_m3u, OUTPUT_M3U)
+        os.replace(_tmp_txt, OUTPUT_TXT)
     except OSError as e:
         live_print(f"❌ 写入 M3U/TXT 失败: {e}")
+        for tmp in (_tmp_m3u, _tmp_txt):
+            if os.path.exists(tmp):
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
         return
 
     # 写入限制级内容（按来源分离，活/死都收；只要配置了限制级来源就强制重写，避免陈旧内容残留）
     adult_written = 0
     if adult_configured or adult_source_urls:
+        _tmp_adult_m3u = ADULT_M3U + '.tmp'
+        _tmp_adult_txt = ADULT_TXT + '.tmp'
         try:
-            with open(ADULT_M3U, "w", encoding="utf-8") as fam3u, open(ADULT_TXT, "w", encoding="utf-8") as fatxt:
+            with open(_tmp_adult_m3u, "w", encoding="utf-8") as fam3u, open(_tmp_adult_txt, "w", encoding="utf-8") as fatxt:
                 fam3u.write(M3U_HEADER)
                 fatxt.write("📛限制级内容,#genre#\n")
                 for name in sorted((adult_results or {}).keys()):
@@ -85,10 +106,18 @@ def write_outputs(valid_results: Dict[str, List[Tuple[str, float]]], cat_order: 
                         fam3u.write(f"{url}\n")
                         fatxt.write(f"{name},{url}\n")
                         adult_written += 1
+            os.replace(_tmp_adult_m3u, ADULT_M3U)
+            os.replace(_tmp_adult_txt, ADULT_TXT)
             if adult_written == 0:
                 live_print("  ⚠️ 限制级来源已配置，但本次无存活频道 → 已重写为空列表（清除陈旧内容）")
         except OSError as e:
             live_print(f"❌ 写入限制级内容失败: {e}")
+            for tmp in (_tmp_adult_m3u, _tmp_adult_txt):
+                if os.path.exists(tmp):
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write(f"任务时间: {datetime.now()}\n")

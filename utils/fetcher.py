@@ -21,8 +21,53 @@ from utils.config import (
 from utils.loaders import get_main_name
 
 
+__all__ = [
+    "fetch_and_parse_channels", "save_parse_results", "fetch_source_meta",
+    "check_source_health", "precheck_sources",
+]
+
+
 # ── EXTINF 属性提取正则 ──
+def check_source_health(source_url: str, timeout: int = 5) -> Tuple[bool, str]:
+    """检查上游源 URL 的健康状态，返回 (is_healthy, status_message)"""
+    try:
+        r = get_session().head(source_url, timeout=timeout, allow_redirects=True)
+        if r.status_code == 200:
+            return True, "✅ 正常"
+        else:
+            return False, f"❌ HTTP {r.status_code}"
+    except requests.RequestException as e:
+        return False, f"❌ {type(e).__name__}: {e}"
+
+
+def precheck_sources(sources: list, timeout: int = 5) -> Tuple[list, list]:
+    """预检查所有源 URL，返回 (healthy_sources, unhealthy_sources)"""
+    healthy = []
+    unhealthy = []
+    for url in sources:
+        is_healthy, msg = check_source_health(url, timeout)
+        if is_healthy:
+            healthy.append(url)
+        else:
+            unhealthy.append(url)
+            live_print(f"  ⚠️ 源不可用: {url} ({msg})")
+    return healthy, unhealthy
+
+
 def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[Tuple[re.Pattern, str]], known_main_names: Set[str], ai_cache: Optional[Dict[str, str]] = None) -> Tuple[list, Set[str], Dict[str, Set[str]]]:
+    """从配置文件中抓取所有直播源，解析 EXTINF 头，去重后返回结构化频道列表。
+
+    参数:
+        aliases_exact: 精确别名映射表 {别名: 主名}
+        aliases_regex: 正则别名映射表 [(pattern, 主名), ...]
+        known_main_names: 已知的标准频道名集合
+        ai_cache: AI 模型缓存，用于对未匹配频道做 AI 兜底识别（可选）
+
+    返回:
+        channels: [(main_name, url, source_url), ...] 去重后的频道列表
+        unmatched_names: 未能匹配到已知频道名的原始名称集合
+        ai_pending_aliases: {主名: set(别名)} AI 兜底发现的别名映射（待调用方持久化）
+    """
     channels = []  # [(main_name, url, source_url), ...]
     unmatched_names = set()
     ai_pending_aliases = collections.defaultdict(set)  # {标准名: set(别名)} 批量收集，一次性写入
@@ -31,6 +76,15 @@ def fetch_and_parse_channels(aliases_exact: Dict[str, str], aliases_regex: List[
         return channels, set(), {}
     with open(SOURCES_FILE, 'r', encoding='utf-8') as f:
         sources = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+
+    # 预检查源健康状态
+    healthy_sources, unhealthy_sources = precheck_sources(sources)
+    if unhealthy_sources:
+        live_print(f"⚠️ {len(unhealthy_sources)}/{len(sources)} 个源不可用，已跳过")
+    if not healthy_sources:
+        live_print("❌ 所有源均不可用，中止抓取")
+        return [], unmatched_names, {}
+    sources = healthy_sources
 
     def _resolve_name(raw_name, aliases_exact, aliases_regex, known_main_names, unmatched_names, ai_cache, ai_pending_aliases, seen_source_renames):
         """名称解析+AI兜底+日志，返回 (main_name, is_new_alias)"""
@@ -167,14 +221,21 @@ def save_parse_results(unmatched_names: Set[str], ai_pending_aliases: Dict[str, 
             live_print(f"  ⚠️ [AI→alias.txt] 写入失败: {e}")
 
 def fetch_source_meta() -> Optional[dict]:
-    """获取 get-m3u 探针元数据，返回 {host_port: {bandwidth_mbps: float}}"""
+    """获取 get-m3u 探针元数据，返回 {host_port: {bandwidth_mbps: float}}
+
+    支持带 _version 字段的 JSON（v1）和旧版无版本字段格式（向后兼容）。
+    """
     try:
         r = get_session().get(SOURCE_META_URL, timeout=10)
         if r.status_code == 200:
             meta = json.loads(r.text)
+            # 提取并移除版本字段（v1 格式包含 _version，旧版无此字段）
+            meta_version = meta.pop("_version", 1)
+            if meta_version < 1:
+                live_print(f"⚠️ 探针元数据版本过低 (v{meta_version})，按 v1 处理")
             # host_port 统一为 lowercase（URL 解析可能大小写敏感）
             meta = {k.lower(): v for k, v in meta.items()}
-            live_print(f"📡 已加载探针元数据: {len(meta)} 台服务器")
+            live_print(f"📡 已加载探针元数据: {len(meta)} 台服务器 (v{meta_version})")
             return meta
     except requests.RequestException as e:
         live_print(f"⚠️ 探针元数据不可用: {e}")

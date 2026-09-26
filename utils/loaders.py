@@ -5,6 +5,12 @@ from typing import Dict, List, Optional, Set, Tuple
 from utils.config import ALIAS_FILE, DEMO_FILE, ICON_DIR, ICONS_INDEX_FILE, REPO_RAW, live_print
 
 
+__all__ = [
+    "load_filter_lists", "load_aliases", "get_main_name",
+    "get_logo_index", "get_local_logo_url", "load_demo_template",
+]
+
+
 def load_filter_lists(filepath: str) -> Tuple[Set[str], Set[str]]:
     """通用黑/白名单加载器，自动区分频道名与具体链接"""
     names, urls = set(), set()
@@ -75,7 +81,7 @@ def _build_logo_index():
             for f in files:
                 if f.startswith('.'):
                     continue
-                index[re.sub(r'[\s\-_]', '', os.path.splitext(f)[0]).lower()] = f
+                index[re.sub(r'[\s_]', '', os.path.splitext(f)[0]).lower()] = f
             return index
     # 2) 预生成索引文件（CI 环境，无需下载 321MB LFS 文件）
     if os.path.exists(ICONS_INDEX_FILE):
@@ -103,7 +109,7 @@ def get_logo_index() -> dict:
     return _LOGO_INDEX_CACHE
 
 def get_local_logo_url(name: str) -> str:
-    target = re.sub(r'[\s\-_]', '', name).lower()
+    target = re.sub(r'[\s_]', '', name).lower()
     index = get_logo_index()
     if target in index:
         return f"{_ICONS_BASE_URL}/{index[target]}"

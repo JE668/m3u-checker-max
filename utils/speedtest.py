@@ -5,6 +5,7 @@ import random
 import re
 import shutil
 import subprocess
+import threading
 import time
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
@@ -12,14 +13,26 @@ from urllib.parse import urlparse
 import requests
 
 from utils.config import (
+    ADAPTIVE_CONCURRENCY,
+    ADAPTIVE_SUCCESS_HIGH,
+    ADAPTIVE_SUCCESS_LOW,
+    BASE_WORKERS,
     BLACKLIST_FILE,
     CHECK_CONNECT_TIMEOUT,
     CHECK_READ_TIMEOUT,
     CHECK_TOTAL_TIMEOUT,
     DOWNLOAD_TARGET_BYTES,
+    INCREMENTAL_SAMPLE_MIN,
+    INCREMENTAL_SAMPLE_RATIO,
+    INCREMENTAL_TESTING,
     INVALID_NAME_PATTERNS,
+    MAX_WORKERS_CAP,
     MIN_BANDWIDTH_MBPS,
+    MIN_WORKERS,
     PROBE_TIMEOUT,
+    RESOLUTION_CACHE_ENABLED,
+    RESOLUTION_CACHE_MAX_ENTRIES,
+    RESOLUTION_CACHE_TTL,
     SAMPLE_PER_HOST,
     SUCCESS_LOG_SAMPLE_LIMIT,
     get_pool,
@@ -27,18 +40,35 @@ from utils.config import (
     live_print,
 )
 
+__all__ = [
+    "check_channel", "probe_resolution", "probe_resolution_cached", "run_speed_test",
+    "apply_filter_lists", "append_auto_blacklist",
+    "get_initial_worker_count", "adjust_worker_count",
+    "WHITELIST_HEAD_TIMEOUT",
+]
+
+# 白名单存活检测 HEAD 请求超时（秒）
+WHITELIST_HEAD_TIMEOUT = 3
+
+# ── 分辨率缓存 ──
+RESOLUTION_CACHE_FILE = "output/resolution_cache.json"
+
+# ── 自适应并发状态 ──
+ADAPTIVE_STATE_FILE = "output/.adaptive_state.json"
 
 # ffprobe 可用性检查（首次调用时检测，结果缓存）
 _ffprobe_checked = False
 _ffprobe_available = False
+_ffprobe_lock = threading.Lock()
 
 def _check_ffprobe():
     global _ffprobe_checked, _ffprobe_available
-    if not _ffprobe_checked:
-        _ffprobe_available = shutil.which("ffprobe") is not None
-        _ffprobe_checked = True
-        if not _ffprobe_available:
-            live_print("⚠️ ffprobe 未安装，分辨率检测将跳过（所有频道返回 0x0）")
+    with _ffprobe_lock:
+        if not _ffprobe_checked:
+            _ffprobe_available = shutil.which("ffprobe") is not None
+            _ffprobe_checked = True
+            if not _ffprobe_available:
+                live_print("⚠️ ffprobe 未安装，分辨率检测将跳过（所有频道返回 0x0）")
     return _ffprobe_available
 
 def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, int]:
@@ -107,6 +137,112 @@ def probe_resolution(url: str, timeout: Optional[float] = None) -> Tuple[int, in
     return 0, 0
 
 
+def probe_resolution_cached(url: str) -> Tuple[int, int]:
+    """带缓存的分辨率探测：URL hash 命中且未过期则直接返回，节省 ffprobe 调用"""
+    import hashlib, json, os, time as _time
+
+    cache_key = hashlib.sha256(url.encode()).hexdigest()[:16]
+
+    # 尝试读取缓存
+    if os.path.exists(RESOLUTION_CACHE_FILE):
+        try:
+            with open(RESOLUTION_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+            entry = cache.get(cache_key)
+            if entry and _time.time() - entry.get("ts", 0) < RESOLUTION_CACHE_TTL:
+                return (entry["w"], entry["h"])
+        except (json.JSONDecodeError, OSError, KeyError):
+            pass
+
+    # 缓存未命中，实际探测
+    wh = probe_resolution(url)
+
+    # 更新缓存
+    try:
+        cache = {}
+        if os.path.exists(RESOLUTION_CACHE_FILE):
+            try:
+                with open(RESOLUTION_CACHE_FILE, 'r', encoding='utf-8') as f:
+                    cache = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                cache = {}
+        cache[cache_key] = {"w": wh[0], "h": wh[1], "ts": _time.time()}
+
+        # 保留最近 N 条，防止无限膨胀
+        if len(cache) > RESOLUTION_CACHE_MAX_ENTRIES:
+            sorted_entries = sorted(cache.items(), key=lambda x: x[1].get("ts", 0))
+            cache = dict(sorted_entries[-RESOLUTION_CACHE_MAX_ENTRIES:])
+
+        os.makedirs(os.path.dirname(RESOLUTION_CACHE_FILE), exist_ok=True)
+        with open(RESOLUTION_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except Exception:
+        pass  # 缓存写入失败不影响主流程
+
+    return wh
+
+
+# ===============================
+# 4a. 自适应并发
+# ===============================
+def load_adaptive_state() -> dict:
+    """加载上次的自适应并发状态"""
+    if os.path.exists(ADAPTIVE_STATE_FILE):
+        try:
+            with open(ADAPTIVE_STATE_FILE, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def save_adaptive_state(success_rate: float, worker_count: int):
+    """保存自适应并发状态供下次运行使用"""
+    try:
+        os.makedirs(os.path.dirname(ADAPTIVE_STATE_FILE), exist_ok=True)
+        with open(ADAPTIVE_STATE_FILE, 'w') as f:
+            json.dump({
+                "last_success_rate": success_rate,
+                "last_workers": worker_count,
+                "timestamp": time.time()
+            }, f)
+    except Exception:
+        pass
+
+
+def get_initial_worker_count() -> int:
+    """根据上次运行的成功率计算本次初始并发数"""
+    state = load_adaptive_state()
+    last_rate = state.get("last_success_rate")
+    if last_rate is None:
+        return BASE_WORKERS
+
+    # 上次成功率低 → 减少并发；高 → 增加
+    if last_rate < ADAPTIVE_SUCCESS_LOW:
+        return max(MIN_WORKERS, int(BASE_WORKERS * last_rate / ADAPTIVE_SUCCESS_LOW))
+    elif last_rate > ADAPTIVE_SUCCESS_HIGH:
+        return min(MAX_WORKERS_CAP, int(BASE_WORKERS * 1.5))
+    return BASE_WORKERS
+
+
+def adjust_worker_count(current_workers: int, success_count: int, total_count: int) -> int:
+    """根据成功率动态调整并发数"""
+    if not ADAPTIVE_CONCURRENCY or total_count < 10:
+        return current_workers
+
+    success_rate = success_count / total_count
+    if success_rate < ADAPTIVE_SUCCESS_LOW:
+        new_workers = max(MIN_WORKERS, current_workers // 2)
+        live_print(f"  ⚡ 成功率偏低 ({success_rate:.0%})，并发 {current_workers} → {new_workers}")
+    elif success_rate > ADAPTIVE_SUCCESS_HIGH:
+        new_workers = min(MAX_WORKERS_CAP, current_workers + 10)
+        live_print(f"  ⚡ 成功率良好 ({success_rate:.0%})，并发 {current_workers} → {new_workers}")
+    else:
+        return current_workers
+
+    return new_workers
+
+
 # ===============================
 # 5. 并发测速
 # ===============================
@@ -143,6 +279,12 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
 
                 downloaded += len(chunk)
                 last_chunk_time = now
+                
+                # 早期带宽评估：已下载 200KB 且带宽远低于阈值时提前终止
+                if 200_000 <= downloaded < DOWNLOAD_TARGET_BYTES:
+                    early_bw = downloaded * 8 / (now - start_time) / 1_000_000
+                    if early_bw < MIN_BANDWIDTH_MBPS * 0.3:
+                        return False, main_name, url, round(now - start_time, 2), f"带宽不足(早期 {early_bw:.1f}Mbps)"
 
                 if downloaded >= DOWNLOAD_TARGET_BYTES:
                     elapsed = time.time() - start_time
@@ -229,7 +371,7 @@ def apply_filter_lists(channels: list, blacklist_names: Set[str], blacklist_urls
 
         def _check_head(name, url):
             try:
-                hr = get_session().head(url, timeout=3)
+                hr = get_session().head(url, timeout=WHITELIST_HEAD_TIMEOUT)
                 if hr.status_code == 200:
                     return (name, url, True)
             except requests.RequestException:
@@ -357,6 +499,14 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
     if not to_test:
         return valid_results, logs_success, logs_fail, fail_counts, {"ok": {}, "total": {}}
 
+    # ── 自适应并发 ──
+    workers = get_initial_worker_count() if ADAPTIVE_CONCURRENCY else None
+    local_executor = None
+    if workers is not None:
+        local_executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers, thread_name_prefix="m3u-adaptive")
+        live_print(f"⚡ 自适应并发: {workers} workers (基于上次成功率)")
+    pool_fn = (lambda: local_executor) if workers is not None else get_pool
+
     # Phase 1: 按 host 分组
     host_groups = {}
     for name, url in to_test:
@@ -453,7 +603,7 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
 
     if all_samples:
         live_print(f"🎯 预筛阶段: {len(all_samples)} 个样本")
-        pool = get_pool()
+        pool = pool_fn()
         futures = {pool.submit(check_channel, name, url): (name, url, host)
                    for name, url, host in all_samples}
         for future in concurrent.futures.as_completed(futures):
@@ -489,7 +639,7 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
         full_processed = 0
         live_print(f"🚀 全量测速: {total} 个频道 ({len(alive_hosts)} 台服务器, 优先高带宽)")
 
-        pool = get_pool()
+        pool = pool_fn()
         futures = {pool.submit(check_channel, name, url): (name, url)
                    for name, url in full_test}
         for future in concurrent.futures.as_completed(futures):
@@ -545,6 +695,15 @@ def run_speed_test(to_test: list, source_meta: Optional[dict] = None, source_url
             dim = '░' * (15 - len(bar))
             live_print(f"  {src[-30:]:>30} {ok:>5} {total:>5} {rate:>8}  {bar}{dim}")
         live_print("")
+
+    # ── 清理本地执行器并保存自适应状态 ──
+    if local_executor:
+        local_executor.shutdown(wait=False)
+        total_count = len(to_test)
+        ok_count = len(logs_success)
+        success_rate = ok_count / max(total_count, 1)
+        save_adaptive_state(success_rate, workers)
+        live_print(f"  ⚡ 本次成功率 {success_rate:.0%}，并发 {workers}，已保存自适应状态")
 
     return valid_results, logs_success, logs_fail, fail_counts, {"ok": source_ok, "total": source_total}
 

@@ -20,6 +20,13 @@ from utils.config import (
 from utils.loaders import get_main_name
 
 
+__all__ = [
+    "download_and_merge_epg",
+    "EPG_BLACKLIST", "EPG_FILE", "EPG_KEEP_DAYS",
+    "EPG_MAX_WORKERS", "OUTPUT_EPG", "OUTPUT_EPG_GZ",
+]
+
+
 # ── 北京时间 UTC+8 ──
 _BJT = timezone(timedelta(hours=8))
 
@@ -92,58 +99,76 @@ def _download_single_epg(url: str, aliases_exact: Dict[str, str], aliases_regex:
                 return report_lines, [], []
 
         try:
-            root = ET.parse(io.BytesIO(content)).getroot()
-            if root.tag != 'tv':
-                report_lines.append(" -> ⚠️ XML 根节点非 <tv>，跳过")
+            root_tag = None
+            channels_out = []
+            programmes_out = []
+            seen_channels = set()
+            seen_programmes = set()
+            id_mapping = {}
+            seen_epg_renames = set()
+            c_count, p_count, p_discard, rename_count = 0, 0, 0, 0
+
+            for event, elem in ET.iterparse(io.BytesIO(content), events=('start', 'end')):
+                if event == 'start':
+                    if root_tag is None:
+                        root_tag = elem.tag
+                        if root_tag != 'tv':
+                            report_lines.append(" -> ⚠️ XML 根节点非 <tv>，跳过")
+                            return report_lines, [], []
+                    continue
+
+                # event == 'end'
+                if elem.tag == 'channel':
+                    orig_id = elem.get('id')
+                    display_name_elem = elem.find('display-name')
+                    if orig_id and display_name_elem is not None and display_name_elem.text:
+                        orig_name = display_name_elem.text.strip()
+                        main_name = get_main_name(orig_name, aliases_exact, aliases_regex, known_main_names)
+
+                        if orig_name != main_name:
+                            rename_count += 1
+                            if (orig_name, main_name) not in seen_epg_renames:
+                                live_print(f"  📝 [EPG修正] {orig_name} => {main_name}")
+                                seen_epg_renames.add((orig_name, main_name))
+
+                        id_mapping[orig_id] = main_name
+                        elem.set('id', main_name)
+                        display_name_elem.text = main_name
+                        if main_name not in seen_channels:
+                            seen_channels.add(main_name)
+                            channels_out.append(elem)
+                            c_count += 1
+                        else:
+                            elem.clear()
+                    else:
+                        elem.clear()
+                elif elem.tag == 'programme':
+                    title_node = elem.find('title')
+                    title_text = title_node.text.lower() if title_node is not None and title_node.text else ""
+                    if any(kw in title_text for kw in EPG_BLACKLIST):
+                        p_discard += 1
+                        elem.clear()
+                        continue
+                    orig_channel_id = elem.get('channel')
+                    if orig_channel_id in id_mapping:
+                        new_id = id_mapping[orig_channel_id]
+                        elem.set('channel', new_id)
+                        key = (new_id, elem.get('start'), elem.get('stop'))
+                        if key not in seen_programmes:
+                            seen_programmes.add(key)
+                            programmes_out.append(elem)
+                            p_count += 1
+                        else:
+                            elem.clear()
+                    else:
+                        elem.clear()
+
+            if root_tag is None:
+                report_lines.append(" -> ⚠️ XML 为空或无效，跳过")
                 return report_lines, [], []
         except ET.ParseError as e:  # P0-2: 精确捕获 XML 解析异常
             report_lines.append(f" -> ⚠️ XML 解析失败: {e}")
             return report_lines, [], []
-
-        channels_out = []
-        programmes_out = []
-        seen_channels = set()
-        seen_programmes = set()
-        id_mapping = {}
-        seen_epg_renames = set()
-        c_count, p_count, p_discard, rename_count = 0, 0, 0, 0
-
-        for channel in root.findall('channel'):
-            orig_id = channel.get('id')
-            display_name_elem = channel.find('display-name')
-            if orig_id and display_name_elem is not None and display_name_elem.text:
-                orig_name = display_name_elem.text.strip()
-                main_name = get_main_name(orig_name, aliases_exact, aliases_regex, known_main_names)
-
-                if orig_name != main_name:
-                    rename_count += 1
-                    if (orig_name, main_name) not in seen_epg_renames:
-                        live_print(f"  📝 [EPG修正] {orig_name} => {main_name}")
-                        seen_epg_renames.add((orig_name, main_name))
-
-                id_mapping[orig_id] = main_name
-                channel.set('id', main_name)
-                display_name_elem.text = main_name
-                if main_name not in seen_channels:
-                    seen_channels.add(main_name)
-                    channels_out.append(channel)
-                    c_count += 1
-
-        for prog in root.findall('programme'):
-            title_node = prog.find('title')
-            title_text = title_node.text.lower() if title_node is not None and title_node.text else ""
-            if any(kw in title_text for kw in EPG_BLACKLIST):
-                p_discard += 1
-                continue
-            orig_channel_id = prog.get('channel')
-            if orig_channel_id in id_mapping:
-                new_id = id_mapping[orig_channel_id]
-                prog.set('channel', new_id)
-                key = (new_id, prog.get('start'), prog.get('stop'))
-                if key not in seen_programmes:
-                    seen_programmes.add(key)
-                    programmes_out.append(prog)
-                    p_count += 1
 
         msg = f" -> ✅ 提取频道: {c_count} | 节目: {p_count} | 🗑️ 过滤: {p_discard} | 🔧 总修正: {rename_count}次"
         live_print(msg)
@@ -181,18 +206,21 @@ def download_and_merge_epg(aliases_exact: Dict[str, str], aliases_regex: List[Tu
             futures = {ex.submit(_download_single_epg, url, aliases_exact, aliases_regex, known_main_names): url
                        for url in epg_urls}
             for future in concurrent.futures.as_completed(futures):
-                report, channels, programmes = future.result()
-                epg_report.extend(report)
-                for ch in channels:
-                    ch_id = ch.get('id')
-                    if ch_id not in seen_channel_ids:
-                        seen_channel_ids.add(ch_id)
-                        merged_channels.append(ch)
-                for prog in programmes:
-                    prog_key = (prog.get('channel'), prog.get('start'), prog.get('stop'))
-                    if prog_key not in seen_programme_keys:
-                        seen_programme_keys.add(prog_key)
-                        merged_programmes.append(prog)
+                try:
+                    report, channels, programmes = future.result()
+                    epg_report.extend(report)
+                    for ch in channels:
+                        ch_id = ch.get('id')
+                        if ch_id not in seen_channel_ids:
+                            seen_channel_ids.add(ch_id)
+                            merged_channels.append(ch)
+                    for prog in programmes:
+                        prog_key = (prog.get('channel'), prog.get('start'), prog.get('stop'))
+                        if prog_key not in seen_programme_keys:
+                            seen_programme_keys.add(prog_key)
+                            merged_programmes.append(prog)
+                except Exception as e:
+                    live_print(f"  ❌ EPG 下载异常: {e}")
     else:
         # 单源直接串行
         report, channels, programmes = _download_single_epg(epg_urls[0], aliases_exact, aliases_regex, known_main_names)

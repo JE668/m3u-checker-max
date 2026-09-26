@@ -17,7 +17,8 @@ src = ["utils", "main.py", "run_ci.py"]
 [tool.ruff.lint]
 # 基础但关键的检查：语法/未定义名(E/F)、空白(W)、导入排序(I)
 select = ["E", "F", "W", "I"]
-ignore = ["E501"]  # 长行（中文注释/字符串较多，暂不强制换行）
+# 中文注释/字符串较多，暂不强制换行（E501 已取消忽略，对纯代码部分保持 <=120 字符）
+# ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["utils"]

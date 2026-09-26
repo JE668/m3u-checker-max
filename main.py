@@ -15,12 +15,15 @@ m3u-checker-max — IPTV 直播源检测与分类系统
 """
 
 import concurrent.futures
+import hashlib
 import json
 import os
+import random
 import shutil
 import time
 from dataclasses import asdict, dataclass, field, fields
-from typing import Optional
+from datetime import datetime
+from typing import Optional, Tuple
 
 from utils.categorizer import (
     auto_update_demo,
@@ -29,6 +32,11 @@ from utils.categorizer import (
     load_source_cat,
 )
 from utils.config import (
+    FEEDBACK_FILE,
+    INCREMENTAL_SAMPLE_MIN,
+    INCREMENTAL_SAMPLE_RATIO,
+    INCREMENTAL_TESTING,
+    STALENESS_DETECTION,
     _AI_AVAILABLE,
     BLACKLIST_FILE,
     MAX_WORKERS,
@@ -40,6 +48,7 @@ from utils.config import (
     _save_ai_cache,
     _validate_configs,
     ci_group,
+    ensure_dirs,
     flush_summary,
     fmt_resolution,
     get_cache_stats,
@@ -67,7 +76,7 @@ from utils.output import (
 from utils.speedtest import (
     append_auto_blacklist,
     apply_filter_lists,
-    probe_resolution,
+    probe_resolution_cached,
     run_speed_test,
 )
 
@@ -122,9 +131,161 @@ PHASE_TITLES = {
     3: "🧠 阶段3 — 模板进化 & 成品输出",
 }
 
+# ── 源列表变更检测 & 增量测速 & 反馈 ──
+SOURCE_SIGNATURE_FILE = "output/.source_signature"
+SPEED_TEST_CACHE_FILE = "output/.speed_test_cache.json"
+
+
+def compute_source_signature(channels: list, url_to_source: dict = None) -> str:
+    """计算当前源列表的签名，用于增量检测。
+    channels: list of (name, url) or (name, url, source) tuples.
+    url_to_source: optional dict mapping url -> source_url (used for 2-tuple channels).
+    """
+    sig = hashlib.sha256()
+    items = []
+    for item in channels:
+        if len(item) == 3:
+            name, url, source = item
+        elif len(item) == 2:
+            name, url = item
+            source = (url_to_source or {}).get(url, '')
+        else:
+            continue
+        items.append((name, url, source))
+    for name, url, source in sorted(items):
+        sig.update(f"{name}|{url}|{source}".encode())
+    return sig.hexdigest()
+
+
+def load_previous_signature() -> Optional[str]:
+    """加载上次的源签名"""
+    if os.path.exists(SOURCE_SIGNATURE_FILE):
+        try:
+            with open(SOURCE_SIGNATURE_FILE) as f:
+                return f.read().strip()
+        except OSError:
+            pass
+    return None
+
+
+def save_source_signature(sig: str):
+    """保存当前源签名"""
+    try:
+        os.makedirs(os.path.dirname(SOURCE_SIGNATURE_FILE), exist_ok=True)
+        with open(SOURCE_SIGNATURE_FILE, 'w') as f:
+            f.write(sig)
+    except OSError:
+        pass
+
+
+def load_speed_test_cache() -> Optional[dict]:
+    """加载上次的测速结果缓存"""
+    if os.path.exists(SPEED_TEST_CACHE_FILE):
+        try:
+            with open(SPEED_TEST_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return None
+
+
+def save_speed_test_cache(valid_results: dict):
+    """保存本次测速结果供下次使用"""
+    try:
+        os.makedirs(os.path.dirname(SPEED_TEST_CACHE_FILE), exist_ok=True)
+        with open(SPEED_TEST_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(valid_results, f, ensure_ascii=False)
+    except (OSError, TypeError):
+        pass
+
+
+def apply_incremental_testing(channels: list, cache: dict = None) -> Tuple[list, dict]:
+    """
+    应用增量测速策略。
+    返回: (to_test_channels, cached_results_for_unchanged)
+    """
+    if not INCREMENTAL_TESTING or not cache:
+        return channels, {}
+
+    cache_channels = set(cache.keys())
+    current_names = set(ch[0] for ch in channels)
+    new_channels = current_names - cache_channels
+    unchanged_channels = current_names & cache_channels
+
+    if not new_channels:
+        live_print("📋 无新增频道，使用全部缓存结果")
+        return [], cache
+
+    live_print(f"📊 增量测速: 新增 {len(new_channels)} 个, 未变化 {len(unchanged_channels)} 个")
+
+    sample_size = max(INCREMENTAL_SAMPLE_MIN, int(len(unchanged_channels) * INCREMENTAL_SAMPLE_RATIO))
+    sample_names = set(random.sample(list(unchanged_channels), min(sample_size, len(unchanged_channels))))
+
+    to_test_names = new_channels | sample_names
+
+    to_test = [ch for ch in channels if ch[0] in to_test_names]
+    cached_unchanged = {k: v for k, v in cache.items() if k not in to_test_names}
+
+    live_print(f"🎯 本次测速: {len(to_test)} 个, 缓存复用: {len(cached_unchanged)} 个")
+
+    return to_test, cached_unchanged
+
+
+def write_feedback(valid_results: dict, url_to_source: dict = None, source_stats: dict = None):
+    """写入反馈数据供 get-m3u 下游使用"""
+    try:
+        # 按源 URL 统计
+        source_scores = {}
+        channel_to_source = {}
+
+        for name, urls in valid_results.items():
+            if urls:
+                channel_to_source[name] = url_to_source.get(urls[0][0], 'unknown') if url_to_source else 'unknown'
+
+        for name, urls in valid_results.items():
+            source = channel_to_source.get(name, 'unknown')
+            if source not in source_scores:
+                source_scores[source] = {"valid_channels": 0, "urls": 0}
+            source_scores[source]["valid_channels"] += 1
+            source_scores[source]["urls"] += len(urls)
+
+        # 计算评分
+        max_channels = max((s["valid_channels"] for s in source_scores.values()), default=1)
+        for source in source_scores:
+            source_scores[source]["score"] = round(
+                source_scores[source]["valid_channels"] / max_channels * 100, 1
+            )
+
+        feedback = {
+            "_version": 1,
+            "generated_at": datetime.now().isoformat(),
+            "total_channels": len(valid_results),
+            "total_sources": len(source_scores),
+            "source_scores": source_scores,
+            "channel_scores": {
+                name: {
+                    "url_count": len(urls),
+                    "best_bw": max((u[1] for u in urls), default=0) if urls else 0
+                }
+                for name, urls in valid_results.items()
+            }
+        }
+
+        os.makedirs(os.path.dirname(FEEDBACK_FILE), exist_ok=True)
+        with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
+            json.dump(feedback, f, ensure_ascii=False, indent=2)
+        live_print(f"📤 反馈数据已写入: {FEEDBACK_FILE}")
+    except Exception as e:
+        live_print(f"⚠️ 反馈写入失败: {e}")
+
+
 def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
     """主执行函数。ci_phase：None=完整运行，1/2/3=分阶段CI执行。"""
     global _AI_CACHE
+    ensure_dirs()
+    source_channel_counts = {}
+    to_test = None
+    url_to_source = None
     # 启动时去重 blacklist.txt
     _dedup_blacklist()
     # 配置验证
@@ -175,7 +336,6 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             epg_report = st.epg_report
             start_time = st.start_time
             live_print("  🔄 已从阶段1状态恢复")
-            source_channel_counts = {}  # 防御初始化（正常从头分支会定义；此处保证恢复分支也不缺）
         else:
             # ----- 阶段1：从头执行 -----
             live_print(f"\n{'━'*50}\n  {PHASE_TITLES[1]}\n{'━'*50}")
@@ -334,23 +494,60 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             reso_stats = {}  # 防御初始化：分辨率探测关闭/无频道时不定义会导致下方摘要块 NameError
             live_print(f"\n{'━'*50}\n  {PHASE_TITLES[2]}\n{'━'*50}")
 
-            with ci_group("🚀 并发测速"):
-                live_print(f"🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)")
-                source_meta = fetch_source_meta()
-                test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
-                    to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
-                )
+            # === 源列表变更检测 & 增量测速 ===
+            cached_results = load_speed_test_cache()
+            current_sig = compute_source_signature(to_test, url_to_source)
+            previous_sig = load_previous_signature()
 
-                # 合并测速结果到 valid_results
-                for name, url_list in test_results.items():
-                    if name not in valid_results:
-                        valid_results[name] = url_list
-                    else:
-                        existing_urls = {u for u, _ in valid_results[name]}
-                        for url, elapsed in url_list:
-                            if url not in existing_urls:
-                                valid_results[name].append((url, elapsed))
-                                existing_urls.add(url)
+            if current_sig == previous_sig and cached_results:
+                live_print("📋 源列表未变化，跳过测速阶段，使用缓存结果")
+                valid_results = cached_results
+                logs_success = []
+                logs_fail = []
+                fail_counts = {}
+                source_stats = {"ok": {}, "total": {}}
+            else:
+                save_source_signature(current_sig)
+
+                # 增量测速过滤
+                cached_unchanged = {}
+                if cached_results and INCREMENTAL_TESTING:
+                    channels_for_incremental = [(n, u, url_to_source.get(u, '')) for n, u in to_test]
+                    filtered_to_test, cached_unchanged = apply_incremental_testing(channels_for_incremental, cached_results)
+                    to_test_names = set(ch[0] for ch in filtered_to_test)
+                    to_test = [ch for ch in to_test if ch[0] in to_test_names]
+
+                with ci_group("🚀 并发测速"):
+                    live_print(f"🚀 开始测速 (待测: {len(to_test)} 条, 免测: 白名单{len(logs_whitelist)} 条, 拦截: {len(logs_blacklist)} 条)")
+                    source_meta = fetch_source_meta()
+                    test_results, logs_success, logs_fail, fail_counts, source_stats = run_speed_test(
+                        to_test, source_meta=source_meta, source_urls=url_to_source, channel_to_station=channel_to_station
+                    )
+
+                    # 合并测速结果到 valid_results
+                    for name, url_list in test_results.items():
+                        if name not in valid_results:
+                            valid_results[name] = url_list
+                        else:
+                            existing_urls = {u for u, _ in valid_results[name]}
+                            for url, elapsed in url_list:
+                                if url not in existing_urls:
+                                    valid_results[name].append((url, elapsed))
+                                    existing_urls.add(url)
+
+                # 合并增量测速缓存结果
+                if cached_unchanged:
+                    for name, urls in cached_unchanged.items():
+                        if name not in valid_results:
+                            valid_results[name] = urls
+                        else:
+                            existing_urls = {u for u, _ in valid_results[name]}
+                            for url, elapsed in urls:
+                                if url not in existing_urls:
+                                    valid_results[name].append((url, elapsed))
+
+                # 保存新缓存
+                save_speed_test_cache(valid_results)
 
             with ci_group("限制级来源分离"):
                 # ═══ 限制级来源分离：测速后将限制级来源URL从 valid_results 移到 adult_results ═══
@@ -387,7 +584,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                         reso_found = 0
 
                         def _probe_one(name, url, elapsed):
-                            w, h = probe_resolution(url)
+                            w, h = probe_resolution_cached(url)
                             return url, w, h
 
                         pool = get_pool()
@@ -576,8 +773,8 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
                 non_tv_count = sum(1 for line in after_list.strip().split('\n') if line.strip())
 
         # 安全的变量获取
-        to_test_count = len(to_test) if 'to_test' in locals() or 'to_test' in dir() else 0
-        source_count = len(url_to_source) if 'url_to_source' in locals() or 'url_to_source' in dir() else len(src_total_dict)
+        to_test_count = len(to_test) if to_test is not None else 0
+        source_count = len(url_to_source) if url_to_source is not None else len(src_total_dict)
 
         # ── 控制台管道视图 ──
         live_print("")
@@ -730,6 +927,9 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
         if _AI_AVAILABLE:
             stats = get_cache_stats()
             live_print(f"  🤖 AI 缓存已保存: 运行时命中 {stats['hits']} / 未命中 {stats['misses']}")
+
+    # 写入反馈数据
+    write_feedback(valid_results, url_to_source, source_stats)
 
     flush_summary()
 

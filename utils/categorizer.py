@@ -1,9 +1,10 @@
 import os
+import re
 from collections import Counter
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
-from utils.ai_helper import classify_channel, classify_channels_batch
+from utils.ai_helper import PROVINCE_NAMES, classify_channel, classify_channels_batch
 from utils.config import (
     _AI_AVAILABLE,
     _NUM_RE,
@@ -97,6 +98,55 @@ def _build_demo_rules(chans_in_cat):
     return demo_rules
 
 
+# ── 增强规则匹配（三级分类中间层）──
+def _enhanced_rule_match(name: str) -> Optional[str]:
+    """增强规则匹配：通过数字提取、关键词、缩写等模式匹配分类"""
+
+    # 匹配数字编号频道（如 "CCTV-1" → 央视频道）
+    m = re.match(r'(CCTV|cgtn|CETV)\s*[-]?\s*(\d+)', name, re.IGNORECASE)
+    if m:
+        return "📺央视频道"
+
+    # 匹配卫视（如 "湖南卫视" → 卫视频道）
+    if '卫视' in name or re.match(r'^\d+[-]卫视', name):
+        return "📡卫视频道"
+
+    # 匹配地区+频道（如 "广东1" → 广东频道）
+    for province in PROVINCE_NAMES:
+        if province in name:
+            return f"☘️{province}频道"
+
+    # 匹配英文缩写频道
+    if re.match(r'^(CCTV|CGTN|CETV)\s*\d+', name, re.IGNORECASE):
+        return "📺央视频道"
+
+    # 匹配体育频道
+    if any(kw in name for kw in ['体育', 'SPORTS', 'sport', 'SPORT']):
+        return "🏀体育频道"
+
+    # 匹配电影频道
+    if any(kw in name for kw in ['电影', 'FILM', 'MOVIE', '电影频道']):
+        return "🎥电影频道"
+
+    # 匹配动画频道
+    if any(kw in name for kw in ['动画', '动漫', '卡通', '少儿', 'TOON']):
+        return "🪁动画频道"
+
+    # 匹配教育频道
+    if any(kw in name for kw in ['教育', 'EDU', 'edu']):
+        return "📚教育频道"
+
+    # 匹配港台频道
+    if any(kw in name for kw in ['凤凰', '翡翠', '明珠', '靖天', '东森', '三立', 'TVBS', '港台']):
+        return "🌊港·澳·台"
+
+    # 匹配4K频道
+    if any(kw in name for kw in ['4K', '4k', '8K', '8k', '超高清']):
+        return "☘️4K/8K超高清频道"
+
+    return None
+
+
 def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, channel_model: Optional[Dict[str, str]] = None, use_ai: bool = True) -> Tuple[str, int]:
     """根据频道名匹配分类
 
@@ -126,6 +176,11 @@ def _match_category(name: str, demo_rules: Optional[Dict[str, str]] = None, chan
     for keywords, cat_name, priority in _CATEGORY_RULES_SORTED:
         if any(kw in name_upper for kw in keywords):
             return f"{cat_name},#genre#", priority
+
+    # 增强规则匹配：通过数字提取、关键词、缩写等模式匹配分类
+    enhanced = _enhanced_rule_match(name)
+    if enhanced:
+        return f"{enhanced},#genre#", 0
 
     # 第三步：AI 分类兜底（仅当其他规则都不匹配时；use_ai=False 时跳过，交由批量接口处理）
     if use_ai and _AI_AVAILABLE and name:

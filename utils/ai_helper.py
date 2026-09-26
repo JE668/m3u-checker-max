@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import threading
 
 import requests
 
@@ -43,16 +44,21 @@ def get_cache_stats():
 # 如需硬性客户端限速，设置环境变量 AI_MIN_INTERVAL（秒）即可恢复。
 _AI_MIN_INTERVAL = float(os.getenv("AI_MIN_INTERVAL", "0"))
 _last_ai_call_ts = 0.0
+_ai_lock = threading.Lock()
 _current_model = MODEL_PRIMARY   # 当前使用的模型（主→备自动切换）
 _fallback_triggered = False      # 是否已切换到备选模型
 
 def _ai_rate_limit():
-    """控制 AI API 调用频率：若距上次调用不足最小间隔则短暂休眠。"""
+    """控制 AI API 调用频率（线程安全）。"""
     global _last_ai_call_ts
-    elapsed = time.time() - _last_ai_call_ts
-    if elapsed < _AI_MIN_INTERVAL:
-        time.sleep(_AI_MIN_INTERVAL - elapsed)
-    _last_ai_call_ts = time.time()
+    while True:
+        with _ai_lock:
+            elapsed = time.time() - _last_ai_call_ts
+            if elapsed >= _AI_MIN_INTERVAL:
+                _last_ai_call_ts = time.time()
+                return
+            wait_time = _AI_MIN_INTERVAL - elapsed
+        time.sleep(wait_time)
 
 def _post_with_retry(payload: dict, headers: dict, timeout: float, max_retries: int = 3):
     """带限流与指数退避重试的 API POST（主模型失败后自动切换备选模型）。

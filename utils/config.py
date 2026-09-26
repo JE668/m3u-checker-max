@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import threading
 from contextlib import contextmanager
 from typing import Tuple
 
@@ -23,6 +24,41 @@ except ImportError:
     def get_cache_stats():
         return {}
     _AI_AVAILABLE = False
+
+__all__ = [
+    "MAX_WORKERS", "EPG_MAX_WORKERS", "SAMPLE_PER_HOST",
+    "CHECK_CONNECT_TIMEOUT", "CHECK_READ_TIMEOUT", "CHECK_TOTAL_TIMEOUT",
+    "DOWNLOAD_TARGET_BYTES", "MIN_BANDWIDTH_MBPS",
+    "PROBE_RESOLUTION", "PROBE_TIMEOUT", "MIN_RESOLUTION",
+    "CDN_BASE", "M3U_HEADER", "SOURCE_META_URL",
+    "ALIAS_FILE", "DEMO_FILE", "SOURCES_FILE", "EPG_FILE",
+    "LOG_FILE", "OUTPUT_M3U", "OUTPUT_TXT",
+    "CATEGORY_RULES", "DEFAULT_CATEGORY", "NON_TV_PATTERNS",
+    "get_session", "get_pool", "live_print", "write_summary", "flush_summary",
+    "ci_group", "retry_request", "fetch_url", "fmt_resolution",
+    "MIN_RESOLUTION_PIXELS", "SUCCESS_LOG_SAMPLE_LIMIT",
+    "INVALID_NAME_PATTERNS", "EPG_BLACKLIST", "EPG_KEEP_DAYS",
+    "RETRY_MAX_ATTEMPTS", "RETRY_BACKOFF",
+    "DEFAULT_HEADERS", "AI_CACHE_FILE",
+    "REPO_RAW", "ICON_DIR", "ICONS_INDEX_FILE",
+    "_AI_AVAILABLE", "_NUM_RE",
+    "BLACKLIST_FILE", "WHITELIST_FILE", "UNMATCHED_FILE",
+    "ADULT_SOURCES_FILE", "SOURCE_CAT_FILE", "CHANNEL_MODEL_FILE",
+    "NON_TV_LOG", "OUTPUT_EPG", "OUTPUT_EPG_GZ",
+    "ADULT_M3U", "ADULT_TXT",
+    "ensure_dirs",
+    # 分辨率缓存
+    "RESOLUTION_CACHE_ENABLED", "RESOLUTION_CACHE_TTL", "RESOLUTION_CACHE_MAX_ENTRIES",
+    # 增量测速
+    "INCREMENTAL_TESTING", "INCREMENTAL_SAMPLE_RATIO", "INCREMENTAL_SAMPLE_MIN",
+    # 自适应并发
+    "ADAPTIVE_CONCURRENCY", "BASE_WORKERS", "MIN_WORKERS", "MAX_WORKERS_CAP",
+    "ADAPTIVE_SUCCESS_LOW", "ADAPTIVE_SUCCESS_HIGH",
+    # 反馈数据
+    "FEEDBACK_FILE",
+    # 源陈旧度检测
+    "STALENESS_DETECTION",
+]
 
 def _dedup_blacklist():
     """启动时对 blacklist.txt 做一次性去重，防止每次 CI 追加导致的无限膨胀"""
@@ -94,11 +130,15 @@ def _ai_fallback(raw_name, ai_cache):
 # ===============================
 try:
     from config.settings import (  # noqa: F401, F811  (settings.py 为配置覆盖来源；部分名在下方有兜底默认值，属有意再导出/重定义)
+        ADAPTIVE_CONCURRENCY,
+        ADAPTIVE_SUCCESS_HIGH,
+        ADAPTIVE_SUCCESS_LOW,
         ADULT_KEYWORDS,
         ADULT_M3U,
         ADULT_SOURCES_FILE,
         ADULT_TXT,
         ALIAS_FILE,
+        BASE_WORKERS,
         BLACKLIST_FILE,
         CDN_BASE,
         CHANNEL_MODEL_FILE,
@@ -112,13 +152,19 @@ try:
         EPG_FILE,
         EPG_KEEP_DAYS,
         EPG_MAX_WORKERS,
+        FEEDBACK_FILE,
         ICON_DIR,
         ICONS_INDEX_FILE,
+        INCREMENTAL_SAMPLE_MIN,
+        INCREMENTAL_SAMPLE_RATIO,
+        INCREMENTAL_TESTING,
         INVALID_NAME_PATTERNS,
         LOG_FILE,
         MAX_WORKERS,
+        MAX_WORKERS_CAP,
         MIN_BANDWIDTH_MBPS,
         MIN_RESOLUTION,
+        MIN_WORKERS,
         NON_TV_LOG,
         NON_TV_PATTERNS,
         OUTPUT_EPG,
@@ -127,11 +173,15 @@ try:
         OUTPUT_TXT,
         PROBE_RESOLUTION,
         PROBE_TIMEOUT,
+        RESOLUTION_CACHE_ENABLED,
+        RESOLUTION_CACHE_MAX_ENTRIES,
+        RESOLUTION_CACHE_TTL,
         RETRY_BACKOFF,
         RETRY_MAX_ATTEMPTS,
         SAMPLE_PER_HOST,
         SOURCE_CAT_FILE,
         SOURCES_FILE,
+        STALENESS_DETECTION,
         UNMATCHED_FILE,
         WHITELIST_FILE,
     )
@@ -260,12 +310,14 @@ CATEGORY_RULES = _load_category_rules()
 
 DEFAULT_CATEGORY = ("📺其他频道", 8)
 
-os.makedirs("output", exist_ok=True)
-os.makedirs("config", exist_ok=True)
-os.makedirs(ICON_DIR, exist_ok=True)
+def ensure_dirs():
+    """延迟创建所需目录（避免 import 时产生文件系统副作用）"""
+    os.makedirs("output", exist_ok=True)
+    os.makedirs("config", exist_ok=True)
+    os.makedirs(ICON_DIR, exist_ok=True)
 
-# P1-12: 全局 Session 复用（同一域名复用 TCP 连接 + SSL 会话）
-_http_session = None
+# P1-12: 线程安全 Session — 每个线程持有独立 Session，避免并发读写竞态
+_thread_local = threading.local()
 
 _SHARED_POOL = None
 
@@ -285,16 +337,22 @@ def _cleanup_pool():
 atexit.register(_cleanup_pool)
 
 def get_session() -> requests.Session:
-    global _http_session
-    if _http_session is None:
-        _http_session = requests.Session()
-        _http_session.trust_env = False  # CI 环境 dotenv 代理干扰
-        _http_session.headers.update(DEFAULT_HEADERS)
+    """返回当前线程专属的 requests.Session（线程安全）。
+
+    requests.Session 不是线程安全的，每个工作线程持有独立 session，
+    共享底层连接池配置但避免并发读写同一 Session 对象的竞态。
+    """
+    session = getattr(_thread_local, 'session', None)
+    if session is None:
+        session = requests.Session()
+        session.trust_env = False  # CI 环境 dotenv 代理干扰
+        session.headers.update(DEFAULT_HEADERS)
         # 连接池大小匹配并发度
         adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=MAX_WORKERS)
-        _http_session.mount("http://", adapter)
-        _http_session.mount("https://", adapter)
-    return _http_session
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        _thread_local.session = session
+    return session
 
 def _validate_configs():
     """启动时验证所有必要配置文件的存在与基本完整性"""

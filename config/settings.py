@@ -9,6 +9,30 @@
 MAX_WORKERS = 50                     # 并发线程数
 EPG_MAX_WORKERS = 4                  # EPG 下载并发数
 
+# ── 分辨率缓存 ──
+RESOLUTION_CACHE_ENABLED = True       # 是否启用分辨率缓存
+RESOLUTION_CACHE_TTL = 7 * 24 * 3600  # 缓存有效期（秒，默认7天）
+RESOLUTION_CACHE_MAX_ENTRIES = 5000   # 缓存最大条目数
+
+# ── 增量测速 ──
+INCREMENTAL_TESTING = True            # 是否启用增量测速
+INCREMENTAL_SAMPLE_RATIO = 0.2        # 未变化源中随机抽样的比例
+INCREMENTAL_SAMPLE_MIN = 20           # 最少抽样数
+
+# ── 自适应并发 ──
+ADAPTIVE_CONCURRENCY = True           # 是否启用自适应并发
+BASE_WORKERS = 50                     # 基础并发数
+MIN_WORKERS = 10                      # 最小并发数
+MAX_WORKERS_CAP = 100                 # 最大并发数
+ADAPTIVE_SUCCESS_LOW = 0.3            # 低于此成功率则减少并发
+ADAPTIVE_SUCCESS_HIGH = 0.8           # 高于此成功率则增加并发
+
+# ── 反馈数据 ──
+FEEDBACK_FILE = "output/feedback.json"
+
+# ── 源陈旧度检测 ──
+STALENESS_DETECTION = True            # 是否启用源陈旧度检测
+
 # ── 服务器级预筛 ──
 SAMPLE_PER_HOST = 2                  # 每台服务器预抽检频道数（判断死活）
 
