@@ -1,46 +1,325 @@
 {
   "_version": 1,
-  "generated_at": "2026-09-26T09:14:52.495553",
-  "total_channels": 263,
-  "total_sources": 7,
+  "generated_at": "2026-09-26T11:50:13.433805",
+  "total_channels": 282,
+  "total_sources": 6,
   "source_scores": {
     "https://raw.githubusercontent.com/JE668/get-m3u/refs/heads/main/output/source-m3u.txt": {
-      "valid_channels": 157,
-      "urls": 1162,
+      "valid_channels": 191,
+      "urls": 1213,
       "score": 100.0
     },
     "https://raw.githubusercontent.com/Kimentanm/aptv/master/m3u/iptv.m3u": {
       "valid_channels": 33,
       "urls": 33,
-      "score": 21.0
+      "score": 17.3
+    },
+    "https://raw.githubusercontent.com/TianmuTNT/iptv/main/iptv.m3u": {
+      "valid_channels": 49,
+      "urls": 71,
+      "score": 25.7
     },
     "https://raw.githubusercontent.com/zbefine/iptv/main/iptv.m3u": {
       "valid_channels": 1,
       "urls": 1,
-      "score": 0.6
-    },
-    "unknown": {
-      "valid_channels": 1,
-      "urls": 6,
-      "score": 0.6
+      "score": 0.5
     },
     "https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u": {
-      "valid_channels": 13,
-      "urls": 13,
-      "score": 8.3
-    },
-    "https://raw.githubusercontent.com/TianmuTNT/iptv/main/iptv.m3u": {
-      "valid_channels": 57,
-      "urls": 73,
-      "score": 36.3
+      "valid_channels": 7,
+      "urls": 7,
+      "score": 3.7
     },
     "https://raw.githubusercontent.com/mzky/checklist/refs/heads/master/itvlist.m3u": {
       "valid_channels": 1,
       "urls": 1,
-      "score": 0.6
+      "score": 0.5
     }
   },
   "channel_scores": {
+    "CCTV-14": {
+      "url_count": 7,
+      "best_bw": 3.69
+    },
+    "南国都市": {
+      "url_count": 4,
+      "best_bw": 3.69
+    },
+    "山东卫视": {
+      "url_count": 20,
+      "best_bw": 3.17
+    },
+    "佛山顺德": {
+      "url_count": 4,
+      "best_bw": 3.64
+    },
+    "山东教育": {
+      "url_count": 4,
+      "best_bw": 4.15
+    },
+    "CCTV-10": {
+      "url_count": 17,
+      "best_bw": 3.76
+    },
+    "百视通体育直播室1": {
+      "url_count": 3,
+      "best_bw": 3.82
+    },
+    "汽摩": {
+      "url_count": 6,
+      "best_bw": 4.18
+    },
+    "春晚1985": {
+      "url_count": 1,
+      "best_bw": 0.48
+    },
+    "内蒙古卫视": {
+      "url_count": 13,
+      "best_bw": 3.87
+    },
+    "CCTV": {
+      "url_count": 6,
+      "best_bw": 3.46
+    },
+    "CCTV-13": {
+      "url_count": 8,
+      "best_bw": 3.64
+    },
+    "CCTV-16": {
+      "url_count": 7,
+      "best_bw": 2.71
+    },
+    "CCTV-15": {
+      "url_count": 12,
+      "best_bw": 4.16
+    },
+    "CCTV-怀旧剧场": {
+      "url_count": 8,
+      "best_bw": 3.37
+    },
+    "CCTV-央视台球": {
+      "url_count": 5,
+      "best_bw": 3.44
+    },
+    "CCTV-央视精品": {
+      "url_count": 4,
+      "best_bw": 3.44
+    },
+    "CCTV-4中文国际": {
+      "url_count": 2,
+      "best_bw": 3.76
+    },
+    "CCTV-风云剧场": {
+      "url_count": 8,
+      "best_bw": 3.26
+    },
+    "CCTV5+体育 -测试": {
+      "url_count": 3,
+      "best_bw": 3.09
+    },
+    "CCTV-老故事": {
+      "url_count": 2,
+      "best_bw": 3.97
+    },
+    "IPTV2": {
+      "url_count": 4,
+      "best_bw": 3.81
+    },
+    "IPTV热播剧场": {
+      "url_count": 3,
+      "best_bw": 4.18
+    },
+    "PPTV-2": {
+      "url_count": 3,
+      "best_bw": 4.13
+    },
+    "东莞新闻综合": {
+      "url_count": 3,
+      "best_bw": 2.91
+    },
+    "iHOT-爱电影": {
+      "url_count": 3,
+      "best_bw": 4.11
+    },
+    "中山综合": {
+      "url_count": 5,
+      "best_bw": 2.74
+    },
+    "优漫卡通": {
+      "url_count": 2,
+      "best_bw": 3.91
+    },
+    "发现之旅": {
+      "url_count": 3,
+      "best_bw": 4.03
+    },
+    "嘉佳卡通": {
+      "url_count": 7,
+      "best_bw": 3.91
+    },
+    "吉林卫视": {
+      "url_count": 7,
+      "best_bw": 3.83
+    },
+    "国学": {
+      "url_count": 4,
+      "best_bw": 4.19
+    },
+    "国学频道": {
+      "url_count": 2,
+      "best_bw": 3.91
+    },
+    "山东教育卫视": {
+      "url_count": 2,
+      "best_bw": 3.88
+    },
+    "广告": {
+      "url_count": 12,
+      "best_bw": 4.16
+    },
+    "延边卫视": {
+      "url_count": 3,
+      "best_bw": 4.06
+    },
+    "梅州综合": {
+      "url_count": 2,
+      "best_bw": 2.55
+    },
+    "浙江卫视4K超高清": {
+      "url_count": 4,
+      "best_bw": 3.83
+    },
+    "海南卫视": {
+      "url_count": 4,
+      "best_bw": 3.26
+    },
+    "江门综合": {
+      "url_count": 4,
+      "best_bw": 3.56
+    },
+    "深圳移动电视": {
+      "url_count": 4,
+      "best_bw": 3.23
+    },
+    "深圳都市频道": {
+      "url_count": 6,
+      "best_bw": 3.22
+    },
+    "深圳龙岗频道": {
+      "url_count": 4,
+      "best_bw": 3.37
+    },
+    "环球奇观": {
+      "url_count": 4,
+      "best_bw": 4.11
+    },
+    "百视通体育直播室4": {
+      "url_count": 2,
+      "best_bw": 3.92
+    },
+    "百视通体育直播室5": {
+      "url_count": 2,
+      "best_bw": 3.83
+    },
+    "百视通体育直播室7": {
+      "url_count": 2,
+      "best_bw": 3.92
+    },
+    "睛彩青少": {
+      "url_count": 4,
+      "best_bw": 3.86
+    },
+    "辽宁卫视": {
+      "url_count": 10,
+      "best_bw": 3.61
+    },
+    "金鹰卡通": {
+      "url_count": 3,
+      "best_bw": 3.89
+    },
+    "CCTV -50P": {
+      "url_count": 5,
+      "best_bw": 2.76
+    },
+    "CCTV-中学生": {
+      "url_count": 2,
+      "best_bw": 3.67
+    },
+    "CETV2": {
+      "url_count": 3,
+      "best_bw": 3.61
+    },
+    "北京卡酷少儿": {
+      "url_count": 2,
+      "best_bw": 3.77
+    },
+    "广东体育（深圳）": {
+      "url_count": 2,
+      "best_bw": 3.81
+    },
+    "广东移动": {
+      "url_count": 2,
+      "best_bw": 3.98
+    },
+    "河源公共": {
+      "url_count": 2,
+      "best_bw": 2.32
+    },
+    "潮州民生": {
+      "url_count": 2,
+      "best_bw": 2.74
+    },
+    "精选 频道3": {
+      "url_count": 2,
+      "best_bw": 2.71
+    },
+    "百视通体育直播室6": {
+      "url_count": 2,
+      "best_bw": 3.71
+    },
+    "精选频道1": {
+      "url_count": 2,
+      "best_bw": 4.04
+    },
+    "春晚1986": {
+      "url_count": 1,
+      "best_bw": 0.25
+    },
+    "春晚1996": {
+      "url_count": 1,
+      "best_bw": 0.09
+    },
+    "春晚1988": {
+      "url_count": 1,
+      "best_bw": 0.21
+    },
+    "春晚2003": {
+      "url_count": 1,
+      "best_bw": 0.1
+    },
+    "春晚2010": {
+      "url_count": 1,
+      "best_bw": 0.09
+    },
+    "春晚2018": {
+      "url_count": 1,
+      "best_bw": 0.1
+    },
+    "春晚2015": {
+      "url_count": 1,
+      "best_bw": 0.11
+    },
+    "PPTV-1": {
+      "url_count": 1,
+      "best_bw": 3.97
+    },
+    "书法频道": {
+      "url_count": 1,
+      "best_bw": 3.72
+    },
+    "厦门卫视": {
+      "url_count": 1,
+      "best_bw": 3.76
+    },
     "江苏卫视4K超高清": {
       "url_count": 14,
       "best_bw": 3.98
@@ -52,10 +331,6 @@
     "河南卫视": {
       "url_count": 12,
       "best_bw": 3.19
-    },
-    "梅州综合": {
-      "url_count": 4,
-      "best_bw": 2.61
     },
     "潮州综合": {
       "url_count": 7,
@@ -69,17 +344,9 @@
       "url_count": 37,
       "best_bw": 3.05
     },
-    "CCTV-怀旧剧场": {
-      "url_count": 15,
-      "best_bw": 4.16
-    },
     "CCTV-高尔夫网球": {
       "url_count": 10,
       "best_bw": 2.91
-    },
-    "CCTV-风云剧场": {
-      "url_count": 14,
-      "best_bw": 4.08
     },
     "IPTV4": {
       "url_count": 6,
@@ -113,10 +380,6 @@
       "url_count": 7,
       "best_bw": 3.59
     },
-    "IPTV魅力时尚": {
-      "url_count": 3,
-      "best_bw": 4.12
-    },
     "春晚2005": {
       "url_count": 1,
       "best_bw": 0.4
@@ -129,17 +392,9 @@
       "url_count": 12,
       "best_bw": 3.74
     },
-    "CCTV-16": {
-      "url_count": 18,
-      "best_bw": 4.02
-    },
     "CCTV-7": {
       "url_count": 12,
       "best_bw": 2.53
-    },
-    "CCTV-央视精品": {
-      "url_count": 7,
-      "best_bw": 2.96
     },
     "CGTN英文记录": {
       "url_count": 5,
@@ -161,45 +416,13 @@
       "url_count": 8,
       "best_bw": 3.35
     },
-    "金鹰卡通": {
-      "url_count": 8,
-      "best_bw": 3.82
-    },
-    "佛山顺德": {
-      "url_count": 6,
-      "best_bw": 2.34
-    },
-    "IPTV2": {
-      "url_count": 2,
-      "best_bw": 3.52
-    },
     "春晚1983": {
       "url_count": 1,
       "best_bw": 0.18
     },
-    "春晚1988": {
-      "url_count": 1,
-      "best_bw": 0.24
-    },
-    "春晚1985": {
-      "url_count": 1,
-      "best_bw": 0.25
-    },
     "春晚2011": {
       "url_count": 1,
       "best_bw": 0.15
-    },
-    "春晚2003": {
-      "url_count": 1,
-      "best_bw": 0.23
-    },
-    "春晚2018": {
-      "url_count": 1,
-      "best_bw": 0.16
-    },
-    "山东卫视": {
-      "url_count": 27,
-      "best_bw": 4.09
     },
     "深圳宜和购物": {
       "url_count": 6,
@@ -229,17 +452,9 @@
       "url_count": 14,
       "best_bw": 3.06
     },
-    "浙江卫视4K超高清": {
-      "url_count": 11,
-      "best_bw": 3.36
-    },
     "南方购物-精选": {
       "url_count": 10,
       "best_bw": 3.34
-    },
-    "跳舞「其他」": {
-      "url_count": 1,
-      "best_bw": 2.3
     },
     "春晚2006": {
       "url_count": 1,
@@ -248,10 +463,6 @@
     "电影周星星": {
       "url_count": 1,
       "best_bw": 1.42
-    },
-    "内蒙古卫视": {
-      "url_count": 7,
-      "best_bw": 2.79
     },
     "CCTV-4": {
       "url_count": 20,
@@ -273,10 +484,6 @@
       "url_count": 12,
       "best_bw": 3.36
     },
-    "CCTV5+体育 -测试": {
-      "url_count": 7,
-      "best_bw": 3.92
-    },
     "IPTV-热播剧场": {
       "url_count": 6,
       "best_bw": 4.07
@@ -284,10 +491,6 @@
     "东方卫视4K超高清": {
       "url_count": 9,
       "best_bw": 3.47
-    },
-    "东莞新闻综合": {
-      "url_count": 6,
-      "best_bw": 4.01
     },
     "岭南戏曲": {
       "url_count": 6,
@@ -353,10 +556,6 @@
       "url_count": 1,
       "best_bw": 1.62
     },
-    "武侠电影": {
-      "url_count": 1,
-      "best_bw": 1.03
-    },
     "电影功夫片": {
       "url_count": 1,
       "best_bw": 0.81
@@ -372,10 +571,6 @@
     "狄仁杰电影": {
       "url_count": 1,
       "best_bw": 2.26
-    },
-    "笑傲江湖": {
-      "url_count": 1,
-      "best_bw": 1.27
     },
     "笑看风云": {
       "url_count": 1,
@@ -413,29 +608,9 @@
       "url_count": 1,
       "best_bw": 0.72
     },
-    "「斗鱼」火影忍者": {
-      "url_count": 1,
-      "best_bw": 0.65
-    },
-    "「斗鱼」梦幻西游·手游": {
-      "url_count": 1,
-      "best_bw": 0.94
-    },
     "「斗鱼」永劫无间": {
       "url_count": 1,
       "best_bw": 0.93
-    },
-    "「斗鱼」穿越火线 𝟚": {
-      "url_count": 1,
-      "best_bw": 0.64
-    },
-    "「斗鱼」英雄联盟 𝟙": {
-      "url_count": 1,
-      "best_bw": 0.64
-    },
-    "「斗鱼」第五人格": {
-      "url_count": 1,
-      "best_bw": 1.31
     },
     "春晚1984": {
       "url_count": 1,
@@ -473,14 +648,6 @@
       "url_count": 7,
       "best_bw": 4.15
     },
-    "CCTV-13": {
-      "url_count": 18,
-      "best_bw": 4.11
-    },
-    "中山综合": {
-      "url_count": 9,
-      "best_bw": 3.97
-    },
     "春晚1993": {
       "url_count": 1,
       "best_bw": 0.33
@@ -488,10 +655,6 @@
     "贵州卫视": {
       "url_count": 4,
       "best_bw": 3.34
-    },
-    "CCTV-10": {
-      "url_count": 18,
-      "best_bw": 3.45
     },
     "CCTV-5": {
       "url_count": 13,
@@ -573,10 +736,6 @@
       "url_count": 6,
       "best_bw": 2.37
     },
-    "辽宁卫视": {
-      "url_count": 20,
-      "best_bw": 2.86
-    },
     "睛彩竞技": {
       "url_count": 6,
       "best_bw": 2.24
@@ -641,10 +800,6 @@
       "url_count": 7,
       "best_bw": 2.59
     },
-    "iHOT-爱电影": {
-      "url_count": 6,
-      "best_bw": 4.19
-    },
     "iHOT-爱综艺": {
       "url_count": 7,
       "best_bw": 4.19
@@ -652,14 +807,6 @@
     "佛山南海": {
       "url_count": 7,
       "best_bw": 3.5
-    },
-    "吉林卫视": {
-      "url_count": 5,
-      "best_bw": 2.86
-    },
-    "嘉佳卡通": {
-      "url_count": 7,
-      "best_bw": 3.4
     },
     "广东少儿": {
       "url_count": 6,
@@ -700,10 +847,6 @@
     "七龙珠": {
       "url_count": 1,
       "best_bw": 1.95
-    },
-    "周星驰电影": {
-      "url_count": 1,
-      "best_bw": 0.34
     },
     "创世纪": {
       "url_count": 1,
@@ -757,10 +900,6 @@
       "url_count": 1,
       "best_bw": 1.13
     },
-    "甄子丹电影": {
-      "url_count": 1,
-      "best_bw": 0.7
-    },
     "王晶电影": {
       "url_count": 1,
       "best_bw": 0.86
@@ -773,10 +912,6 @@
       "url_count": 1,
       "best_bw": 0.68
     },
-    "电影动作电影": {
-      "url_count": 1,
-      "best_bw": 0.68
-    },
     "电影战争片": {
       "url_count": 1,
       "best_bw": 0.4
@@ -784,10 +919,6 @@
     "活佛济公3": {
       "url_count": 1,
       "best_bw": 2.56
-    },
-    "电影搞笑喜剧": {
-      "url_count": 1,
-      "best_bw": 0.72
     },
     "电影梁家辉": {
       "url_count": 1,
@@ -813,14 +944,6 @@
       "url_count": 1,
       "best_bw": 1.17
     },
-    "罪犯电影": {
-      "url_count": 1,
-      "best_bw": 0.67
-    },
-    "野蛮亲家": {
-      "url_count": 1,
-      "best_bw": 0.92
-    },
     "黄渤电影": {
       "url_count": 1,
       "best_bw": 1.35
@@ -840,10 +963,6 @@
     "广东影视": {
       "url_count": 2,
       "best_bw": 2.41
-    },
-    "江门综合": {
-      "url_count": 2,
-      "best_bw": 2.49
     },
     "深圳卫视4K超高清": {
       "url_count": 4,
@@ -869,17 +988,9 @@
       "url_count": 2,
       "best_bw": 3.98
     },
-    "CCTV-15": {
-      "url_count": 2,
-      "best_bw": 3.58
-    },
     "CCTV-9": {
       "url_count": 1,
       "best_bw": 3.41
-    },
-    "CCTV-央视台球": {
-      "url_count": 3,
-      "best_bw": 4.11
     },
     "北京卫视": {
       "url_count": 5,
@@ -917,21 +1028,9 @@
       "url_count": 3,
       "best_bw": 3.62
     },
-    "海南卫视": {
-      "url_count": 3,
-      "best_bw": 3.09
-    },
     "湖南卫视": {
       "url_count": 4,
       "best_bw": 3.58
-    },
-    "河源公共": {
-      "url_count": 1,
-      "best_bw": 4.02
-    },
-    "精选 频道3": {
-      "url_count": 1,
-      "best_bw": 2.55
     },
     "珠海": {
       "url_count": 1,
@@ -940,10 +1039,6 @@
     "西藏卫视": {
       "url_count": 3,
       "best_bw": 3.31
-    },
-    "CCTV -50P": {
-      "url_count": 7,
-      "best_bw": 2.64
     },
     "天津卫视": {
       "url_count": 3,
@@ -956,10 +1051,6 @@
     "青海卫视": {
       "url_count": 1,
       "best_bw": 3.28
-    },
-    "CCTV-14": {
-      "url_count": 1,
-      "best_bw": 4.04
     },
     "CCTV-5+": {
       "url_count": 1,
@@ -1021,14 +1112,6 @@
       "url_count": 1,
       "best_bw": 2.22
     },
-    "潮州民生": {
-      "url_count": 1,
-      "best_bw": 2.95
-    },
-    "春晚1986": {
-      "url_count": 1,
-      "best_bw": 0.42
-    },
     "春晚1989": {
       "url_count": 1,
       "best_bw": 0.13
@@ -1036,10 +1119,6 @@
     "春晚1995": {
       "url_count": 1,
       "best_bw": 0.14
-    },
-    "春晚1996": {
-      "url_count": 1,
-      "best_bw": 0.15
     },
     "春晚1999": {
       "url_count": 1,
@@ -1073,17 +1152,9 @@
       "url_count": 1,
       "best_bw": 0.8
     },
-    "春晚2010": {
-      "url_count": 1,
-      "best_bw": 0.69
-    },
     "春晚2009": {
       "url_count": 1,
       "best_bw": 0.8
-    },
-    "春晚2015": {
-      "url_count": 1,
-      "best_bw": 0.61
     },
     "山西卫视": {
       "url_count": 2,
