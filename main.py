@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import shutil
 import time
 from dataclasses import asdict, dataclass, field, fields
@@ -231,8 +232,14 @@ def apply_incremental_testing(channels: list, cache: dict = None) -> Tuple[list,
     return to_test, cached_unchanged
 
 
-def write_feedback(valid_results: dict, url_to_source: dict = None, source_stats: dict = None):
-    """写入反馈数据供 get-m3u 下游使用"""
+def write_feedback(valid_results: dict, url_to_source: dict = None, source_stats: dict = None, to_test: list = None):
+    """写入反馈数据供 get-m3u 下游使用
+
+    除原有 source/channel 评分外，新增 host 级统计：
+    - server_scores: {host_port: {tested, alive, best_bw}} —— 按 IP:端口聚合
+    - dead_ips: 测过 >=3 次但全部无存活频道的 host_port 列表
+    （get-m3u 据此把对应段降权到轮换队列尾部，形成检测→淘汰闭环）
+    """
     try:
         # 按源 URL 统计
         source_scores = {}
@@ -256,12 +263,36 @@ def write_feedback(valid_results: dict, url_to_source: dict = None, source_stats
                 source_scores[source]["valid_channels"] / max_channels * 100, 1
             )
 
+        # ── host 级统计（修复：channel_scores 键是频道名，get-m3u 按 ip:port 查询曾永远落空）──
+        alive_urls = {u for urls in valid_results.values() for u, _ in urls}
+        server_scores = {}
+        for name, url in (to_test or []):
+            m = re.search(r'://([^/:]+:\d+)', url)
+            if not m:
+                continue
+            hp = m.group(1)
+            entry = server_scores.setdefault(hp, {"tested": 0, "alive": 0, "best_bw": 0.0})
+            entry["tested"] += 1
+        for name, urls in valid_results.items():
+            for url, bw in urls:
+                m = re.search(r'://([^/:]+:\d+)', url)
+                if not m:
+                    continue
+                hp = m.group(1)
+                entry = server_scores.setdefault(hp, {"tested": 0, "alive": 0, "best_bw": 0.0})
+                entry["alive"] += 1
+                entry["best_bw"] = max(entry["best_bw"], bw)
+        dead_ips = sorted(hp for hp, s in server_scores.items()
+                          if s["tested"] >= 3 and s["alive"] == 0)
+
         feedback = {
             "_version": 1,
             "generated_at": datetime.now().isoformat(),
             "total_channels": len(valid_results),
             "total_sources": len(source_scores),
             "source_scores": source_scores,
+            "server_scores": server_scores,
+            "dead_ips": dead_ips,
             "channel_scores": {
                 name: {
                     "url_count": len(urls),
@@ -274,7 +305,7 @@ def write_feedback(valid_results: dict, url_to_source: dict = None, source_stats
         os.makedirs(os.path.dirname(FEEDBACK_FILE), exist_ok=True)
         with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
             json.dump(feedback, f, ensure_ascii=False, indent=2)
-        live_print(f"📤 反馈数据已写入: {FEEDBACK_FILE}")
+        live_print(f"📤 反馈数据已写入: {FEEDBACK_FILE} (含 dead_ips: {len(dead_ips)} 个)")
     except Exception as e:
         live_print(f"⚠️ 反馈写入失败: {e}")
 
@@ -929,7 +960,7 @@ def main(ci_phase: Optional[int] = None, ci_state_dir: str = "tmp") -> None:
             live_print(f"  🤖 AI 缓存已保存: 运行时命中 {stats['hits']} / 未命中 {stats['misses']}")
 
     # 写入反馈数据
-    write_feedback(valid_results, url_to_source, source_stats)
+    write_feedback(valid_results, url_to_source, source_stats, to_test=to_test)
 
     flush_summary()
 

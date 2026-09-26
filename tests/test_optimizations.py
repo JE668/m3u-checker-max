@@ -15,6 +15,7 @@ import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 
@@ -33,9 +34,9 @@ import utils.speedtest as S  # noqa: E402
 
 class TestAiHelper(unittest.TestCase):
     def setUp(self):
-        """每个测试前重置 AI 模型状态（主→备切换标记等）"""
-        A._current_model = A.MODEL_PRIMARY
-        A._fallback_triggered = False
+        """每个测试前重置 AI 模型状态（thread-local 主备切换标记）"""
+        A._MODEL_STATE.model = A.MODEL_PRIMARY
+        A._MODEL_STATE.fallback_ts = 0.0
 
     def test_province_regex_equivalence(self):
         """重构后的 _PROVINCE_RE 必须与原硬编码正则逐字等价。"""
@@ -141,6 +142,49 @@ class TestLoaders(unittest.TestCase):
         idx = L.get_logo_index()
         self.assertIsInstance(idx, dict)
         self.assertIs(L._LOGO_INDEX_CACHE, idx)
+
+
+class TestFetchSourceMetaContract(unittest.TestCase):
+    """跨项目契约：get-m3u output/source-meta.json 的 _version/_generated_at 校验"""
+
+    def _mock_resp(self, payload, status=200):
+        resp = mock.Mock()
+        resp.status_code = status
+        resp.text = json.dumps(payload)
+        return resp
+
+    def _call(self, payload):
+        with mock.patch.object(F, "get_session") as ms:
+            ms.return_value.get.return_value = self._mock_resp(payload)
+            with redirect_stderr(io.StringIO()) as buf:
+                result = F.fetch_source_meta()
+            return result, buf.getvalue()
+
+    def test_v1_with_generated_at_fresh(self):
+        payload = {"_version": 1, "_generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "1.2.3.4:4000": {"bandwidth_mbps": 2.5}}
+        result, err = self._call(payload)
+        self.assertEqual(result, {"1.2.3.4:4000": {"bandwidth_mbps": 2.5}})
+        self.assertNotIn("陈旧", err)
+        self.assertNotIn("缺少 _version", err)
+
+    def test_missing_version_warns_but_compatible(self):
+        result, err = self._call({"1.2.3.4:4000": {"bandwidth_mbps": 2.5}})
+        self.assertIn("缺少 _version", err)
+        self.assertEqual(result["1.2.3.4:4000"]["bandwidth_mbps"], 2.5)
+
+    def test_newer_version_warns_but_compatible(self):
+        payload = {"_version": 2, "1.2.3.4:4000": {"bandwidth_mbps": 2.5}}
+        result, err = self._call(payload)
+        self.assertIn("未知新版本", err)
+        self.assertIn("1.2.3.4:4000", result)
+
+    def test_stale_meta_warns_over_24h(self):
+        stale = (datetime.now(timezone.utc) - timedelta(hours=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        payload = {"_version": 1, "_generated_at": stale, "1.2.3.4:4000": {"bandwidth_mbps": 2.5}}
+        result, err = self._call(payload)
+        self.assertIn("陈旧", err)
+        self.assertIn("get-m3u", err)
 
 
 class TestFetcher(unittest.TestCase):

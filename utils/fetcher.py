@@ -2,7 +2,7 @@ import collections
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
 import requests
@@ -224,15 +224,36 @@ def fetch_source_meta() -> Optional[dict]:
     """获取 get-m3u 探针元数据，返回 {host_port: {bandwidth_mbps: float}}
 
     支持带 _version 字段的 JSON（v1）和旧版无版本字段格式（向后兼容）。
+    - _version 缺失 → 按 v1 兼容处理并警告（契约校验）
+    - _version > 1 → 警告未知新版本，已知字段仍兼容
+    - _generated_at 距现在 > 24h → 警告上游 get-m3u 可能已停摆
     """
     try:
         r = get_session().get(SOURCE_META_URL, timeout=10)
         if r.status_code == 200:
             meta = json.loads(r.text)
-            # 提取并移除版本字段（v1 格式包含 _version，旧版无此字段）
-            meta_version = meta.pop("_version", 1)
-            if meta_version < 1:
-                live_print(f"⚠️ 探针元数据版本过低 (v{meta_version})，按 v1 处理")
+            # 契约校验：_version 字段
+            meta_version = meta.pop("_version", None)
+            if meta_version is None:
+                live_print("⚠️ 探针元数据缺少 _version 契约字段，按 v1 兼容处理")
+                meta_version = 1
+            elif not isinstance(meta_version, int) or meta_version < 1:
+                live_print(f"⚠️ 探针元数据版本异常 (v{meta_version})，按 v1 处理")
+                meta_version = 1
+            elif meta_version > 1:
+                live_print(f"⚠️ 探针元数据为未知新版本 (v{meta_version})，已知字段仍兼容")
+
+            # 陈旧度检测：上游 get-m3u 停摆时此处会暴露
+            generated_at = meta.pop("_generated_at", None)
+            if generated_at:
+                try:
+                    ts = datetime.strptime(generated_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                    age_h = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
+                    if age_h > 24:
+                        live_print(f"⚠️ 探针元数据已陈旧 ({age_h:.0f}h 前生成)，上游 get-m3u 可能已停摆")
+                except ValueError:
+                    live_print(f"⚠️ 探针元数据 _generated_at 格式异常: {generated_at}")
+
             # host_port 统一为 lowercase（URL 解析可能大小写敏感）
             meta = {k.lower(): v for k, v in meta.items()}
             live_print(f"📡 已加载探针元数据: {len(meta)} 台服务器 (v{meta_version})")
