@@ -327,6 +327,8 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
             # 流结束但不足下载目标
             elapsed = time.time() - start_time
             bw = downloaded * 8 / elapsed / 1_000_000 if elapsed > 0 else 0
+            if ts_check_data[:8].startswith(b'#EXTM3U'):
+                return _probe_hls_segment(main_name, url, bytes(ts_check_data[:ts_offset]))
             return False, main_name, url, round(elapsed, 2), f"流数据不足({bw:.1f}Mbps)"
 
     except requests.exceptions.Timeout:
@@ -336,14 +338,51 @@ def check_channel(main_name: str, url: str) -> Tuple[bool, str, str, float, str]
     except Exception as e:
         return False, main_name, url, round(time.time() - start_time, 2), f"异常: {type(e).__name__}: {e}"
 
-# ===============================
-# 6. 核心：无损追加模式进化 demo.txt
-# ===============================
-# ===============================
-# 6a. 频道分类引擎
-# ===============================
-# 频道分类规则：(匹配关键词列表, 分类显示名, 排序优先级)
-# 优先级编号越小越优先匹配
+
+def _probe_hls_segment(main_name: str, url: str, manifest: bytes) -> Tuple[bool, str, str, float, str]:
+    """HLS（.m3u8 播放列表）探测：解析首个媒体分片并实测带宽。
+
+    大量 IPTV 源（尤其成人/HLS 聚合源）只提供 playlist，直接测速永远「流数据不足」。
+    """
+    try:
+        from urllib.parse import urljoin
+        lines = [ln.strip() for ln in manifest.decode('utf-8', 'ignore').splitlines()
+                 if ln.strip() and not ln.startswith('#')]
+        seg_url = None
+        for ln in lines:
+            target = urljoin(url, ln)
+            if ln.lower().endswith('.m3u8'):
+                # 主清单 → 子清单（带宽变体，取第一个）
+                with get_session().get(target, timeout=(CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT)) as vr:
+                    if vr.status_code == 200:
+                        sub = [s.strip() for s in vr.text.splitlines() if s.strip() and not s.startswith('#')]
+                        if sub:
+                            seg_url = urljoin(target, sub[0])
+                break
+            else:
+                seg_url = target
+                break
+        if not seg_url:
+            return False, main_name, url, 0.0, "HLS清单无分片"
+
+        start = time.time()
+        with get_session().get(seg_url, stream=True, timeout=(CHECK_CONNECT_TIMEOUT, CHECK_READ_TIMEOUT)) as r:
+            if r.status_code != 200:
+                return False, main_name, url, 0.0, f"HLS分片 HTTP {r.status_code}"
+            downloaded = 0
+            for chunk in r.iter_content(chunk_size=64 * 1024):
+                downloaded += len(chunk)
+                if downloaded >= 200 * 1024:
+                    break
+            elapsed = time.time() - start
+            bw = downloaded * 8 / elapsed / 1_000_000 if elapsed > 0 else 0
+            if downloaded < 8 * 1024:
+                return False, main_name, url, round(elapsed, 2), f"HLS分片过小({downloaded}B)"
+            if bw < MIN_BANDWIDTH_MBPS * 0.3:
+                return False, main_name, url, round(elapsed, 2), f"HLS带宽不足({bw:.1f}Mbps)"
+            return True, main_name, url, round(elapsed, 2), f"HLS分片({bw:.1f}Mbps)"
+    except Exception as e:
+        return False, main_name, url, 0.0, f"HLS探测失败: {type(e).__name__}"
 
 
 

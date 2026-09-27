@@ -63,3 +63,27 @@ class TestModuleImports(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAliasRegexHealth(unittest.TestCase):
+    """alias.txt 中所有 re: 正则必须可编译（防逗号拆分/管道符误改回归）"""
+    def test_all_regex_aliases_compile(self):
+        import re as _re
+        path = os.path.join(ROOT, "config", "alias.txt")
+        bad = []
+        total = 0
+        with open(path, encoding="utf-8") as f:
+            for i, line in enumerate(f, 1):
+                line = line.strip()
+                if not line or line.startswith('#') or ',' not in line:
+                    continue
+                for part in line.split(',')[1:]:
+                    part = part.strip()
+                    if part.startswith('re:'):
+                        total += 1
+                        try:
+                            _re.compile(part[3:])
+                        except _re.error as e:
+                            bad.append(f"行{i}: {e}")
+        self.assertGreater(total, 0, "未能找到 re: 别名")
+        self.assertEqual(bad, [], f"{len(bad)} 条坏正则: {bad[:3]}")
