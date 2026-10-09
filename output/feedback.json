@@ -1,78 +1,78 @@
 {
   "_version": 1,
-  "generated_at": "2026-10-08T21:05:19.834119",
-  "total_channels": 852,
+  "generated_at": "2026-10-09T01:23:49.205486",
+  "total_channels": 830,
   "total_sources": 17,
   "source_scores": {
-    "https://iptv-org.github.io/iptv/languages/zho.m3u": {
-      "valid_channels": 30,
-      "urls": 30,
-      "score": 10.6
-    },
     "https://raw.githubusercontent.com/JE668/get-m3u/refs/heads/main/output/source-m3u.txt": {
-      "valid_channels": 100,
-      "urls": 188,
-      "score": 35.5
+      "valid_channels": 96,
+      "urls": 172,
+      "score": 35.4
     },
-    "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u": {
-      "valid_channels": 33,
-      "urls": 36,
-      "score": 11.7
+    "https://raw.githubusercontent.com/zbefine/iptv/main/iptv.m3u": {
+      "valid_channels": 107,
+      "urls": 129,
+      "score": 39.5
     },
     "https://raw.githubusercontent.com/vicjl/myIPTV/refs/heads/main/IPTV-all.m3u": {
-      "valid_channels": 26,
-      "urls": 30,
-      "score": 9.2
+      "valid_channels": 27,
+      "urls": 31,
+      "score": 10.0
     },
-    "https://raw.githubusercontent.com/TianmuTNT/iptv/main/iptv.m3u": {
-      "valid_channels": 282,
-      "urls": 406,
-      "score": 100.0
+    "https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u": {
+      "valid_channels": 17,
+      "urls": 17,
+      "score": 6.3
     },
     "https://raw.githubusercontent.com/MercuryZz/IPTVN/refs/heads/Files/IPTV.m3u": {
       "valid_channels": 28,
       "urls": 43,
-      "score": 9.9
+      "score": 10.3
     },
-    "https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8": {
-      "valid_channels": 9,
-      "urls": 9,
-      "score": 3.2
-    },
-    "https://raw.githubusercontent.com/zbefine/iptv/main/iptv.m3u": {
-      "valid_channels": 113,
-      "urls": 138,
-      "score": 40.1
+    "https://raw.githubusercontent.com/TianmuTNT/iptv/main/iptv.m3u": {
+      "valid_channels": 271,
+      "urls": 378,
+      "score": 100.0
     },
     "https://raw.githubusercontent.com/Kimentanm/aptv/master/m3u/iptv.m3u": {
       "valid_channels": 38,
       "urls": 40,
-      "score": 13.5
+      "score": 14.0
     },
     "https://raw.githubusercontent.com/mzky/checklist/refs/heads/master/itvlist.m3u": {
-      "valid_channels": 112,
-      "urls": 335,
-      "score": 39.7
+      "valid_channels": 101,
+      "urls": 313,
+      "score": 37.3
+    },
+    "https://raw.githubusercontent.com/best-fan/iptv-sources/master/cn_all.m3u8": {
+      "valid_channels": 12,
+      "urls": 93,
+      "score": 4.4
+    },
+    "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u": {
+      "valid_channels": 34,
+      "urls": 37,
+      "score": 12.5
+    },
+    "https://iptv-org.github.io/iptv/languages/zho.m3u": {
+      "valid_channels": 30,
+      "urls": 30,
+      "score": 11.1
     },
     "https://raw.githubusercontent.com/vamoschuck/TV/main/M3U": {
       "valid_channels": 17,
       "urls": 18,
-      "score": 6.0
+      "score": 6.3
     },
-    "https://raw.githubusercontent.com/best-fan/iptv-sources/master/cn_all.m3u8": {
-      "valid_channels": 7,
-      "urls": 73,
-      "score": 2.5
-    },
-    "https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u": {
-      "valid_channels": 21,
-      "urls": 21,
-      "score": 7.4
+    "https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8": {
+      "valid_channels": 9,
+      "urls": 9,
+      "score": 3.3
     },
     "unknown": {
-      "valid_channels": 33,
-      "urls": 124,
-      "score": 11.7
+      "valid_channels": 40,
+      "urls": 153,
+      "score": 14.8
     },
     "https://iptv-org.github.io/iptv/countries/hk.m3u": {
       "valid_channels": 1,
@@ -92,12 +92,17 @@
   },
   "server_scores": {
     "121.10.7.16:4000": {
-      "tested": 121,
-      "alive": 284,
-      "best_bw": 4.14
+      "tested": 112,
+      "alive": 289,
+      "best_bw": 4.19
+    },
+    "video.bread-tv.com:8091": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 1.19
     },
     "74.91.26.218:82": {
-      "tested": 2,
+      "tested": 4,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -110,6 +115,11 @@
       "tested": 2,
       "alive": 0,
       "best_bw": 0.0
+    },
+    "113.64.146.48:1688": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 1.92
     },
     "live.cztv.cc:85": {
       "tested": 3,
@@ -151,10 +161,10 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "110.153.180.106:55555": {
-      "tested": 5,
-      "alive": 6,
-      "best_bw": 1.44
+    "120.70.60.179:9901": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 1.38
     },
     "php.jdshipin.com:8880": {
       "tested": 1,
@@ -175,11 +185,6 @@
       "tested": 2,
       "alive": 0,
       "best_bw": 0.0
-    },
-    "online.godstands.tv:5443": {
-      "tested": 1,
-      "alive": 2,
-      "best_bw": 0.82
     },
     "103.172.187.30:12000": {
       "tested": 4,
@@ -217,7 +222,7 @@
       "best_bw": 0.0
     },
     "[2409:8087": {
-      "tested": 86,
+      "tested": 90,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -282,12 +287,12 @@
       "best_bw": 0.0
     },
     "38.64.72.148:80": {
-      "tested": 4,
-      "alive": 5,
+      "tested": 3,
+      "alive": 4,
       "best_bw": 0.72
     },
     "tv.redrainl.site:9500": {
-      "tested": 4,
+      "tested": 2,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -297,7 +302,12 @@
       "best_bw": 0.0
     },
     "39.135.138.58:18890": {
-      "tested": 81,
+      "tested": 71,
+      "alive": 0,
+      "best_bw": 0.0
+    },
+    "39.134.115.191:8080": {
+      "tested": 1,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -362,7 +372,7 @@
       "best_bw": 0.0
     },
     "222.179.155.21:1935": {
-      "tested": 3,
+      "tested": 1,
       "alive": 3,
       "best_bw": 2.3
     },
@@ -370,6 +380,11 @@
       "tested": 1,
       "alive": 0,
       "best_bw": 0.0
+    },
+    "183.64.181.25:40023": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 1.73
     },
     "222.178.181.121:12034": {
       "tested": 2,
@@ -395,6 +410,11 @@
       "tested": 3,
       "alive": 0,
       "best_bw": 0.0
+    },
+    "124.152.34.102:8030": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 1.68
     },
     "125.74.200.110:10080": {
       "tested": 1,
@@ -456,11 +476,6 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "hbzqdb.chinashadt.com:1937": {
-      "tested": 1,
-      "alive": 1,
-      "best_bw": 1.84
-    },
     "hblxx.chinashadt.com:2036": {
       "tested": 2,
       "alive": 0,
@@ -511,6 +526,11 @@
       "alive": 0,
       "best_bw": 0.0
     },
+    "live.dxhmt.cn:9080": {
+      "tested": 9,
+      "alive": 0,
+      "best_bw": 0.0
+    },
     "live.dxhmt.cn:9081": {
       "tested": 96,
       "alive": 0,
@@ -518,11 +538,6 @@
     },
     "tvpull.dxhmt.cn:9081": {
       "tested": 102,
-      "alive": 0,
-      "best_bw": 0.0
-    },
-    "live.dxhmt.cn:9080": {
-      "tested": 8,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -596,11 +611,6 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "jsbh.chinashadt.com:2036": {
-      "tested": 1,
-      "alive": 0,
-      "best_bw": 0.0
-    },
     "suining-tv-hls.cm.jstv.com:80": {
       "tested": 1,
       "alive": 0,
@@ -623,8 +633,8 @@
     },
     "httplive.slave.bfgd.com.cn:14311": {
       "tested": 1,
-      "alive": 0,
-      "best_bw": 0.0
+      "alive": 1,
+      "best_bw": 2.62
     },
     "59.47.133.234:64230": {
       "tested": 1,
@@ -696,6 +706,11 @@
       "alive": 0,
       "best_bw": 0.0
     },
+    "111.53.96.67:8081": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 1.21
+    },
     "60.220.198.84:81": {
       "tested": 1,
       "alive": 0,
@@ -720,11 +735,6 @@
       "tested": 3,
       "alive": 0,
       "best_bw": 0.0
-    },
-    "live1.gatv.com.cn:85": {
-      "tested": 1,
-      "alive": 4,
-      "best_bw": 2.51
     },
     "tv.dzsm.com:8100": {
       "tested": 1,
@@ -796,20 +806,10 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "live.jinchuanrmt.com:90": {
+    "live.schstv.com:90": {
       "tested": 1,
-      "alive": 2,
-      "best_bw": 1.01
-    },
-    "139.203.180.9:90": {
-      "tested": 1,
-      "alive": 2,
-      "best_bw": 1.42
-    },
-    "live.iwcmt.cn:90": {
-      "tested": 2,
-      "alive": 2,
-      "best_bw": 1.2
+      "alive": 1,
+      "best_bw": 1.99
     },
     "xjlive.xjsc.gov.cn:8091": {
       "tested": 1,
@@ -876,6 +876,11 @@
       "alive": 0,
       "best_bw": 0.0
     },
+    "110.153.180.106:55555": {
+      "tested": 1,
+      "alive": 6,
+      "best_bw": 1.44
+    },
     "202.107.188.141:5002": {
       "tested": 2,
       "alive": 0,
@@ -885,11 +890,6 @@
       "tested": 2,
       "alive": 0,
       "best_bw": 0.0
-    },
-    "218.31.201.189:9000": {
-      "tested": 1,
-      "alive": 1,
-      "best_bw": 1.02
     },
     "222.81.61.37:9898": {
       "tested": 2,
@@ -927,17 +927,17 @@
       "best_bw": 0.0
     },
     "114.254.89.131:2222": {
-      "tested": 38,
+      "tested": 42,
       "alive": 0,
       "best_bw": 0.0
     },
-    "125.74.6.15:8088": {
+    "125.74.6.39:8088": {
       "tested": 1,
       "alive": 0,
       "best_bw": 0.0
     },
     "180.97.247.27:8088": {
-      "tested": 57,
+      "tested": 59,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -947,7 +947,7 @@
       "best_bw": 0.0
     },
     "mqiptv.com:8014": {
-      "tested": 21,
+      "tested": 19,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -956,7 +956,12 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "223.110.242.198:6610": {
+    "223.110.242.162:6610": {
+      "tested": 1,
+      "alive": 0,
+      "best_bw": 0.0
+    },
+    "223.110.242.156:6610": {
       "tested": 1,
       "alive": 0,
       "best_bw": 0.0
@@ -966,17 +971,7 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "223.110.244.139:6610": {
-      "tested": 1,
-      "alive": 0,
-      "best_bw": 0.0
-    },
-    "223.110.242.158:6610": {
-      "tested": 1,
-      "alive": 0,
-      "best_bw": 0.0
-    },
-    "223.110.242.214:6610": {
+    "223.110.244.203:6610": {
       "tested": 1,
       "alive": 0,
       "best_bw": 0.0
@@ -1001,6 +996,11 @@
       "alive": 0,
       "best_bw": 0.0
     },
+    "web.onair-radio.eu:1935": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 0.72
+    },
     "218.202.220.2:5000": {
       "tested": 1,
       "alive": 0,
@@ -1016,128 +1016,148 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "1.197.249.105:9901": {
-      "tested": 3,
-      "alive": 9,
-      "best_bw": 2.97
-    },
     "121.19.134.202:808": {
-      "tested": 12,
-      "alive": 18,
+      "tested": 10,
+      "alive": 16,
       "best_bw": 3.42
+    },
+    "120.198.95.220:9901": {
+      "tested": 9,
+      "alive": 28,
+      "best_bw": 3.16
+    },
+    "125.42.150.205:9901": {
+      "tested": 5,
+      "alive": 5,
+      "best_bw": 2.01
+    },
+    "101.66.195.33:9901": {
+      "tested": 7,
+      "alive": 8,
+      "best_bw": 2.19
     },
     "121.19.134.6:808": {
       "tested": 21,
-      "alive": 5,
+      "alive": 4,
       "best_bw": 3.49
     },
-    "101.66.198.62:9901": {
-      "tested": 6,
-      "alive": 16,
-      "best_bw": 3.45
-    },
-    "61.136.172.236:9901": {
-      "tested": 7,
-      "alive": 0,
-      "best_bw": 0.0
-    },
-    "113.25.252.226:9901": {
-      "tested": 10,
-      "alive": 19,
-      "best_bw": 3.38
-    },
-    "124.228.160.112:9901": {
-      "tested": 9,
-      "alive": 7,
-      "best_bw": 3.35
-    },
-    "125.43.244.34:9901": {
-      "tested": 7,
-      "alive": 15,
-      "best_bw": 3.31
-    },
-    "221.13.234.225:9901": {
+    "221.13.235.173:9901": {
       "tested": 3,
       "alive": 3,
-      "best_bw": 1.25
+      "best_bw": 1.22
     },
-    "120.198.95.220:9901": {
+    "221.13.235.34:9901": {
+      "tested": 3,
+      "alive": 3,
+      "best_bw": 1.19
+    },
+    "125.43.244.34:9901": {
+      "tested": 6,
+      "alive": 14,
+      "best_bw": 3.31
+    },
+    "182.114.48.94:9901": {
       "tested": 7,
-      "alive": 35,
-      "best_bw": 3.16
+      "alive": 7,
+      "best_bw": 1.17
     },
-    "183.10.180.112:9901": {
-      "tested": 19,
-      "alive": 61,
-      "best_bw": 3.23
+    "125.125.236.31:9901": {
+      "tested": 5,
+      "alive": 13,
+      "best_bw": 3.26
+    },
+    "124.228.160.112:9901": {
+      "tested": 5,
+      "alive": 5,
+      "best_bw": 3.35
     },
     "221.13.235.202:9901": {
       "tested": 2,
       "alive": 12,
       "best_bw": 2.52
     },
-    "221.13.234.243:9901": {
-      "tested": 2,
-      "alive": 7,
-      "best_bw": 2.29
-    },
-    "222.169.85.8:9901": {
-      "tested": 6,
-      "alive": 22,
-      "best_bw": 2.96
-    },
-    "112.123.243.37:50085": {
-      "tested": 10,
-      "alive": 22,
-      "best_bw": 3.11
-    },
-    "101.66.199.13:9901": {
+    "61.136.172.236:9901": {
       "tested": 5,
-      "alive": 14,
-      "best_bw": 1.86
-    },
-    "125.125.236.31:9901": {
-      "tested": 4,
-      "alive": 9,
-      "best_bw": 3.26
-    },
-    "101.66.194.121:9901": {
-      "tested": 2,
-      "alive": 7,
-      "best_bw": 2.73
-    },
-    "101.66.198.121:9901": {
-      "tested": 1,
-      "alive": 5,
-      "best_bw": 2.68
-    },
-    "59.39.89.130:60901": {
-      "tested": 6,
-      "alive": 13,
-      "best_bw": 1.75
+      "alive": 0,
+      "best_bw": 0.0
     },
     "101.66.195.51:9901": {
-      "tested": 1,
-      "alive": 12,
+      "tested": 5,
+      "alive": 15,
       "best_bw": 3.31
     },
-    "218.13.170.98:9901": {
+    "101.66.198.121:9901": {
       "tested": 5,
-      "alive": 10,
-      "best_bw": 3.47
+      "alive": 9,
+      "best_bw": 1.65
+    },
+    "222.169.85.8:9901": {
+      "tested": 7,
+      "alive": 18,
+      "best_bw": 2.96
+    },
+    "101.66.194.121:9901": {
+      "tested": 3,
+      "alive": 9,
+      "best_bw": 2.86
     },
     "222.134.245.16:9901": {
       "tested": 2,
-      "alive": 6,
+      "alive": 5,
       "best_bw": 2.77
     },
-    "123.130.84.106:8154": {
+    "101.66.198.62:9901": {
+      "tested": 4,
+      "alive": 16,
+      "best_bw": 3.45
+    },
+    "101.66.199.13:9901": {
+      "tested": 3,
+      "alive": 16,
+      "best_bw": 1.86
+    },
+    "1.197.250.71:9901": {
+      "tested": 4,
+      "alive": 0,
+      "best_bw": 0.0
+    },
+    "59.39.89.130:60901": {
       "tested": 2,
-      "alive": 2,
+      "alive": 13,
+      "best_bw": 1.75
+    },
+    "183.10.180.112:9901": {
+      "tested": 13,
+      "alive": 61,
+      "best_bw": 2.76
+    },
+    "123.130.84.106:8154": {
+      "tested": 1,
+      "alive": 3,
       "best_bw": 3.25
     },
+    "36.136.38.87:9901": {
+      "tested": 1,
+      "alive": 10,
+      "best_bw": 2.61
+    },
+    "218.13.170.98:9901": {
+      "tested": 3,
+      "alive": 9,
+      "best_bw": 3.08
+    },
     "49.234.31.101:7033": {
-      "tested": 4,
+      "tested": 6,
+      "alive": 0,
+      "best_bw": 0.0
+    },
+    "113.25.252.226:9901": {
+      "tested": 3,
+      "alive": 14,
+      "best_bw": 3.38
+    },
+    "api.mg.itv888.cn:8080": {
+      "tested": 2,
       "alive": 0,
       "best_bw": 0.0
     },
@@ -1151,75 +1171,60 @@
       "alive": 0,
       "best_bw": 0.0
     },
+    "112.30.73.119:229": {
+      "tested": 1,
+      "alive": 0,
+      "best_bw": 0.0
+    },
+    "60.222.246.220:19433": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 2.25
+    },
     "stream3.jlntv.cn:80": {
       "tested": 3,
       "alive": 0,
       "best_bw": 0.0
     },
     "drive.mxmy.net:8888": {
+      "tested": 2,
+      "alive": 0,
+      "best_bw": 0.0
+    },
+    "182.150.115.21:8030": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 1.35
+    },
+    "www.guzhenm.com:7001": {
+      "tested": 1,
+      "alive": 1,
+      "best_bw": 0.92
+    },
+    "222.128.55.152:9080": {
       "tested": 1,
       "alive": 0,
       "best_bw": 0.0
     },
-    "live.zzyxxw.com:2443": {
-      "tested": 1,
-      "alive": 1,
-      "best_bw": 0.68
-    },
-    "live.zzyxxw.com:85": {
-      "tested": 3,
-      "alive": 3,
-      "best_bw": 2.18
-    },
-    "tvfile.jyrmt.cn:80": {
-      "tested": 1,
-      "alive": 1,
-      "best_bw": 1.24
-    },
-    "www.guzhenm.com:7001": {
-      "tested": 1,
-      "alive": 2,
-      "best_bw": 0.92
-    },
-    "gmxw.7766.org:808": {
-      "tested": 1,
-      "alive": 3,
-      "best_bw": 3.08
-    },
     "srs.iyb983.cn:443": {
       "tested": 1,
       "alive": 1,
-      "best_bw": 0.23
+      "best_bw": 0.18
     },
-    "channel.wcrmt.cn:80": {
+    "gmxw.7766.org:808": {
       "tested": 1,
-      "alive": 1,
-      "best_bw": 1.08
-    },
-    "live.spccmc.com:90": {
-      "tested": 1,
-      "alive": 3,
-      "best_bw": 1.02
-    },
-    "tv.mcrm.org.cn:1935": {
-      "tested": 1,
-      "alive": 1,
-      "best_bw": 1.02
-    },
-    "lxfile.lxxcb.cn:80": {
-      "tested": 1,
-      "alive": 1,
-      "best_bw": 1.03
+      "alive": 4,
+      "best_bw": 3.08
     },
     "112.46.105.20:8009": {
       "tested": 6,
       "alive": 0,
       "best_bw": 0.0
     },
-    "112.27.5.218:9901": {
+    "www.wxhcgbds.com:8081": {
       "tested": 1,
-      "alive": 2,
-      "best_bw": 1.04
+      "alive": 0,
+      "best_bw": 0.0
     },
     "tpc.x3322.net:9901": {
       "tested": 1,
@@ -1236,11 +1241,6 @@
       "alive": 0,
       "best_bw": 0.0
     },
-    "61.221.215.25:8800": {
-      "tested": 1,
-      "alive": 1,
-      "best_bw": 1.1
-    },
     "idclive.hljtv.com:4430": {
       "tested": 2,
       "alive": 0,
@@ -1249,37 +1249,107 @@
     "219.147.245.238:25480": {
       "tested": 1,
       "alive": 2,
-      "best_bw": 1.09
-    },
-    "120.40.39.246:352": {
-      "tested": 1,
-      "alive": 0,
-      "best_bw": 0.0
-    },
-    "204.12.221.218:8181": {
-      "tested": 1,
-      "alive": 0,
-      "best_bw": 0.0
+      "best_bw": 1.7
     },
     "173.208.212.130:8181": {
       "tested": 2,
       "alive": 0,
       "best_bw": 0.0
     },
+    "112.123.243.37:50085": {
+      "tested": 5,
+      "alive": 23,
+      "best_bw": 3.11
+    },
     "120.238.94.82:9901": {
       "tested": 1,
       "alive": 2,
-      "best_bw": 0.94
+      "best_bw": 1.58
+    },
+    "lxfile.lxxcb.cn:80": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 1.03
+    },
+    "live.iwcmt.cn:90": {
+      "tested": 0,
+      "alive": 2,
+      "best_bw": 1.2
+    },
+    "tv.mcrm.org.cn:1935": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 1.02
+    },
+    "112.27.5.218:9901": {
+      "tested": 0,
+      "alive": 2,
+      "best_bw": 1.04
+    },
+    "live.zzyxxw.com:85": {
+      "tested": 0,
+      "alive": 3,
+      "best_bw": 2.18
+    },
+    "live.zzyxxw.com:2443": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 0.68
+    },
+    "online.godstands.tv:5443": {
+      "tested": 0,
+      "alive": 2,
+      "best_bw": 0.82
+    },
+    "hbzqdb.chinashadt.com:1937": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 1.84
+    },
+    "139.203.180.9:90": {
+      "tested": 0,
+      "alive": 2,
+      "best_bw": 1.42
+    },
+    "live.jinchuanrmt.com:90": {
+      "tested": 0,
+      "alive": 2,
+      "best_bw": 1.01
+    },
+    "live1.gatv.com.cn:85": {
+      "tested": 0,
+      "alive": 4,
+      "best_bw": 2.51
+    },
+    "218.31.201.189:9000": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 1.02
+    },
+    "tvfile.jyrmt.cn:80": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 1.24
+    },
+    "live.spccmc.com:90": {
+      "tested": 0,
+      "alive": 3,
+      "best_bw": 1.02
+    },
+    "channel.wcrmt.cn:80": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 1.08
+    },
+    "61.221.215.25:8800": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 1.1
     },
     "218.84.12.186:8002": {
       "tested": 0,
       "alive": 2,
       "best_bw": 1.21
-    },
-    "101.66.195.33:9901": {
-      "tested": 0,
-      "alive": 4,
-      "best_bw": 2.19
     },
     "110.185.237.164:8888": {
       "tested": 0,
@@ -1295,11 +1365,6 @@
       "tested": 0,
       "alive": 1,
       "best_bw": 1.96
-    },
-    "web.onair-radio.eu:1935": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 0.72
     },
     "124.165.251.82:85": {
       "tested": 0,
@@ -1321,20 +1386,10 @@
       "alive": 2,
       "best_bw": 2.14
     },
-    "36.136.38.87:9901": {
-      "tested": 0,
-      "alive": 11,
-      "best_bw": 2.61
-    },
     "111.59.24.227:8181": {
       "tested": 0,
       "alive": 1,
       "best_bw": 1.13
-    },
-    "124.152.34.102:8030": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 1.49
     },
     "event.pull.hebtv.com:443": {
       "tested": 0,
@@ -1356,15 +1411,20 @@
       "alive": 2,
       "best_bw": 1.31
     },
-    "60.222.246.220:19433": {
+    "1.197.249.105:9901": {
       "tested": 0,
-      "alive": 1,
-      "best_bw": 1.88
+      "alive": 7,
+      "best_bw": 2.92
     },
     "101.66.199.210:9901": {
       "tested": 0,
       "alive": 3,
       "best_bw": 1.95
+    },
+    "221.13.234.243:9901": {
+      "tested": 0,
+      "alive": 6,
+      "best_bw": 2.29
     },
     "183.64.174.171:40123": {
       "tested": 0,
@@ -1376,20 +1436,15 @@
       "alive": 3,
       "best_bw": 1.56
     },
-    "live.schstv.com:90": {
+    "221.13.234.225:9901": {
       "tested": 0,
-      "alive": 1,
-      "best_bw": 1.14
+      "alive": 3,
+      "best_bw": 1.25
     },
     "183.237.95.108:9901": {
       "tested": 0,
       "alive": 1,
       "best_bw": 1.07
-    },
-    "182.150.115.21:8030": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 1.0
     },
     "59.175.226.142:280": {
       "tested": 0,
@@ -1398,8 +1453,8 @@
     },
     "113.110.200.126:55555": {
       "tested": 0,
-      "alive": 67,
-      "best_bw": 4.08
+      "alive": 52,
+      "best_bw": 4.0
     },
     "221.13.234.8:9901": {
       "tested": 0,
@@ -1411,11 +1466,6 @@
       "alive": 1,
       "best_bw": 0.96
     },
-    "video.bread-tv.com:8091": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 0.95
-    },
     "live.qthnews.org.cn:1935": {
       "tested": 0,
       "alive": 1,
@@ -1425,11 +1475,6 @@
       "tested": 0,
       "alive": 1,
       "best_bw": 1.01
-    },
-    "111.53.96.67:8081": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 1.33
     },
     "119.39.9.8:9901": {
       "tested": 0,
@@ -1441,55 +1486,30 @@
       "alive": 2,
       "best_bw": 1.35
     },
-    "113.64.146.48:1688": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 1.1
-    },
     "visit.jjbctv.com:1935": {
       "tested": 0,
       "alive": 1,
       "best_bw": 1.47
     },
-    "120.70.60.179:9901": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 1.23
-    },
     "183.33.56.148:8686": {
       "tested": 0,
-      "alive": 3,
+      "alive": 2,
       "best_bw": 3.71
-    },
-    "www.wxhcgbds.com:8081": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 1.4
     },
     "125.42.150.62:9901": {
       "tested": 0,
-      "alive": 2,
+      "alive": 1,
       "best_bw": 2.61
     },
     "183.10.180.81:9901": {
       "tested": 0,
-      "alive": 3,
+      "alive": 2,
       "best_bw": 2.0
-    },
-    "183.64.181.25:40023": {
-      "tested": 0,
-      "alive": 1,
-      "best_bw": 1.76
     },
     "dspdhls.appcoo.com:8888": {
       "tested": 0,
       "alive": 1,
       "best_bw": 1.26
-    },
-    "183.47.2.156:16883": {
-      "tested": 0,
-      "alive": 3,
-      "best_bw": 3.61
     },
     "183.33.58.202:8686": {
       "tested": 0,
@@ -1511,6 +1531,11 @@
       "alive": 1,
       "best_bw": 3.59
     },
+    "183.47.2.156:16883": {
+      "tested": 0,
+      "alive": 1,
+      "best_bw": 2.45
+    },
     "14.145.187.221:4022": {
       "tested": 0,
       "alive": 1,
@@ -1529,6 +1554,7 @@
   },
   "dead_ips": [
     "1.197.250.140:9901",
+    "1.197.250.71:9901",
     "101.35.240.114:88",
     "101.66.194.125:9901",
     "103.172.187.30:12000",
@@ -1553,6 +1579,7 @@
     "61.136.172.236:9901",
     "61.184.30.36:9090",
     "61.216.67.119:1935",
+    "74.91.26.218:82",
     "[2409:8087",
     "file.pebtv.cn:8101",
     "hbbz.chinashadt.com:2036",
@@ -1574,7 +1601,6 @@
     "t17.cdn2020.com:12341",
     "tv.drs.hhtv.cc:8100",
     "tv.drs.ncntv.com.cn:8100",
-    "tv.redrainl.site:9500",
     "tvpull.dxhmt.cn:9081",
     "video.dztv.tv:1935",
     "video1.rhsj520.com:8091",
@@ -1584,9 +1610,589 @@
     "zteres.sn.chinamobile.com:6060"
   ],
   "channel_scores": {
+    "iHOT-爱体育": {
+      "url_count": 3,
+      "best_bw": 3.97
+    },
+    "通化新闻": {
+      "url_count": 1,
+      "best_bw": 0.84
+    },
+    "哈尔滨影视": {
+      "url_count": 2,
+      "best_bw": 2.73
+    },
+    "Big Tits": {
+      "url_count": 1,
+      "best_bw": 0.61
+    },
+    "「虎牙」绝地求生 𝟚": {
+      "url_count": 1,
+      "best_bw": 2.09
+    },
+    "幸福空间居家台": {
+      "url_count": 1,
+      "best_bw": 0.16
+    },
+    "通化县综合": {
+      "url_count": 1,
+      "best_bw": 0.61
+    },
+    "营山电视台": {
+      "url_count": 2,
+      "best_bw": 2.77
+    },
+    "绍兴电视台公共": {
+      "url_count": 1,
+      "best_bw": 1.5
+    },
+    "春晚1999": {
+      "url_count": 1,
+      "best_bw": 0.54
+    },
+    "雪乡大石碑": {
+      "url_count": 1,
+      "best_bw": 0.9
+    },
+    "深圳卫视": {
+      "url_count": 12,
+      "best_bw": 3.41
+    },
+    "CCTV-3": {
+      "url_count": 10,
+      "best_bw": 3.89
+    },
+    "CCTV-10": {
+      "url_count": 9,
+      "best_bw": 3.53
+    },
+    "电视剧": {
+      "url_count": 3,
+      "best_bw": 1.24
+    },
+    "河南电视剧": {
+      "url_count": 1,
+      "best_bw": 1.15
+    },
+    "CCTV-6": {
+      "url_count": 9,
+      "best_bw": 3.89
+    },
+    "云南卫视": {
+      "url_count": 9,
+      "best_bw": 2.02
+    },
+    "东方卫视": {
+      "url_count": 12,
+      "best_bw": 2.2
+    },
+    "广西卫视": {
+      "url_count": 8,
+      "best_bw": 2.51
+    },
+    "福建东南卫视": {
+      "url_count": 1,
+      "best_bw": 1.1
+    },
+    "少儿动画": {
+      "url_count": 1,
+      "best_bw": 1.78
+    },
+    "CCTV-4 中文国际": {
+      "url_count": 2,
+      "best_bw": 0.19
+    },
+    "青海卫视": {
+      "url_count": 5,
+      "best_bw": 2.42
+    },
+    "倩女幽魂妖魔道": {
+      "url_count": 1,
+      "best_bw": 0.59
+    },
+    "人与自然": {
+      "url_count": 1,
+      "best_bw": 1.02
+    },
+    "CCTV-兵器科技": {
+      "url_count": 4,
+      "best_bw": 2.01
+    },
+    "凤凰香港": {
+      "url_count": 2,
+      "best_bw": 0.63
+    },
+    "浙江钱江都市": {
+      "url_count": 3,
+      "best_bw": 1.55
+    },
+    "浙江教科影视": {
+      "url_count": 2,
+      "best_bw": 1.36
+    },
+    "ABN China": {
+      "url_count": 1,
+      "best_bw": 0.25
+    },
+    "兵团卫视": {
+      "url_count": 6,
+      "best_bw": 3.6
+    },
+    "Bread TV": {
+      "url_count": 1,
+      "best_bw": 1.19
+    },
+    "Chaozhou Public Channel": {
+      "url_count": 1,
+      "best_bw": 1.92
+    },
+    "QTV-6": {
+      "url_count": 1,
+      "best_bw": 0.89
+    },
+    "BabyFirst": {
+      "url_count": 1,
+      "best_bw": 0.15
+    },
+    "Xinjiang TV 8": {
+      "url_count": 1,
+      "best_bw": 1.38
+    },
+    "Discovering China": {
+      "url_count": 1,
+      "best_bw": 0.17
+    },
+    "LLBN TV Chinese": {
+      "url_count": 1,
+      "best_bw": 0.18
+    },
+    "Love Nature": {
+      "url_count": 1,
+      "best_bw": 0.12
+    },
+    "DHA": {
+      "url_count": 1,
+      "best_bw": 0.75
+    },
     "NTD TV China": {
       "url_count": 1,
-      "best_bw": 0.07
+      "best_bw": 0.59
+    },
+    "RTHK TV 31 (1080p) [Geo-blocked]": {
+      "url_count": 1,
+      "best_bw": 0.95
+    },
+    "Taiwan Indigenous TV (720p)": {
+      "url_count": 1,
+      "best_bw": 0.06
+    },
+    "WXTV": {
+      "url_count": 1,
+      "best_bw": 1.07
+    },
+    "荣昌综合频道": {
+      "url_count": 1,
+      "best_bw": 1.73
+    },
+    "临夏市电视台": {
+      "url_count": 1,
+      "best_bw": 1.68
+    },
+    "九台综合": {
+      "url_count": 1,
+      "best_bw": 0.8
+    },
+    "辽宁都市": {
+      "url_count": 1,
+      "best_bw": 2.62
+    },
+    "黎城综合频道": {
+      "url_count": 1,
+      "best_bw": 1.21
+    },
+    "泸州科教频道": {
+      "url_count": 1,
+      "best_bw": 1.95
+    },
+    "黑水新闻综合": {
+      "url_count": 1,
+      "best_bw": 1.99
+    },
+    "沐川综合频道": {
+      "url_count": 1,
+      "best_bw": 1.43
+    },
+    "ArirangTV F": {
+      "url_count": 1,
+      "best_bw": 1.44
+    },
+    "Groovy TV | HD": {
+      "url_count": 1,
+      "best_bw": 0.72
+    },
+    "大湾区卫视": {
+      "url_count": 3,
+      "best_bw": 2.63
+    },
+    "四川科教": {
+      "url_count": 1,
+      "best_bw": 1.35
+    },
+    "万荣综合": {
+      "url_count": 1,
+      "best_bw": 2.25
+    },
+    "兵团五师双河影": {
+      "url_count": 1,
+      "best_bw": 0.8
+    },
+    "广西国际": {
+      "url_count": 1,
+      "best_bw": 0.46
+    },
+    "苏州社会经济": {
+      "url_count": 1,
+      "best_bw": 0.98
+    },
+    "福州少儿": {
+      "url_count": 1,
+      "best_bw": 0.88
+    },
+    "象山综合": {
+      "url_count": 1,
+      "best_bw": 0.67
+    },
+    "延边卫视": {
+      "url_count": 3,
+      "best_bw": 3.51
+    },
+    "广东卫视": {
+      "url_count": 10,
+      "best_bw": 3.77
+    },
+    "黄山公共生活": {
+      "url_count": 1,
+      "best_bw": 1.44
+    },
+    "雅安新闻综合": {
+      "url_count": 1,
+      "best_bw": 0.84
+    },
+    "哈尔滨生活": {
+      "url_count": 2,
+      "best_bw": 1.97
+    },
+    "Harbin Movie Channel": {
+      "url_count": 1,
+      "best_bw": 1.29
+    },
+    "山东卫视": {
+      "url_count": 9,
+      "best_bw": 4.03
+    },
+    "「斗鱼」火影忍者": {
+      "url_count": 1,
+      "best_bw": 2.17
+    },
+    "「斗鱼」英雄联盟 𝟚": {
+      "url_count": 1,
+      "best_bw": 2.68
+    },
+    "电影•1「解说」": {
+      "url_count": 1,
+      "best_bw": 1.07
+    },
+    "纬来体育": {
+      "url_count": 2,
+      "best_bw": 0.61
+    },
+    "CCTV-风云剧场": {
+      "url_count": 4,
+      "best_bw": 2.04
+    },
+    "中国气象": {
+      "url_count": 1,
+      "best_bw": 1.11
+    },
+    "凤凰中文": {
+      "url_count": 1,
+      "best_bw": 1.11
+    },
+    "iHOT-爱大剧": {
+      "url_count": 3,
+      "best_bw": 3.92
+    },
+    "广东新闻": {
+      "url_count": 2,
+      "best_bw": 1.97
+    },
+    "潮安综合": {
+      "url_count": 1,
+      "best_bw": 1.09
+    },
+    "睛彩广场舞": {
+      "url_count": 2,
+      "best_bw": 2.02
+    },
+    "CCTV-风云足球": {
+      "url_count": 3,
+      "best_bw": 2.08
+    },
+    "睛彩篮球": {
+      "url_count": 2,
+      "best_bw": 1.98
+    },
+    "倩女幽魂人间道": {
+      "url_count": 1,
+      "best_bw": 0.66
+    },
+    "倩女幽魂道道道": {
+      "url_count": 1,
+      "best_bw": 0.67
+    },
+    "东辽综合": {
+      "url_count": 1,
+      "best_bw": 0.89
+    },
+    "辉南新闻综合": {
+      "url_count": 1,
+      "best_bw": 0.88
+    },
+    "辉南新闻": {
+      "url_count": 1,
+      "best_bw": 0.86
+    },
+    "通化县": {
+      "url_count": 1,
+      "best_bw": 0.55
+    },
+    "东丰综合": {
+      "url_count": 1,
+      "best_bw": 0.88
+    },
+    "CCTV-高尔夫网球": {
+      "url_count": 2,
+      "best_bw": 2.06
+    },
+    "CGTN俄语": {
+      "url_count": 1,
+      "best_bw": 1.98
+    },
+    "IPTV1": {
+      "url_count": 1,
+      "best_bw": 2.06
+    },
+    "IPTV3": {
+      "url_count": 1,
+      "best_bw": 2.09
+    },
+    "IPTV4": {
+      "url_count": 1,
+      "best_bw": 1.99
+    },
+    "三沙卫视": {
+      "url_count": 2,
+      "best_bw": 3.54
+    },
+    "PPTV-1": {
+      "url_count": 1,
+      "best_bw": 3.68
+    },
+    "IPTV魅力时尚": {
+      "url_count": 1,
+      "best_bw": 3.98
+    },
+    "IPTV少儿动画": {
+      "url_count": 1,
+      "best_bw": 4.19
+    },
+    "佛山公共": {
+      "url_count": 1,
+      "best_bw": 2.01
+    },
+    "南国都市4K超高清": {
+      "url_count": 3,
+      "best_bw": 3.86
+    },
+    "中国天气": {
+      "url_count": 1,
+      "best_bw": 4.18
+    },
+    "吉林延边卫视": {
+      "url_count": 1,
+      "best_bw": 3.85
+    },
+    "山东卫视 4K": {
+      "url_count": 1,
+      "best_bw": 2.29
+    },
+    "早期教育": {
+      "url_count": 3,
+      "best_bw": 2.55
+    },
+    "江苏卫视 4K": {
+      "url_count": 1,
+      "best_bw": 2.26
+    },
+    "海南卫视": {
+      "url_count": 1,
+      "best_bw": 2.01
+    },
+    "汽摩": {
+      "url_count": 1,
+      "best_bw": 3.94
+    },
+    "深圳龙岗频道": {
+      "url_count": 1,
+      "best_bw": 2.02
+    },
+    "春晚1985": {
+      "url_count": 1,
+      "best_bw": 0.39
+    },
+    "茂名综合": {
+      "url_count": 1,
+      "best_bw": 2.01
+    },
+    "春晚1993": {
+      "url_count": 1,
+      "best_bw": 0.19
+    },
+    "春晚1995": {
+      "url_count": 1,
+      "best_bw": 0.19
+    },
+    "精选 频道3": {
+      "url_count": 1,
+      "best_bw": 2.66
+    },
+    "春晚1996": {
+      "url_count": 1,
+      "best_bw": 0.18
+    },
+    "春晚2006": {
+      "url_count": 1,
+      "best_bw": 0.18
+    },
+    "阳江-1": {
+      "url_count": 1,
+      "best_bw": 2.0
+    },
+    "春晚2015": {
+      "url_count": 1,
+      "best_bw": 0.19
+    },
+    "春晚2020": {
+      "url_count": 1,
+      "best_bw": 0.19
+    },
+    "春晚2022": {
+      "url_count": 1,
+      "best_bw": 0.19
+    },
+    "航拍中国第二季": {
+      "url_count": 1,
+      "best_bw": 1.07
+    },
+    "月牙泉": {
+      "url_count": 1,
+      "best_bw": 0.91
+    },
+    "Blowjob": {
+      "url_count": 1,
+      "best_bw": 0.54
+    },
+    "Fetish": {
+      "url_count": 1,
+      "best_bw": 0.57
+    },
+    "乌镇全景": {
+      "url_count": 1,
+      "best_bw": 1.03
+    },
+    "泰山主峰": {
+      "url_count": 1,
+      "best_bw": 1.06
+    },
+    "直播中国精编直播": {
+      "url_count": 1,
+      "best_bw": 0.96
+    },
+    "丽江古城万古楼遥望玉龙雪山": {
+      "url_count": 1,
+      "best_bw": 0.98
+    },
+    "云南大理崇圣寺三塔远景": {
+      "url_count": 1,
+      "best_bw": 1.04
+    },
+    "四川四姑娘山隆珠措": {
+      "url_count": 1,
+      "best_bw": 1.2
+    },
+    "Hardcore": {
+      "url_count": 1,
+      "best_bw": 0.55
+    },
+    "Interracial": {
+      "url_count": 1,
+      "best_bw": 0.55
+    },
+    "Latina": {
+      "url_count": 1,
+      "best_bw": 0.56
+    },
+    "黄花城水长城03": {
+      "url_count": 1,
+      "best_bw": 0.98
+    },
+    "POV": {
+      "url_count": 1,
+      "best_bw": 0.56
+    },
+    "Live Cams": {
+      "url_count": 1,
+      "best_bw": 0.58
+    },
+    "JP1": {
+      "url_count": 1,
+      "best_bw": 0.21
+    },
+    "Threesome": {
+      "url_count": 1,
+      "best_bw": 0.59
+    },
+    "EF运通": {
+      "url_count": 1,
+      "best_bw": 0.31
+    },
+    "中视 HD": {
+      "url_count": 1,
+      "best_bw": 0.2
+    },
+    "中视新闻": {
+      "url_count": 1,
+      "best_bw": 0.19
+    },
+    "Viva 美好購物2台": {
+      "url_count": 1,
+      "best_bw": 0.27
+    },
+    "大爱2台": {
+      "url_count": 1,
+      "best_bw": 0.18
+    },
+    "绍兴文化影视": {
+      "url_count": 1,
+      "best_bw": 1.21
+    },
+    "Baicheng TV [Geo-blocked]": {
+      "url_count": 1,
+      "best_bw": 0.82
+    },
+    "河南都市报道": {
+      "url_count": 1,
+      "best_bw": 1.14
     },
     "CCTV-央视台球": {
       "url_count": 2,
@@ -1624,14 +2230,6 @@
       "url_count": 1,
       "best_bw": 1.42
     },
-    "荆门新闻综合": {
-      "url_count": 2,
-      "best_bw": 2.01
-    },
-    "句容生活频道": {
-      "url_count": 1,
-      "best_bw": 0.62
-    },
     "九台": {
       "url_count": 1,
       "best_bw": 0.55
@@ -1656,10 +2254,6 @@
       "url_count": 3,
       "best_bw": 1.2
     },
-    "延边卫视": {
-      "url_count": 4,
-      "best_bw": 3.57
-    },
     "春晚2005": {
       "url_count": 1,
       "best_bw": 0.28
@@ -1679,10 +2273,6 @@
     "北京卫视": {
       "url_count": 9,
       "best_bw": 3.48
-    },
-    "东方卫视": {
-      "url_count": 10,
-      "best_bw": 2.92
     },
     "CCTV-4": {
       "url_count": 8,
@@ -1712,10 +2302,6 @@
       "url_count": 6,
       "best_bw": 3.38
     },
-    "浙江教科影视": {
-      "url_count": 2,
-      "best_bw": 0.85
-    },
     "苏州新闻综合": {
       "url_count": 1,
       "best_bw": 0.73
@@ -1727,10 +2313,6 @@
     "CGNTV Chinese (1080p)": {
       "url_count": 1,
       "best_bw": 0.9
-    },
-    "Discovering China": {
-      "url_count": 1,
-      "best_bw": 0.22
     },
     "NTD TV": {
       "url_count": 1,
@@ -1751,10 +2333,6 @@
     "Love Nature HD (1080p)": {
       "url_count": 1,
       "best_bw": 1.33
-    },
-    "WXTV": {
-      "url_count": 1,
-      "best_bw": 0.85
     },
     "灵璧综合频道": {
       "url_count": 1,
@@ -1784,10 +2362,6 @@
       "url_count": 1,
       "best_bw": 1.02
     },
-    "绍兴文化影视": {
-      "url_count": 1,
-      "best_bw": 0.88
-    },
     "春晚2024": {
       "url_count": 1,
       "best_bw": 0.53
@@ -1796,17 +2370,9 @@
       "url_count": 1,
       "best_bw": 0.14
     },
-    "倩女幽魂道道道": {
-      "url_count": 1,
-      "best_bw": 0.52
-    },
     "南京教科": {
       "url_count": 1,
       "best_bw": 1.11
-    },
-    "固镇新闻": {
-      "url_count": 1,
-      "best_bw": 0.77
     },
     "安徽卫视": {
       "url_count": 8,
@@ -1840,14 +2406,6 @@
       "url_count": 11,
       "best_bw": 3.62
     },
-    "雅安新闻综合": {
-      "url_count": 1,
-      "best_bw": 0.61
-    },
-    "广东卫视": {
-      "url_count": 10,
-      "best_bw": 3.18
-    },
     "春晚2021": {
       "url_count": 1,
       "best_bw": 0.33
@@ -1863,10 +2421,6 @@
     "春晚2007": {
       "url_count": 1,
       "best_bw": 0.36
-    },
-    "兵团卫视": {
-      "url_count": 4,
-      "best_bw": 3.47
     },
     "厦门卫视": {
       "url_count": 3,
@@ -1884,10 +2438,6 @@
       "url_count": 1,
       "best_bw": 0.92
     },
-    "福州少儿": {
-      "url_count": 1,
-      "best_bw": 0.65
-    },
     "吉林教育": {
       "url_count": 1,
       "best_bw": 1.47
@@ -1896,17 +2446,9 @@
       "url_count": 1,
       "best_bw": 1.7
     },
-    "苏州社会经济": {
-      "url_count": 1,
-      "best_bw": 0.11
-    },
     "迁西综合频道": {
       "url_count": 1,
       "best_bw": 1.84
-    },
-    "开化新闻综合": {
-      "url_count": 2,
-      "best_bw": 0.68
     },
     "平湖民生休闲": {
       "url_count": 2,
@@ -1932,10 +2474,6 @@
       "url_count": 3,
       "best_bw": 0.7
     },
-    "新昌新闻综合": {
-      "url_count": 1,
-      "best_bw": 0.77
-    },
     "武义新闻综合": {
       "url_count": 2,
       "best_bw": 0.88
@@ -1956,10 +2494,6 @@
       "url_count": 1,
       "best_bw": 0.52
     },
-    "CCTV-兵器科技": {
-      "url_count": 4,
-      "best_bw": 1.76
-    },
     "CCTV-风云音乐": {
       "url_count": 5,
       "best_bw": 2.4
@@ -1975,22 +2509,6 @@
     "CCTV-央视精品": {
       "url_count": 1,
       "best_bw": 3.47
-    },
-    "三沙卫视": {
-      "url_count": 2,
-      "best_bw": 4.0
-    },
-    "PPTV-1": {
-      "url_count": 1,
-      "best_bw": 3.68
-    },
-    "iHOT-爱大剧": {
-      "url_count": 3,
-      "best_bw": 4.12
-    },
-    "中国天气": {
-      "url_count": 1,
-      "best_bw": 2.02
     },
     "云浮综合": {
       "url_count": 1,
@@ -2032,21 +2550,9 @@
       "url_count": 2,
       "best_bw": 1.92
     },
-    "睛彩广场舞": {
-      "url_count": 2,
-      "best_bw": 2.35
-    },
-    "睛彩篮球": {
-      "url_count": 2,
-      "best_bw": 3.23
-    },
     "环球奇观": {
       "url_count": 2,
       "best_bw": 3.77
-    },
-    "茂名综合": {
-      "url_count": 1,
-      "best_bw": 1.84
     },
     "精选频道1": {
       "url_count": 1,
@@ -2072,10 +2578,6 @@
       "url_count": 1,
       "best_bw": 0.92
     },
-    "丽江古城万古楼遥望玉龙雪山": {
-      "url_count": 1,
-      "best_bw": 0.92
-    },
     "云南丽江冰川": {
       "url_count": 1,
       "best_bw": 0.93
@@ -2091,10 +2593,6 @@
     "南京玄武湖公园": {
       "url_count": 1,
       "best_bw": 0.93
-    },
-    "四川四姑娘山隆珠措": {
-      "url_count": 1,
-      "best_bw": 0.95
     },
     "天涯石": {
       "url_count": 1,
@@ -2116,10 +2614,6 @@
       "url_count": 1,
       "best_bw": 0.92
     },
-    "月牙泉": {
-      "url_count": 1,
-      "best_bw": 0.92
-    },
     "泰山十八盘": {
       "url_count": 1,
       "best_bw": 0.92
@@ -2127,10 +2621,6 @@
     "普陀山": {
       "url_count": 1,
       "best_bw": 0.93
-    },
-    "直播中国精编直播": {
-      "url_count": 1,
-      "best_bw": 0.87
     },
     "泰山太平岭": {
       "url_count": 1,
@@ -2200,10 +2690,6 @@
       "url_count": 1,
       "best_bw": 1.25
     },
-    "EF运通": {
-      "url_count": 1,
-      "best_bw": 0.18
-    },
     "浙江经济": {
       "url_count": 4,
       "best_bw": 0.87
@@ -2215,10 +2701,6 @@
     "Genius Go Go Go": {
       "url_count": 1,
       "best_bw": 0.25
-    },
-    "JP1": {
-      "url_count": 1,
-      "best_bw": 0.2
     },
     "三立新闻": {
       "url_count": 2,
@@ -2240,14 +2722,6 @@
       "url_count": 1,
       "best_bw": 1.5
     },
-    "QTV-6": {
-      "url_count": 1,
-      "best_bw": 0.65
-    },
-    "潮安综合": {
-      "url_count": 1,
-      "best_bw": 3.01
-    },
     "荆门教育频道": {
       "url_count": 1,
       "best_bw": 0.19
@@ -2264,10 +2738,6 @@
       "url_count": 1,
       "best_bw": 0.81
     },
-    "音乐石榴「音乐」": {
-      "url_count": 1,
-      "best_bw": 2.68
-    },
     "信大": {
       "url_count": 1,
       "best_bw": 0.18
@@ -2275,10 +2745,6 @@
     "武进生活": {
       "url_count": 1,
       "best_bw": 1.34
-    },
-    "九台综合": {
-      "url_count": 1,
-      "best_bw": 0.66
     },
     "东丰": {
       "url_count": 1,
@@ -2340,14 +2806,6 @@
       "url_count": 10,
       "best_bw": 3.46
     },
-    "浙江钱江都市": {
-      "url_count": 3,
-      "best_bw": 1.22
-    },
-    "CCTV-风云剧场": {
-      "url_count": 4,
-      "best_bw": 2.06
-    },
     "广州新闻": {
       "url_count": 2,
       "best_bw": 1.85
@@ -2367,10 +2825,6 @@
     "Lanzhou Comprehensive News Channel": {
       "url_count": 1,
       "best_bw": 1.17
-    },
-    "BabyFirst": {
-      "url_count": 1,
-      "best_bw": 0.15
     },
     "NTD TV Canada West": {
       "url_count": 1,
@@ -2399,10 +2853,6 @@
     "Bloomberg HT": {
       "url_count": 1,
       "best_bw": 1.52
-    },
-    "Groovy TV | HD": {
-      "url_count": 1,
-      "best_bw": 0.72
     },
     "HTV Houston Television": {
       "url_count": 1,
@@ -2444,25 +2894,13 @@
       "url_count": 1,
       "best_bw": 1.96
     },
-    "象山综合": {
-      "url_count": 1,
-      "best_bw": 0.74
-    },
     "青川综合": {
       "url_count": 1,
       "best_bw": 1.07
     },
-    "CCTV-3": {
-      "url_count": 9,
-      "best_bw": 3.81
-    },
     "安徽经视": {
       "url_count": 1,
       "best_bw": 1.07
-    },
-    "山东卫视": {
-      "url_count": 12,
-      "best_bw": 3.05
     },
     "Guangdong TV America": {
       "url_count": 1,
@@ -2476,14 +2914,6 @@
       "url_count": 1,
       "best_bw": 0.54
     },
-    "春晚2006": {
-      "url_count": 1,
-      "best_bw": 0.38
-    },
-    "春晚1993": {
-      "url_count": 1,
-      "best_bw": 0.5
-    },
     "春晚2013": {
       "url_count": 1,
       "best_bw": 0.31
@@ -2491,10 +2921,6 @@
     "春晚2011": {
       "url_count": 1,
       "best_bw": 0.44
-    },
-    "春晚2015": {
-      "url_count": 1,
-      "best_bw": 0.29
     },
     "春晚2017": {
       "url_count": 1,
@@ -2512,14 +2938,6 @@
       "url_count": 1,
       "best_bw": 1.15
     },
-    "CETV1": {
-      "url_count": 2,
-      "best_bw": 2.97
-    },
-    "凤凰资讯": {
-      "url_count": 1,
-      "best_bw": 0.75
-    },
     "TVB星河": {
       "url_count": 1,
       "best_bw": 1.34
@@ -2532,10 +2950,6 @@
       "url_count": 1,
       "best_bw": 0.96
     },
-    "广东公共": {
-      "url_count": 1,
-      "best_bw": 0.9
-    },
     "惠州1": {
       "url_count": 1,
       "best_bw": 0.93
@@ -2544,10 +2958,6 @@
       "url_count": 1,
       "best_bw": 0.91
     },
-    "广东新闻": {
-      "url_count": 3,
-      "best_bw": 2.22
-    },
     "Hebei TV": {
       "url_count": 1,
       "best_bw": 0.58
@@ -2555,10 +2965,6 @@
     "都市": {
       "url_count": 1,
       "best_bw": 1.5
-    },
-    "电视剧": {
-      "url_count": 1,
-      "best_bw": 2.44
     },
     "CCTV -25P": {
       "url_count": 1,
@@ -2600,10 +3006,6 @@
       "url_count": 3,
       "best_bw": 1.78
     },
-    "南国都市4K超高清": {
-      "url_count": 3,
-      "best_bw": 1.72
-    },
     "南方购物-精选": {
       "url_count": 2,
       "best_bw": 1.75
@@ -2612,10 +3014,6 @@
       "url_count": 1,
       "best_bw": 1.77
     },
-    "吉林延边卫视": {
-      "url_count": 1,
-      "best_bw": 3.76
-    },
     "国学": {
       "url_count": 1,
       "best_bw": 3.77
@@ -2623,10 +3021,6 @@
     "国学频道": {
       "url_count": 1,
       "best_bw": 3.49
-    },
-    "少儿动画": {
-      "url_count": 2,
-      "best_bw": 3.93
     },
     "广东卫视 4K": {
       "url_count": 2,
@@ -2640,10 +3034,6 @@
       "url_count": 2,
       "best_bw": 1.7
     },
-    "早期教育": {
-      "url_count": 3,
-      "best_bw": 1.88
-    },
     "求索纪录": {
       "url_count": 1,
       "best_bw": 1.86
@@ -2656,29 +3046,13 @@
       "url_count": 2,
       "best_bw": 1.79
     },
-    "江苏卫视 4K": {
-      "url_count": 1,
-      "best_bw": 1.76
-    },
     "收视指南": {
       "url_count": 1,
       "best_bw": 3.86
     },
-    "海南卫视": {
-      "url_count": 2,
-      "best_bw": 1.83
-    },
-    "汽摩": {
-      "url_count": 2,
-      "best_bw": 3.8
-    },
     "深圳卫视4K超高清": {
       "url_count": 5,
       "best_bw": 1.83
-    },
-    "深圳宜和购物": {
-      "url_count": 1,
-      "best_bw": 1.98
     },
     "珠海": {
       "url_count": 1,
@@ -2687,10 +3061,6 @@
     "睛彩竞技": {
       "url_count": 1,
       "best_bw": 1.79
-    },
-    "精选 频道3": {
-      "url_count": 1,
-      "best_bw": 1.78
     },
     "百视通体育直播室1": {
       "url_count": 1,
@@ -2732,10 +3102,6 @@
       "url_count": 1,
       "best_bw": 0.55
     },
-    "中国气象": {
-      "url_count": 1,
-      "best_bw": 0.98
-    },
     "明珠台": {
       "url_count": 1,
       "best_bw": 1.12
@@ -2760,17 +3126,9 @@
       "url_count": 1,
       "best_bw": 0.96
     },
-    "Big Tits": {
-      "url_count": 1,
-      "best_bw": 0.93
-    },
     "Gangbang": {
       "url_count": 1,
       "best_bw": 0.94
-    },
-    "Live Cams": {
-      "url_count": 1,
-      "best_bw": 0.92
     },
     "Pornstar": {
       "url_count": 1,
@@ -2792,17 +3150,9 @@
       "url_count": 3,
       "best_bw": 1.96
     },
-    "庆元综合频道": {
-      "url_count": 1,
-      "best_bw": 0.69
-    },
     "嵊泗新闻综合": {
       "url_count": 1,
       "best_bw": 1.7
-    },
-    "文成综合": {
-      "url_count": 2,
-      "best_bw": 0.84
     },
     "庆元新闻综合": {
       "url_count": 1,
@@ -2824,14 +3174,6 @@
       "url_count": 1,
       "best_bw": 0.74
     },
-    "青田电视台": {
-      "url_count": 1,
-      "best_bw": 0.78
-    },
-    "龙游新闻综合": {
-      "url_count": 3,
-      "best_bw": 0.8
-    },
     "东森財经": {
       "url_count": 1,
       "best_bw": 0.16
@@ -2844,10 +3186,6 @@
       "url_count": 1,
       "best_bw": 0.23
     },
-    "中视新闻": {
-      "url_count": 1,
-      "best_bw": 0.2
-    },
     "华视综合娱乐": {
       "url_count": 1,
       "best_bw": 0.22
@@ -2859,10 +3197,6 @@
     "寰宇新闻": {
       "url_count": 1,
       "best_bw": 0.18
-    },
-    "幸福空间居家台": {
-      "url_count": 1,
-      "best_bw": 0.22
     },
     "保定生活健康": {
       "url_count": 1,
@@ -2887,18 +3221,6 @@
     "东森超视": {
       "url_count": 1,
       "best_bw": 0.28
-    },
-    "双滦新闻频道": {
-      "url_count": 1,
-      "best_bw": 0.97
-    },
-    "双辽综合": {
-      "url_count": 1,
-      "best_bw": 0.52
-    },
-    "营山电视台": {
-      "url_count": 2,
-      "best_bw": 1.33
     },
     "春晚2009": {
       "url_count": 1,
@@ -2968,10 +3290,6 @@
       "url_count": 2,
       "best_bw": 1.36
     },
-    "临夏市电视台": {
-      "url_count": 1,
-      "best_bw": 1.49
-    },
     "河源综合": {
       "url_count": 1,
       "best_bw": 1.55
@@ -2979,10 +3297,6 @@
     "辽源新闻": {
       "url_count": 1,
       "best_bw": 0.89
-    },
-    "沐川综合频道": {
-      "url_count": 1,
-      "best_bw": 1.74
     },
     "河北": {
       "url_count": 1,
@@ -2992,10 +3306,6 @@
       "url_count": 1,
       "best_bw": 0.07
     },
-    "ArirangTV F": {
-      "url_count": 1,
-      "best_bw": 1.53
-    },
     "White Plains Community Media | HD 720p": {
       "url_count": 1,
       "best_bw": 0.07
@@ -3003,14 +3313,6 @@
     "CCTV-4K": {
       "url_count": 1,
       "best_bw": 1.4
-    },
-    "CCTV-6": {
-      "url_count": 1,
-      "best_bw": 0.79
-    },
-    "倩女幽魂人间道": {
-      "url_count": 1,
-      "best_bw": 0.66
     },
     "名山综合": {
       "url_count": 1,
@@ -3044,10 +3346,6 @@
       "url_count": 1,
       "best_bw": 1.03
     },
-    "乌镇全景": {
-      "url_count": 1,
-      "best_bw": 1.04
-    },
     "五彩池": {
       "url_count": 1,
       "best_bw": 1.12
@@ -3055,10 +3353,6 @@
     "北京-水长城03": {
       "url_count": 1,
       "best_bw": 1.9
-    },
-    "泰山主峰": {
-      "url_count": 1,
-      "best_bw": 1.21
     },
     "都江堰鱼嘴": {
       "url_count": 1,
@@ -3072,14 +3366,6 @@
       "url_count": 1,
       "best_bw": 1.26
     },
-    "1987年春晚": {
-      "url_count": 1,
-      "best_bw": 0.06
-    },
-    "1988年春晚": {
-      "url_count": 1,
-      "best_bw": 0.07
-    },
     "「B站」英雄联盟•手游": {
       "url_count": 1,
       "best_bw": 1.95
@@ -3087,10 +3373,6 @@
     "「斗鱼」街霸": {
       "url_count": 1,
       "best_bw": 1.11
-    },
-    "东辽综合": {
-      "url_count": 1,
-      "best_bw": 1.62
     },
     "汪清": {
       "url_count": 1,
@@ -3104,10 +3386,6 @@
       "url_count": 1,
       "best_bw": 0.26
     },
-    "Blowjob": {
-      "url_count": 1,
-      "best_bw": 0.56
-    },
     "Brunette": {
       "url_count": 1,
       "best_bw": 0.56
@@ -3115,10 +3393,6 @@
     "浙江公共新闻": {
       "url_count": 2,
       "best_bw": 1.11
-    },
-    "POV": {
-      "url_count": 1,
-      "best_bw": 0.71
     },
     "平泉影视频道": {
       "url_count": 1,
@@ -3136,10 +3410,6 @@
       "url_count": 1,
       "best_bw": 1.09
     },
-    "寻秦记": {
-      "url_count": 1,
-      "best_bw": 0.95
-    },
     "妙手仁心": {
       "url_count": 1,
       "best_bw": 1.09
@@ -3147,10 +3417,6 @@
     "功夫电影": {
       "url_count": 1,
       "best_bw": 1.44
-    },
-    "七龙珠": {
-      "url_count": 1,
-      "best_bw": 1.98
     },
     "宇宙科幻合集": {
       "url_count": 1,
@@ -3196,10 +3462,6 @@
       "url_count": 1,
       "best_bw": 1.06
     },
-    "沈腾电影": {
-      "url_count": 1,
-      "best_bw": 0.88
-    },
     "武侠电影": {
       "url_count": 1,
       "best_bw": 0.96
@@ -3215,10 +3477,6 @@
     "电影功夫片": {
       "url_count": 1,
       "best_bw": 0.68
-    },
-    "玄幻电影": {
-      "url_count": 1,
-      "best_bw": 1.03
     },
     "活佛济公3": {
       "url_count": 1,
@@ -3260,25 +3518,13 @@
       "url_count": 1,
       "best_bw": 0.88
     },
-    "电影贺岁": {
-      "url_count": 1,
-      "best_bw": 1.24
-    },
     "罪犯电影": {
       "url_count": 1,
       "best_bw": 0.95
     },
-    "金庸武侠": {
-      "url_count": 1,
-      "best_bw": 0.99
-    },
     "笑傲江湖": {
       "url_count": 1,
       "best_bw": 1.52
-    },
-    "贺岁电影": {
-      "url_count": 1,
-      "best_bw": 1.53
     },
     "黄渤电影": {
       "url_count": 1,
@@ -3303,14 +3549,6 @@
     "唯心電视": {
       "url_count": 2,
       "best_bw": 0.94
-    },
-    "宿州公共频道": {
-      "url_count": 1,
-      "best_bw": 0.66
-    },
-    "通化新闻": {
-      "url_count": 1,
-      "best_bw": 0.85
     },
     "舒兰新闻综合": {
       "url_count": 2,
@@ -3348,10 +3586,6 @@
       "url_count": 3,
       "best_bw": 1.23
     },
-    "ABN China": {
-      "url_count": 1,
-      "best_bw": 0.23
-    },
     "黄山新闻综合": {
       "url_count": 2,
       "best_bw": 1.28
@@ -3384,10 +3618,6 @@
       "url_count": 1,
       "best_bw": 0.87
     },
-    "泸州科教频道": {
-      "url_count": 1,
-      "best_bw": 1.61
-    },
     "乐至综合频道": {
       "url_count": 1,
       "best_bw": 1.31
@@ -3407,14 +3637,6 @@
     "广西影视": {
       "url_count": 1,
       "best_bw": 2.61
-    },
-    "CCTV-4 中文国际": {
-      "url_count": 1,
-      "best_bw": 0.18
-    },
-    "万荣综合": {
-      "url_count": 1,
-      "best_bw": 1.88
     },
     "东莞生活资讯": {
       "url_count": 1,
@@ -3496,10 +3718,6 @@
       "url_count": 1,
       "best_bw": 1.01
     },
-    "云南大理崇圣寺三塔远景": {
-      "url_count": 1,
-      "best_bw": 1.28
-    },
     "望乡台": {
       "url_count": 1,
       "best_bw": 1.24
@@ -3519,14 +3737,6 @@
     "Russian": {
       "url_count": 1,
       "best_bw": 0.56
-    },
-    "Latina": {
-      "url_count": 1,
-      "best_bw": 0.64
-    },
-    "CCTV-风云足球": {
-      "url_count": 3,
-      "best_bw": 2.05
     },
     "嘉佳卡通": {
       "url_count": 3,
@@ -3552,25 +3762,13 @@
       "url_count": 1,
       "best_bw": 1.78
     },
-    "宿州科教频道": {
-      "url_count": 1,
-      "best_bw": 1.47
-    },
     "宿州新闻综合": {
       "url_count": 1,
       "best_bw": 1.69
     },
-    "电影•2「解说」": {
-      "url_count": 1,
-      "best_bw": 1.22
-    },
     "Sky News Extra 2": {
       "url_count": 1,
       "best_bw": 1.45
-    },
-    "福建东南卫视": {
-      "url_count": 1,
-      "best_bw": 1.56
     },
     "临平新闻频道": {
       "url_count": 1,
@@ -3620,29 +3818,13 @@
       "url_count": 1,
       "best_bw": 0.17
     },
-    "中视 HD": {
-      "url_count": 1,
-      "best_bw": 0.12
-    },
     "镜新闻Mnews": {
       "url_count": 1,
       "best_bw": 0.16
     },
-    "谍战剧场": {
-      "url_count": 1,
-      "best_bw": 2.39
-    },
-    "兵团五师双河影": {
-      "url_count": 1,
-      "best_bw": 0.81
-    },
     "CCTV-女性时尚": {
       "url_count": 2,
       "best_bw": 2.63
-    },
-    "CCTV-高尔夫网球": {
-      "url_count": 2,
-      "best_bw": 2.14
     },
     "CETV-1": {
       "url_count": 2,
@@ -3652,33 +3834,9 @@
       "url_count": 1,
       "best_bw": 1.99
     },
-    "HZTV-2": {
-      "url_count": 1,
-      "best_bw": 2.08
-    },
-    "IPTV3": {
-      "url_count": 1,
-      "best_bw": 2.47
-    },
-    "IPTV魅力时尚": {
-      "url_count": 1,
-      "best_bw": 3.92
-    },
     "山东卫视4K超高清": {
       "url_count": 1,
       "best_bw": 2.64
-    },
-    "天元围棋": {
-      "url_count": 1,
-      "best_bw": 3.19
-    },
-    "广东移动": {
-      "url_count": 1,
-      "best_bw": 3.63
-    },
-    "快乐垂钓": {
-      "url_count": 1,
-      "best_bw": 2.74
     },
     "江苏卫视4K超高清": {
       "url_count": 1,
@@ -3693,10 +3851,6 @@
       "best_bw": 0.34
     },
     "春晚1988": {
-      "url_count": 1,
-      "best_bw": 0.12
-    },
-    "春晚1996": {
       "url_count": 1,
       "best_bw": 0.12
     },
@@ -3727,10 +3881,6 @@
     "四平新闻综合": {
       "url_count": 1,
       "best_bw": 0.83
-    },
-    "汾西综合": {
-      "url_count": 2,
-      "best_bw": 1.09
     },
     "春晚2000": {
       "url_count": 1,
@@ -3776,21 +3926,9 @@
       "url_count": 1,
       "best_bw": 1.1
     },
-    "Love Nature": {
-      "url_count": 1,
-      "best_bw": 0.06
-    },
     "Good TV": {
       "url_count": 1,
       "best_bw": 0.69
-    },
-    "DHA": {
-      "url_count": 1,
-      "best_bw": 1.09
-    },
-    "RTHK TV 31 (1080p) [Geo-blocked]": {
-      "url_count": 1,
-      "best_bw": 0.8
     },
     "壶关电视台": {
       "url_count": 1,
@@ -3824,21 +3962,9 @@
       "url_count": 1,
       "best_bw": 0.62
     },
-    "武术世界": {
-      "url_count": 1,
-      "best_bw": 2.97
-    },
     "上虞新商都": {
       "url_count": 1,
       "best_bw": 1.23
-    },
-    "春晚1985": {
-      "url_count": 1,
-      "best_bw": 0.19
-    },
-    "春晚2022": {
-      "url_count": 1,
-      "best_bw": 0.19
     },
     "乐山大佛全景": {
       "url_count": 1,
@@ -3968,10 +4094,6 @@
       "url_count": 1,
       "best_bw": 0.92
     },
-    "黑水新闻综合": {
-      "url_count": 1,
-      "best_bw": 1.14
-    },
     "Sky News Extra 3": {
       "url_count": 1,
       "best_bw": 0.04
@@ -3979,10 +4101,6 @@
     "HTV 2 Houston Television": {
       "url_count": 1,
       "best_bw": 0.09
-    },
-    "大湾区卫视": {
-      "url_count": 4,
-      "best_bw": 3.47
     },
     "Nothing Scripted": {
       "url_count": 1,
@@ -3995,10 +4113,6 @@
     "南京新闻综合": {
       "url_count": 1,
       "best_bw": 0.46
-    },
-    "四川科教": {
-      "url_count": 1,
-      "best_bw": 1.0
     },
     "平遥新闻综合": {
       "url_count": 1,
@@ -4031,22 +4145,6 @@
     "奎屯汉语综合": {
       "url_count": 1,
       "best_bw": 1.05
-    },
-    "春晚1995": {
-      "url_count": 1,
-      "best_bw": 0.17
-    },
-    "春晚2020": {
-      "url_count": 1,
-      "best_bw": 0.22
-    },
-    "Hardcore": {
-      "url_count": 1,
-      "best_bw": 0.88
-    },
-    "Threesome": {
-      "url_count": 1,
-      "best_bw": 0.78
     },
     "河南戏曲": {
       "url_count": 2,
@@ -4148,17 +4246,9 @@
       "url_count": 32,
       "best_bw": 0.33
     },
-    "跳舞「其他」": {
-      "url_count": 1,
-      "best_bw": 3.26
-    },
     "江夏新闻综合": {
       "url_count": 2,
       "best_bw": 0.84
-    },
-    "定襄综合": {
-      "url_count": 2,
-      "best_bw": 1.19
     },
     "云和新闻综合": {
       "url_count": 2,
@@ -4172,10 +4262,6 @@
       "url_count": 9,
       "best_bw": 1.9
     },
-    "青海卫视": {
-      "url_count": 6,
-      "best_bw": 3.06
-    },
     "浙江": {
       "url_count": 1,
       "best_bw": 0.88
@@ -4183,10 +4269,6 @@
     "浙江卫视": {
       "url_count": 22,
       "best_bw": 3.97
-    },
-    "Bread TV": {
-      "url_count": 1,
-      "best_bw": 0.95
     },
     "QTV-1": {
       "url_count": 1,
@@ -4211,10 +4293,6 @@
     "飞碟之谜01": {
       "url_count": 1,
       "best_bw": 0.63
-    },
-    "广西卫视": {
-      "url_count": 9,
-      "best_bw": 2.3
     },
     "CHC家庭影院": {
       "url_count": 1,
@@ -4256,18 +4334,6 @@
       "url_count": 1,
       "best_bw": 0.94
     },
-    "「斗鱼」梦幻西游·手游": {
-      "url_count": 1,
-      "best_bw": 2.31
-    },
-    "「斗鱼」英雄联盟 𝟚": {
-      "url_count": 1,
-      "best_bw": 1.86
-    },
-    "「虎牙」英雄联盟 𝟚": {
-      "url_count": 1,
-      "best_bw": 1.54
-    },
     "春晚1984": {
       "url_count": 1,
       "best_bw": 0.28
@@ -4283,10 +4349,6 @@
     "佛山顺德": {
       "url_count": 2,
       "best_bw": 2.14
-    },
-    "山东卫视 4K": {
-      "url_count": 2,
-      "best_bw": 1.73
     },
     "湖南卫视 4K": {
       "url_count": 2,
@@ -4320,20 +4382,12 @@
       "url_count": 2,
       "best_bw": 1.06
     },
-    "云南卫视": {
-      "url_count": 6,
-      "best_bw": 2.09
-    },
     "NewTV-精品体育": {
       "url_count": 2,
       "best_bw": 0.61
     },
     "浙江经济生活": {
       "url_count": 3,
-      "best_bw": 1.33
-    },
-    "黎城综合频道": {
-      "url_count": 1,
       "best_bw": 1.33
     },
     "山西卫视": {
@@ -4344,17 +4398,9 @@
       "url_count": 1,
       "best_bw": 0.56
     },
-    "CCTV-10": {
-      "url_count": 7,
-      "best_bw": 3.53
-    },
     "伊犁维吾尔": {
       "url_count": 1,
       "best_bw": 1.44
-    },
-    "凤凰中文": {
-      "url_count": 1,
-      "best_bw": 1.83
     },
     "贵州卫视": {
       "url_count": 5,
@@ -4383,10 +4429,6 @@
     "柳河": {
       "url_count": 1,
       "best_bw": 0.82
-    },
-    "辉南新闻": {
-      "url_count": 1,
-      "best_bw": 0.93
     },
     "Compilation": {
       "url_count": 1,
@@ -4436,10 +4478,6 @@
       "url_count": 1,
       "best_bw": 0.91
     },
-    "普陀新闻综合": {
-      "url_count": 1,
-      "best_bw": 0.91
-    },
     "缙云综合频道": {
       "url_count": 1,
       "best_bw": 0.85
@@ -4447,10 +4485,6 @@
     "萧山新闻综合": {
       "url_count": 3,
       "best_bw": 1.02
-    },
-    "萧山生活": {
-      "url_count": 3,
-      "best_bw": 0.97
     },
     "春晚1991": {
       "url_count": 1,
@@ -4471,10 +4505,6 @@
     "CCTV+ 2": {
       "url_count": 1,
       "best_bw": 0.45
-    },
-    "Chaozhou Public Channel": {
-      "url_count": 1,
-      "best_bw": 1.1
     },
     "CGTN Global Biz": {
       "url_count": 1,
@@ -4500,21 +4530,9 @@
       "url_count": 2,
       "best_bw": 3.99
     },
-    "阳江-1": {
-      "url_count": 2,
-      "best_bw": 2.45
-    },
     "韶关新闻综合": {
       "url_count": 1,
       "best_bw": 2.09
-    },
-    "黄花城水长城03": {
-      "url_count": 1,
-      "best_bw": 0.77
-    },
-    "雪乡大石碑": {
-      "url_count": 1,
-      "best_bw": 0.93
     },
     "春晚1989": {
       "url_count": 1,
@@ -4535,10 +4553,6 @@
     "Nei Monggol TV": {
       "url_count": 1,
       "best_bw": 1.16
-    },
-    "大爱2台": {
-      "url_count": 1,
-      "best_bw": 0.23
     },
     "靖江新闻综合": {
       "url_count": 1,
@@ -4612,10 +4626,6 @@
       "url_count": 1,
       "best_bw": 0.88
     },
-    "CGTN记录": {
-      "url_count": 1,
-      "best_bw": 0.56
-    },
     "黄龙": {
       "url_count": 1,
       "best_bw": 0.87
@@ -4648,10 +4658,6 @@
       "url_count": 3,
       "best_bw": 1.99
     },
-    "「斗鱼」火影忍者": {
-      "url_count": 1,
-      "best_bw": 3.44
-    },
     "CCTV-文化精品": {
       "url_count": 1,
       "best_bw": 1.24
@@ -4672,17 +4678,9 @@
       "url_count": 1,
       "best_bw": 1.4
     },
-    "春晚1999": {
-      "url_count": 1,
-      "best_bw": 0.24
-    },
     "CCTV-16": {
       "url_count": 8,
       "best_bw": 3.08
-    },
-    "Xinjiang TV 8": {
-      "url_count": 1,
-      "best_bw": 1.23
     },
     "晋城新闻": {
       "url_count": 1,
@@ -4691,10 +4689,6 @@
     "泸州新闻综合": {
       "url_count": 1,
       "best_bw": 2.03
-    },
-    "山西公共": {
-      "url_count": 1,
-      "best_bw": 1.75
     },
     "中央电视塔南": {
       "url_count": 1,
@@ -4719,10 +4713,6 @@
     "青岛崂山双福": {
       "url_count": 1,
       "best_bw": 0.69
-    },
-    "iHOT-爱体育": {
-      "url_count": 6,
-      "best_bw": 4.08
     },
     "PPTV-2": {
       "url_count": 2,
@@ -4756,14 +4746,6 @@
       "url_count": 10,
       "best_bw": 2.89
     },
-    "LLBN TV Chinese": {
-      "url_count": 1,
-      "best_bw": 0.53
-    },
-    "Taiwan Indigenous TV (720p)": {
-      "url_count": 1,
-      "best_bw": 1.96
-    },
     "王晶电影": {
       "url_count": 1,
       "best_bw": 0.69
@@ -4779,10 +4761,6 @@
     "广东影视": {
       "url_count": 3,
       "best_bw": 3.71
-    },
-    "绍兴电视台公共": {
-      "url_count": 1,
-      "best_bw": 0.97
     },
     "Cuckold": {
       "url_count": 1,
@@ -4808,10 +4786,6 @@
       "url_count": 1,
       "best_bw": 0.11
     },
-    "广西国际": {
-      "url_count": 1,
-      "best_bw": 0.32
-    },
     "南方卫视": {
       "url_count": 1,
       "best_bw": 2.23
@@ -4827,10 +4801,6 @@
     "「虎牙」CS 2": {
       "url_count": 1,
       "best_bw": 0.81
-    },
-    "长子综合": {
-      "url_count": 1,
-      "best_bw": 1.4
     },
     "云南丽江玉龙雪山": {
       "url_count": 1,
@@ -4868,10 +4838,6 @@
       "url_count": 1,
       "best_bw": 0.74
     },
-    "漫威「解说」": {
-      "url_count": 1,
-      "best_bw": 1.19
-    },
     "双阳综合": {
       "url_count": 1,
       "best_bw": 0.83
@@ -4884,10 +4850,6 @@
       "url_count": 1,
       "best_bw": 1.84
     },
-    "倩女幽魂妖魔道": {
-      "url_count": 1,
-      "best_bw": 0.68
-    },
     "北京卡酷少儿": {
       "url_count": 4,
       "best_bw": 3.72
@@ -4895,10 +4857,6 @@
     "湛江新闻综合": {
       "url_count": 2,
       "best_bw": 3.31
-    },
-    "Viva 美好購物2台": {
-      "url_count": 1,
-      "best_bw": 0.14
     },
     "东方卫视 4K": {
       "url_count": 1,
@@ -4916,25 +4874,13 @@
       "url_count": 1,
       "best_bw": 1.44
     },
-    "荣昌综合频道": {
-      "url_count": 1,
-      "best_bw": 1.76
-    },
     "安徽导视": {
       "url_count": 1,
       "best_bw": 1.26
     },
-    "书法频道": {
-      "url_count": 2,
-      "best_bw": 4.08
-    },
     "潮州民生": {
       "url_count": 2,
       "best_bw": 2.26
-    },
-    "佛山公共": {
-      "url_count": 3,
-      "best_bw": 1.83
     },
     "上虞文化影院": {
       "url_count": 1,
@@ -4956,10 +4902,6 @@
       "url_count": 4,
       "best_bw": 3.87
     },
-    "Baicheng TV [Geo-blocked]": {
-      "url_count": 1,
-      "best_bw": 0.77
-    },
     "Blonde": {
       "url_count": 1,
       "best_bw": 0.58
@@ -4967,10 +4909,6 @@
     "哈尔滨新闻综合": {
       "url_count": 1,
       "best_bw": 1.99
-    },
-    "深圳卫视": {
-      "url_count": 14,
-      "best_bw": 3.85
     },
     "春晚2004": {
       "url_count": 1,
